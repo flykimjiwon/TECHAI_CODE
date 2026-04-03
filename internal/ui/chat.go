@@ -14,6 +14,7 @@ const (
 	RoleUser Role = iota
 	RoleAssistant
 	RoleSystem
+	RoleTool
 )
 
 type Message struct {
@@ -37,6 +38,10 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 			lines = append(lines, "  "+content)
 		case RoleSystem:
 			content := SystemMsg.Render("  " + msg.Content)
+			lines = append(lines, content)
+		case RoleTool:
+			toolStyle := lipgloss.NewStyle().Foreground(ColorAccent)
+			content := toolStyle.Render("  " + msg.Content)
 			lines = append(lines, content)
 		}
 		lines = append(lines, "")

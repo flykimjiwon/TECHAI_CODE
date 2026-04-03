@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -14,15 +15,26 @@ import (
 
 	"github.com/kimjiwon/tgc/internal/config"
 	"github.com/kimjiwon/tgc/internal/llm"
+	"github.com/kimjiwon/tgc/internal/tools"
 	"github.com/kimjiwon/tgc/internal/ui"
 )
 
 type streamChunkMsg struct {
-	content string
-	done    bool
-	err     error
+	content   string
+	done      bool
+	err       error
+	toolCalls []llm.ToolCallInfo
 }
 
+type toolResultMsg struct {
+	results []toolResult
+}
+
+type toolResult struct {
+	callID string
+	name   string
+	output string
+}
 
 type Model struct {
 	cfg       config.Config
@@ -42,6 +54,7 @@ type Model struct {
 	streamStart  time.Time
 	lastElapsed  time.Duration
 	tokenCount   int
+	toolIter     int // tool loop iteration counter (max 20)
 
 	inSetup    bool
 	setupInput textarea.Model
@@ -86,10 +99,17 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		m.client = llm.NewClient(cfg.API.BaseURL, cfg.API.APIKey)
 	}
 
+	// Load project context from .techai.md if it exists
+	projectCtx := ""
+	if data, err := os.ReadFile(".techai.md"); err == nil && len(data) > 0 {
+		projectCtx = "\n\n## Project Context (.techai.md)\n" + string(data)
+	}
+
 	for i := 0; i < llm.ModeCount; i++ {
 		mode := llm.Mode(i)
+		sysPrompt := llm.SystemPrompt(mode) + projectCtx
 		m.histories[i] = []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: llm.SystemPrompt(mode)},
+			{Role: openai.ChatMessageRoleSystem, Content: sysPrompt},
 		}
 		m.messages[i] = []ui.Message{
 			{Role: ui.RoleSystem, Content: ui.ModeWelcome(i), Timestamp: time.Now()},
@@ -137,7 +157,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case tea.KeyEnter:
 			if msg.Alt {
-				// Shift/Alt+Enter = newline, grow textarea
 				h := m.textarea.Height()
 				if h < 6 {
 					m.textarea.SetHeight(h + 1)
@@ -158,7 +177,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case tea.KeyPgUp, tea.KeyPgDown, tea.KeyUp, tea.KeyDown:
-			// Pass scroll keys to viewport when textarea is single line
 			if m.textarea.Height() <= 1 && (msg.Type == tea.KeyPgUp || msg.Type == tea.KeyPgDown) {
 				var vpCmd tea.Cmd
 				m.viewport, vpCmd = m.viewport.Update(msg)
@@ -180,15 +198,71 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.streamCh = nil
 			m.lastElapsed = time.Since(m.streamStart)
 			m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
-				Role: ui.RoleSystem, Content: fmt.Sprintf("오류: %v", msg.err), Timestamp: time.Now(),
+				Role: ui.RoleSystem, Content: fmt.Sprintf("Error: %v", msg.err), Timestamp: time.Now(),
 			})
 			m.streamBuf = ""
 			m.updateViewport()
 			return m, nil
 		}
 		if msg.done {
-			m.streaming = false
 			m.streamCh = nil
+
+			// Check if AI wants to call tools
+			if len(msg.toolCalls) > 0 {
+				// Save any text the AI said before tool calls
+				if m.streamBuf != "" {
+					m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+						Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),
+					})
+				}
+
+				// Add assistant message with tool calls to history
+				assistantMsg := openai.ChatCompletionMessage{
+					Role:    openai.ChatMessageRoleAssistant,
+					Content: m.streamBuf,
+				}
+				var oaiToolCalls []openai.ToolCall
+				for _, tc := range msg.toolCalls {
+					oaiToolCalls = append(oaiToolCalls, openai.ToolCall{
+						ID:   tc.ID,
+						Type: openai.ToolTypeFunction,
+						Function: openai.FunctionCall{
+							Name:      tc.Name,
+							Arguments: tc.Arguments,
+						},
+					})
+				}
+				assistantMsg.ToolCalls = oaiToolCalls
+				m.histories[m.activeTab] = append(m.histories[m.activeTab], assistantMsg)
+
+				// Show tool calls in TUI
+				for _, tc := range msg.toolCalls {
+					status := fmt.Sprintf(">> %s(%s)", tc.Name, truncateArgs(tc.Arguments, 60))
+					m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+						Role: ui.RoleTool, Content: status, Timestamp: time.Now(),
+					})
+				}
+				m.streamBuf = ""
+				m.updateViewport()
+
+				// Execute tools asynchronously
+				calls := msg.toolCalls
+				return m, func() tea.Msg {
+					var results []toolResult
+					for _, tc := range calls {
+						output := tools.Execute(tc.Name, tc.Arguments)
+						results = append(results, toolResult{
+							callID: tc.ID,
+							name:   tc.Name,
+							output: output,
+						})
+					}
+					return toolResultMsg{results: results}
+				}
+			}
+
+			// Normal completion (no tool calls)
+			m.streaming = false
 			m.lastElapsed = time.Since(m.streamStart)
 			if m.streamBuf != "" {
 				m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
@@ -206,9 +280,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tokenCount++
 		m.updateViewport()
 		return m, m.waitForNextChunk()
+
+	case toolResultMsg:
+		// Add tool results to history
+		for _, r := range msg.results {
+			m.histories[m.activeTab] = append(m.histories[m.activeTab], openai.ChatCompletionMessage{
+				Role:       openai.ChatMessageRoleTool,
+				Content:    r.output,
+				ToolCallID: r.callID,
+			})
+			// Show brief result in TUI
+			preview := truncateArgs(r.output, 100)
+			m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+				Role: ui.RoleTool, Content: fmt.Sprintf("<< %s: %s", r.name, preview), Timestamp: time.Now(),
+			})
+		}
+		m.streamBuf = ""
+		m.toolIter++
+		m.updateViewport()
+
+		// Safety: stop after 20 tool loop iterations
+		if m.toolIter >= 20 {
+			m.streaming = false
+			m.lastElapsed = time.Since(m.streamStart)
+			m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+				Role: ui.RoleSystem, Content: "[tool loop limit reached — 20 iterations]", Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return m, nil
+		}
+
+		// Continue: send results back to AI for next response
+		return m, m.continueAfterTools()
 	}
 
-	// Only pass key events to textarea, not mouse events
 	if _, ok := msg.(tea.KeyMsg); ok {
 		var taCmd tea.Cmd
 		m.textarea, taCmd = m.textarea.Update(msg)
@@ -334,8 +439,8 @@ func (m *Model) recalcLayout() {
 	if m.width == 0 || m.height == 0 {
 		return
 	}
-	inputH := m.textarea.Height() + 2 // +2 for border
-	fixed := inputH + 1               // input + statusBar
+	inputH := m.textarea.Height() + 2
+	fixed := inputH + 1
 	vpHeight := m.height - fixed
 	if vpHeight < 3 {
 		vpHeight = 3
@@ -364,6 +469,18 @@ func (m Model) currentModel() string {
 	}
 }
 
+// startStream creates a new streaming request with tool definitions.
+func (m *Model) startStream() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	m.streamCancel = cancel
+	model := m.currentModel()
+	history := make([]openai.ChatCompletionMessage, len(m.histories[m.activeTab]))
+	copy(history, m.histories[m.activeTab])
+	toolDefs := tools.ToolsForMode(m.activeTab)
+	m.streamCh = m.client.StreamChat(ctx, model, history, toolDefs)
+	return m.waitForNextChunk()
+}
+
 func (m *Model) sendMessage(input string) tea.Cmd {
 	m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
 		Role: ui.RoleUser, Content: input, Timestamp: time.Now(),
@@ -374,16 +491,17 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.streaming = true
 	m.streamBuf = ""
 	m.tokenCount = 0
+	m.toolIter = 0
 	m.streamStart = time.Now()
 	m.updateViewport()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	m.streamCancel = cancel
-	model := m.currentModel()
-	history := make([]openai.ChatCompletionMessage, len(m.histories[m.activeTab]))
-	copy(history, m.histories[m.activeTab])
-	m.streamCh = m.client.StreamChat(ctx, model, history)
-	return m.waitForNextChunk()
+	return m.startStream()
+}
+
+// continueAfterTools starts a new stream after tool results are added to history.
+func (m *Model) continueAfterTools() tea.Cmd {
+	m.streamBuf = ""
+	return m.startStream()
 }
 
 func (m *Model) waitForNextChunk() tea.Cmd {
@@ -396,7 +514,12 @@ func (m *Model) waitForNextChunk() tea.Cmd {
 		if !ok {
 			return streamChunkMsg{done: true}
 		}
-		return streamChunkMsg{content: chunk.Content, done: chunk.Done, err: chunk.Err}
+		return streamChunkMsg{
+			content:   chunk.Content,
+			done:      chunk.Done,
+			err:       chunk.Err,
+			toolCalls: chunk.ToolCalls,
+		}
 	}
 }
 
@@ -418,4 +541,12 @@ func (m *Model) cancelStream() {
 	}
 	m.streamBuf = ""
 	m.updateViewport()
+}
+
+func truncateArgs(s string, max int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	if len(s) > max {
+		return s[:max] + "..."
+	}
+	return s
 }
