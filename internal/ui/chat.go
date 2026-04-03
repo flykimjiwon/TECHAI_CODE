@@ -1,0 +1,103 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+type Role int
+
+const (
+	RoleUser Role = iota
+	RoleAssistant
+	RoleSystem
+)
+
+type Message struct {
+	Role      Role
+	Content   string
+	Timestamp time.Time
+}
+
+func RenderMessages(messages []Message, streaming string, width int) string {
+	var lines []string
+	contentWidth := width - 4
+
+	for _, msg := range messages {
+		switch msg.Role {
+		case RoleUser:
+			prefix := UserMsg.Render("  > ")
+			content := wrapText(msg.Content, contentWidth)
+			lines = append(lines, prefix+content)
+		case RoleAssistant:
+			content := wrapText(msg.Content, contentWidth)
+			lines = append(lines, "  "+content)
+		case RoleSystem:
+			content := SystemMsg.Render("  " + msg.Content)
+			lines = append(lines, content)
+		}
+		lines = append(lines, "")
+	}
+
+	if streaming != "" {
+		lines = append(lines, "  "+streaming+"▊")
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, width int) string {
+	modeStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#94A3B8")).
+		Bold(true)
+
+	modeName := Tabs[mode].Name
+	left := modeStyle.Render("  "+modeName) +
+		Subtle.Render("  "+model)
+
+	if tokens > 0 {
+		left += Subtle.Render(fmt.Sprintf("  %dtok", tokens))
+	}
+	if elapsed > 0 {
+		left += Subtle.Render(fmt.Sprintf("  %.1fs", elapsed.Seconds()))
+	}
+
+	right := Subtle.Render("택가이코드  /help")
+
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 2
+	if gap < 1 {
+		gap = 1
+	}
+
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color("#0F172A")).
+		Width(width).
+		Render(left + strings.Repeat(" ", gap) + right)
+}
+
+func wrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	var result strings.Builder
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if i > 0 {
+			result.WriteString("\n")
+		}
+		if len(line) <= width {
+			result.WriteString(line)
+			continue
+		}
+		for len(line) > width {
+			result.WriteString(line[:width])
+			result.WriteString("\n")
+			line = line[width:]
+		}
+		result.WriteString(line)
+	}
+	return result.String()
+}

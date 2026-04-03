@@ -1,0 +1,16 @@
+# Binaries
+techai
+techai.exe
+tgc
+tgc.exe
+dist/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# OMC state
+.omc/
