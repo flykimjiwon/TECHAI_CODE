@@ -48,7 +48,8 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	}
 
 	if streaming != "" {
-		lines = append(lines, "  "+streaming+"▊")
+		wrapped := wrapText(streaming, contentWidth)
+		lines = append(lines, "  "+wrapped+"▊")
 	}
 
 	return strings.Join(lines, "\n")
@@ -93,16 +94,28 @@ func wrapText(text string, width int) string {
 		if i > 0 {
 			result.WriteString("\n")
 		}
-		if len(line) <= width {
+		// Use display width (handles CJK double-width characters correctly)
+		if lipgloss.Width(line) <= width {
 			result.WriteString(line)
 			continue
 		}
-		for len(line) > width {
-			result.WriteString(line[:width])
-			result.WriteString("\n")
-			line = line[width:]
+		runes := []rune(line)
+		cur := 0 // current display width
+		start := 0
+		for j, r := range runes {
+			rw := lipgloss.Width(string(r))
+			if cur+rw > width {
+				result.WriteString(string(runes[start:j]))
+				result.WriteString("\n")
+				start = j
+				cur = rw
+			} else {
+				cur += rw
+			}
 		}
-		result.WriteString(line)
+		if start < len(runes) {
+			result.WriteString(string(runes[start:]))
+		}
 	}
 	return result.String()
 }
