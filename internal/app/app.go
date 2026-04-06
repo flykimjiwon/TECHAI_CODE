@@ -499,54 +499,7 @@ func (m *Model) updateViewport() {
 }
 
 func (m Model) currentModel() string {
-	switch m.activeTab {
-	case 1: // 개발 — always use code model
-		return m.cfg.Models.Dev
-	case 0: // 슈퍼택가이 — auto-route based on last user message
-		return m.autoRouteModel()
-	default: // 플랜
-		return m.cfg.Models.Super
-	}
-}
-
-// autoRouteModel picks the best model for 슈퍼택가이 mode.
-// Code-heavy requests → qwen-coder, everything else → gpt-oss.
-func (m Model) autoRouteModel() string {
-	// Find the last user message
-	var lastMsg string
-	for i := len(m.history) - 1; i >= 0; i-- {
-		if m.history[i].Role == openai.ChatMessageRoleUser {
-			lastMsg = strings.ToLower(m.history[i].Content)
-			break
-		}
-	}
-	if lastMsg == "" {
-		return m.cfg.Models.Super
-	}
-
-	// Code-related keywords → use coding model
-	codeKeywords := []string{
-		// Actions
-		"코드", "구현", "작성", "수정", "파일", "함수", "클래스", "컴포넌트",
-		"리팩터", "리팩토링", "디버그", "버그", "에러", "오류", "fix", "빌드",
-		// Languages / frameworks
-		"react", "next", "vue", "svelte", "node", "python", "go ", "golang",
-		"typescript", "javascript", "html", "css", "tailwind", "prisma",
-		"api", "endpoint", "route", "import", "export", "npm", "yarn",
-		// File operations
-		"만들어", "생성", "추가", "삭제", "변경", "업데이트",
-		".js", ".ts", ".tsx", ".py", ".go", ".css", ".json",
-		// Code patterns
-		"function", "const ", "let ", "var ", "class ", "interface ",
-		"async", "await", "return", "if ", "for ", "while",
-	}
-
-	for _, kw := range codeKeywords {
-		if strings.Contains(lastMsg, kw) {
-			return m.cfg.Models.Dev
-		}
-	}
-
+	// gpt-oss-120b for all modes — superior in intelligence, speed, and cost
 	return m.cfg.Models.Super
 }
 
