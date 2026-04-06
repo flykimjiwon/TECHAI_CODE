@@ -25,31 +25,45 @@ type Message struct {
 
 func RenderMessages(messages []Message, streaming string, width int) string {
 	var lines []string
-	contentWidth := width - 4
+	contentWidth := width - 6
 
 	for _, msg := range messages {
 		switch msg.Role {
 		case RoleUser:
 			prefix := UserMsg.Render("  > ")
-			content := wrapText(msg.Content, contentWidth)
+			content := wrapText(msg.Content, contentWidth-4)
 			lines = append(lines, prefix+content)
 		case RoleAssistant:
 			content := wrapText(msg.Content, contentWidth)
-			lines = append(lines, "  "+content)
+			for _, line := range strings.Split(content, "\n") {
+				lines = append(lines, "  "+line)
+			}
+			lines = append(lines, "")
+			continue
 		case RoleSystem:
-			content := SystemMsg.Render("  " + msg.Content)
-			lines = append(lines, content)
+			wrapped := wrapText(msg.Content, contentWidth)
+			for _, line := range strings.Split(wrapped, "\n") {
+				lines = append(lines, SystemMsg.Render("  "+line))
+			}
+			lines = append(lines, "")
+			continue
 		case RoleTool:
 			toolStyle := lipgloss.NewStyle().Foreground(ColorAccent)
-			content := toolStyle.Render("  " + msg.Content)
-			lines = append(lines, content)
+			wrapped := wrapText(msg.Content, contentWidth-2)
+			lines = append(lines, toolStyle.Render("  "+wrapped))
 		}
 		lines = append(lines, "")
 	}
 
 	if streaming != "" {
 		wrapped := wrapText(streaming, contentWidth)
-		lines = append(lines, "  "+wrapped+"▊")
+		for _, line := range strings.Split(wrapped, "\n") {
+			lines = append(lines, "  "+line)
+		}
+		// Add cursor to last line
+		if len(lines) > 0 {
+			lines[len(lines)-1] += "▊"
+		}
 	}
 
 	return strings.Join(lines, "\n")

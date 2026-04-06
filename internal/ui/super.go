@@ -14,6 +14,7 @@ var logoLines = []string{
 	"    ██║   ██╔══╝  ██║     ██╔══██║██╔══██║██║",
 	"    ██║   ███████╗╚██████╗██║  ██║██║  ██║██║",
 	"    ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝",
+	"                     C O D E",
 }
 
 func RenderLogo() string {
@@ -22,12 +23,16 @@ func RenderLogo() string {
 	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#1D4ED8"))               // blue-700
 
 	var b strings.Builder
+	subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD")).Bold(true) // blue-300
+
 	for i, line := range logoLines {
 		switch {
 		case i <= 1:
 			b.WriteString(bright.Render(line))
 		case i <= 3:
 			b.WriteString(mid.Render(line))
+		case i == len(logoLines)-1:
+			b.WriteString(subtitle.Render(line))
 		default:
 			b.WriteString(dim.Render(line))
 		}
@@ -50,7 +55,7 @@ func ModeWelcome(mode int) string {
 
 	tipStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(modeClr).
+		BorderForeground(lipgloss.Color("#9CA3AF")).
 		Padding(0, 1).
 		Width(55)
 

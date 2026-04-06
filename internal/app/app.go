@@ -176,12 +176,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case tea.KeyPgUp, tea.KeyPgDown, tea.KeyUp, tea.KeyDown:
-			if m.textarea.Height() <= 1 && (msg.Type == tea.KeyPgUp || msg.Type == tea.KeyPgDown) {
-				var vpCmd tea.Cmd
-				m.viewport, vpCmd = m.viewport.Update(msg)
-				return m, vpCmd
-			}
+		case tea.KeyPgUp, tea.KeyPgDown:
+			var vpCmd tea.Cmd
+			m.viewport, vpCmd = m.viewport.Update(msg)
+			return m, vpCmd
 		}
 
 	case tea.WindowSizeMsg:
@@ -314,6 +312,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.continueAfterTools()
 	}
 
+	// Forward mouse events to viewport for scroll support
+	if _, ok := msg.(tea.MouseMsg); ok {
+		var vpCmd tea.Cmd
+		m.viewport, vpCmd = m.viewport.Update(msg)
+		return m, vpCmd
+	}
+
 	if _, ok := msg.(tea.KeyMsg); ok {
 		var taCmd tea.Cmd
 		m.textarea, taCmd = m.textarea.Update(msg)
@@ -405,11 +410,10 @@ func (m Model) View() string {
 
 	content := m.viewport.View()
 
-	// Input box with mode-colored border
-	modeColor := ui.ModeColor(m.activeTab)
+	// Input box with gray border
 	inputBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(modeColor).
+		BorderForeground(lipgloss.Color("#9CA3AF")).
 		Width(m.width - 4).
 		Render(m.textarea.View())
 
