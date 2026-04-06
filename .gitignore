@@ -1,8 +1,8 @@
-# Binaries
-techai
-techai.exe
-tgc
-tgc.exe
+# Binaries (root only, not cmd/tgc/ source)
+/techai
+/techai.exe
+/tgc
+/tgc.exe
 dist/
 
 # OS
