@@ -69,9 +69,9 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, width int) string {
+func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, cwd string, width int) string {
 	modeStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#94A3B8")).
+		Foreground(ModeColor(mode)).
 		Bold(true)
 
 	modeName := Tabs[mode].Name
@@ -85,7 +85,7 @@ func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, 
 		left += Subtle.Render(fmt.Sprintf("  %.1fs", elapsed.Seconds()))
 	}
 
-	right := Subtle.Render("택가이코드  /help")
+	right := Subtle.Render(cwd + "  /help")
 
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {

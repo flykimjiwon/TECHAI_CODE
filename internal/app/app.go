@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,9 +41,13 @@ type Model struct {
 	cfg       config.Config
 	client    *llm.Client
 	activeTab int
+	cwd       string // current working directory (abbreviated)
 
-	histories [llm.ModeCount][]openai.ChatCompletionMessage
-	messages  [llm.ModeCount][]ui.Message
+	// Single shared conversation (not per-mode)
+	history []openai.ChatCompletionMessage
+	msgs    []ui.Message
+
+	projectCtx string // .techai.md content
 
 	textarea textarea.Model
 	viewport viewport.Model
@@ -83,9 +88,21 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 
 	vp := viewport.New(80, 20)
 
+	// Get abbreviated cwd
+	cwd, _ := os.Getwd()
+	cwdShort := filepath.Base(cwd)
+
+	// Load project context
+	projectCtx := ""
+	if data, err := os.ReadFile(".techai.md"); err == nil && len(data) > 0 {
+		projectCtx = "\n\n## Project Context (.techai.md)\n" + string(data)
+	}
+
 	m := Model{
 		cfg:        cfg,
 		activeTab:  initialMode,
+		cwd:        cwdShort,
+		projectCtx: projectCtx,
 		textarea:   ta,
 		viewport:   vp,
 		inSetup:    needsSetup,
@@ -99,21 +116,14 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		m.client = llm.NewClient(cfg.API.BaseURL, cfg.API.APIKey)
 	}
 
-	// Load project context from .techai.md if it exists
-	projectCtx := ""
-	if data, err := os.ReadFile(".techai.md"); err == nil && len(data) > 0 {
-		projectCtx = "\n\n## Project Context (.techai.md)\n" + string(data)
+	// Single conversation with initial mode's system prompt
+	mode := llm.Mode(initialMode)
+	sysPrompt := llm.SystemPrompt(mode) + projectCtx
+	m.history = []openai.ChatCompletionMessage{
+		{Role: openai.ChatMessageRoleSystem, Content: sysPrompt},
 	}
-
-	for i := 0; i < llm.ModeCount; i++ {
-		mode := llm.Mode(i)
-		sysPrompt := llm.SystemPrompt(mode) + projectCtx
-		m.histories[i] = []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: sysPrompt},
-		}
-		m.messages[i] = []ui.Message{
-			{Role: ui.RoleSystem, Content: ui.ModeWelcome(i), Timestamp: time.Now()},
-		}
+	m.msgs = []ui.Message{
+		{Role: ui.RoleSystem, Content: ui.ModeWelcome(initialMode), Timestamp: time.Now()},
 	}
 
 	return m
@@ -142,8 +152,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case tea.KeyCtrlL:
-			m.messages[m.activeTab] = m.messages[m.activeTab][:1]
-			m.histories[m.activeTab] = m.histories[m.activeTab][:1]
+			// Keep system prompt, clear conversation
+			m.history = m.history[:1]
+			m.msgs = m.msgs[:0]
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: ui.ModeWelcome(m.activeTab), Timestamp: time.Now(),
+			})
 			m.streamBuf = ""
 			m.tokenCount = 0
 			m.lastElapsed = 0
@@ -151,7 +165,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case tea.KeyTab:
+			oldMode := m.activeTab
 			m.activeTab = (m.activeTab + 1) % llm.ModeCount
+			// Update system prompt for new mode
+			mode := llm.Mode(m.activeTab)
+			m.history[0] = openai.ChatCompletionMessage{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: llm.SystemPrompt(mode) + m.projectCtx,
+			}
+			// Show mode switch notification
+			oldName := ui.Tabs[oldMode].Name
+			newName := ui.Tabs[m.activeTab].Name
+			m.msgs = append(m.msgs, ui.Message{
+				Role:      ui.RoleSystem,
+				Content:   fmt.Sprintf("모드 전환: %s → %s", oldName, newName),
+				Timestamp: time.Now(),
+			})
 			m.updateViewport()
 			return m, nil
 
@@ -195,7 +224,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.streaming = false
 			m.streamCh = nil
 			m.lastElapsed = time.Since(m.streamStart)
-			m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+			m.msgs = append(m.msgs, ui.Message{
 				Role: ui.RoleSystem, Content: fmt.Sprintf("Error: %v", msg.err), Timestamp: time.Now(),
 			})
 			m.streamBuf = ""
@@ -207,14 +236,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Check if AI wants to call tools
 			if len(msg.toolCalls) > 0 {
-				// Save any text the AI said before tool calls
 				if m.streamBuf != "" {
-					m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+					m.msgs = append(m.msgs, ui.Message{
 						Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),
 					})
 				}
 
-				// Add assistant message with tool calls to history
 				assistantMsg := openai.ChatCompletionMessage{
 					Role:    openai.ChatMessageRoleAssistant,
 					Content: m.streamBuf,
@@ -231,19 +258,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					})
 				}
 				assistantMsg.ToolCalls = oaiToolCalls
-				m.histories[m.activeTab] = append(m.histories[m.activeTab], assistantMsg)
+				m.history = append(m.history, assistantMsg)
 
-				// Show tool calls in TUI
 				for _, tc := range msg.toolCalls {
 					status := fmt.Sprintf(">> %s(%s)", tc.Name, truncateArgs(tc.Arguments, 60))
-					m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+					m.msgs = append(m.msgs, ui.Message{
 						Role: ui.RoleTool, Content: status, Timestamp: time.Now(),
 					})
 				}
 				m.streamBuf = ""
 				m.updateViewport()
 
-				// Execute tools asynchronously
 				calls := msg.toolCalls
 				return m, func() tea.Msg {
 					var results []toolResult
@@ -263,10 +288,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.streaming = false
 			m.lastElapsed = time.Since(m.streamStart)
 			if m.streamBuf != "" {
-				m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+				m.msgs = append(m.msgs, ui.Message{
 					Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),
 				})
-				m.histories[m.activeTab] = append(m.histories[m.activeTab], openai.ChatCompletionMessage{
+				m.history = append(m.history, openai.ChatCompletionMessage{
 					Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
 				})
 			}
@@ -280,16 +305,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.waitForNextChunk()
 
 	case toolResultMsg:
-		// Add tool results to history
 		for _, r := range msg.results {
-			m.histories[m.activeTab] = append(m.histories[m.activeTab], openai.ChatCompletionMessage{
+			m.history = append(m.history, openai.ChatCompletionMessage{
 				Role:       openai.ChatMessageRoleTool,
 				Content:    r.output,
 				ToolCallID: r.callID,
 			})
-			// Show brief result in TUI
 			preview := truncateArgs(r.output, 100)
-			m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+			m.msgs = append(m.msgs, ui.Message{
 				Role: ui.RoleTool, Content: fmt.Sprintf("<< %s: %s", r.name, preview), Timestamp: time.Now(),
 			})
 		}
@@ -297,18 +320,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.toolIter++
 		m.updateViewport()
 
-		// Safety: stop after 20 tool loop iterations
 		if m.toolIter >= 20 {
 			m.streaming = false
 			m.lastElapsed = time.Since(m.streamStart)
-			m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
-				Role: ui.RoleSystem, Content: "[tool loop limit reached — 20 iterations]", Timestamp: time.Now(),
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[tool loop limit — 20 iterations]", Timestamp: time.Now(),
 			})
 			m.updateViewport()
 			return m, nil
 		}
 
-		// Continue: send results back to AI for next response
 		return m, m.continueAfterTools()
 	}
 
@@ -374,8 +395,11 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		return true, nil
 
 	case "/clear":
-		m.messages[m.activeTab] = m.messages[m.activeTab][:1]
-		m.histories[m.activeTab] = m.histories[m.activeTab][:1]
+		m.history = m.history[:1]
+		m.msgs = m.msgs[:0]
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: ui.ModeWelcome(m.activeTab), Timestamp: time.Now(),
+		})
 		m.streamBuf = ""
 		m.tokenCount = 0
 		m.lastElapsed = 0
@@ -384,7 +408,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 
 	case "/help":
 		help := `  /clear — 대화삭제    Ctrl+C — 종료`
-		m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
 		m.updateViewport()
@@ -417,13 +441,13 @@ func (m Model) View() string {
 		Width(m.width - 4).
 		Render(m.textarea.View())
 
-	// Status bar below input
+	// Status bar below input — includes cwd
 	model := m.currentModel()
 	elapsed := m.lastElapsed
 	if m.streaming {
 		elapsed = time.Since(m.streamStart)
 	}
-	statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.width)
+	statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width)
 
 	return lipgloss.JoinVertical(lipgloss.Left, hintBar, content, inputBox, statusBar)
 }
@@ -469,18 +493,61 @@ func (m *Model) updateViewport() {
 	if m.streaming {
 		stream = m.streamBuf
 	}
-	content := ui.RenderMessages(m.messages[m.activeTab], stream, m.viewport.Width)
+	content := ui.RenderMessages(m.msgs, stream, m.viewport.Width)
 	m.viewport.SetContent(content)
 	m.viewport.GotoBottom()
 }
 
 func (m Model) currentModel() string {
 	switch m.activeTab {
-	case 1: // 개발
+	case 1: // 개발 — always use code model
 		return m.cfg.Models.Dev
-	default: // 슈퍼택가이, 플랜 모두 super 모델 사용
+	case 0: // 슈퍼택가이 — auto-route based on last user message
+		return m.autoRouteModel()
+	default: // 플랜
 		return m.cfg.Models.Super
 	}
+}
+
+// autoRouteModel picks the best model for 슈퍼택가이 mode.
+// Code-heavy requests → qwen-coder, everything else → gpt-oss.
+func (m Model) autoRouteModel() string {
+	// Find the last user message
+	var lastMsg string
+	for i := len(m.history) - 1; i >= 0; i-- {
+		if m.history[i].Role == openai.ChatMessageRoleUser {
+			lastMsg = strings.ToLower(m.history[i].Content)
+			break
+		}
+	}
+	if lastMsg == "" {
+		return m.cfg.Models.Super
+	}
+
+	// Code-related keywords → use coding model
+	codeKeywords := []string{
+		// Actions
+		"코드", "구현", "작성", "수정", "파일", "함수", "클래스", "컴포넌트",
+		"리팩터", "리팩토링", "디버그", "버그", "에러", "오류", "fix", "빌드",
+		// Languages / frameworks
+		"react", "next", "vue", "svelte", "node", "python", "go ", "golang",
+		"typescript", "javascript", "html", "css", "tailwind", "prisma",
+		"api", "endpoint", "route", "import", "export", "npm", "yarn",
+		// File operations
+		"만들어", "생성", "추가", "삭제", "변경", "업데이트",
+		".js", ".ts", ".tsx", ".py", ".go", ".css", ".json",
+		// Code patterns
+		"function", "const ", "let ", "var ", "class ", "interface ",
+		"async", "await", "return", "if ", "for ", "while",
+	}
+
+	for _, kw := range codeKeywords {
+		if strings.Contains(lastMsg, kw) {
+			return m.cfg.Models.Dev
+		}
+	}
+
+	return m.cfg.Models.Super
 }
 
 // startStream creates a new streaming request with tool definitions.
@@ -488,18 +555,18 @@ func (m *Model) startStream() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.streamCancel = cancel
 	model := m.currentModel()
-	history := make([]openai.ChatCompletionMessage, len(m.histories[m.activeTab]))
-	copy(history, m.histories[m.activeTab])
+	history := make([]openai.ChatCompletionMessage, len(m.history))
+	copy(history, m.history)
 	toolDefs := tools.ToolsForMode(m.activeTab)
 	m.streamCh = m.client.StreamChat(ctx, model, history, toolDefs)
 	return m.waitForNextChunk()
 }
 
 func (m *Model) sendMessage(input string) tea.Cmd {
-	m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+	m.msgs = append(m.msgs, ui.Message{
 		Role: ui.RoleUser, Content: input, Timestamp: time.Now(),
 	})
-	m.histories[m.activeTab] = append(m.histories[m.activeTab], openai.ChatCompletionMessage{
+	m.history = append(m.history, openai.ChatCompletionMessage{
 		Role: openai.ChatMessageRoleUser, Content: input,
 	})
 	m.streaming = true
@@ -546,10 +613,10 @@ func (m *Model) cancelStream() {
 	m.streamCh = nil
 	m.lastElapsed = time.Since(m.streamStart)
 	if m.streamBuf != "" {
-		m.messages[m.activeTab] = append(m.messages[m.activeTab], ui.Message{
+		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleAssistant, Content: m.streamBuf + "\n\n[중단됨]", Timestamp: time.Now(),
 		})
-		m.histories[m.activeTab] = append(m.histories[m.activeTab], openai.ChatCompletionMessage{
+		m.history = append(m.history, openai.ChatCompletionMessage{
 			Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
 		})
 	}
