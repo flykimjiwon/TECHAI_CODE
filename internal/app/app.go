@@ -396,14 +396,24 @@ func (m Model) View() string {
 		return "\n  로딩중..."
 	}
 
+	// Top hint bar — shortcuts right-aligned
+	hintBar := lipgloss.NewStyle().
+		Foreground(ui.ColorMuted).
+		Width(m.width).
+		Align(lipgloss.Right).
+		Render("Tab 모드전환  /clear 대화삭제  Ctrl+C 종료 ")
+
 	content := m.viewport.View()
 
+	// Input box with mode-colored border
+	modeColor := ui.ModeColor(m.activeTab)
 	inputBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#334155")).
+		BorderForeground(modeColor).
 		Width(m.width - 4).
 		Render(m.textarea.View())
 
+	// Status bar below input
 	model := m.currentModel()
 	elapsed := m.lastElapsed
 	if m.streaming {
@@ -411,7 +421,7 @@ func (m Model) View() string {
 	}
 	statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.width)
 
-	return lipgloss.JoinVertical(lipgloss.Left, content, inputBox, statusBar)
+	return lipgloss.JoinVertical(lipgloss.Left, hintBar, content, inputBox, statusBar)
 }
 
 func (m Model) viewSetup() string {
@@ -440,7 +450,7 @@ func (m *Model) recalcLayout() {
 		return
 	}
 	inputH := m.textarea.Height() + 2
-	fixed := inputH + 1
+	fixed := inputH + 1 + 1 // input box + status bar + hint bar
 	vpHeight := m.height - fixed
 	if vpHeight < 3 {
 		vpHeight = 3

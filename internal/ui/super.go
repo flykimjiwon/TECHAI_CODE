@@ -44,13 +44,13 @@ func ModeWelcome(mode int) string {
 	b.WriteString(RenderLogo())
 	b.WriteString("\n\n")
 
-	dim := lipgloss.NewStyle().Foreground(ColorTextDim)
-	muted := lipgloss.NewStyle().Foreground(ColorMuted)
+	modeClr := ModeColor(mode)
+	modeName := lipgloss.NewStyle().Foreground(modeClr).Bold(true)
+	desc := lipgloss.NewStyle().Foreground(ColorText)
 
-	tipBorder := lipgloss.RoundedBorder()
 	tipStyle := lipgloss.NewStyle().
-		Border(tipBorder).
-		BorderForeground(lipgloss.Color("#1E293B")).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(modeClr).
 		Padding(0, 1).
 		Width(55)
 
@@ -58,24 +58,21 @@ func ModeWelcome(mode int) string {
 	switch mode {
 	case 0:
 		tips = fmt.Sprintf("%s\n%s",
-			dim.Render("슈퍼택가이 — GPT-OSS-120b"),
-			muted.Render("만능 모드. 코드 CRUD, 분석, 대화 자동 감지"),
+			modeName.Render("슈퍼택가이 — GPT-OSS-120b"),
+			desc.Render("만능 모드. 코드 CRUD, 분석, 대화 자동 감지"),
 		)
 	case 1:
 		tips = fmt.Sprintf("%s\n%s",
-			dim.Render("개발 — Qwen-Coder-30b"),
-			muted.Render("코딩 특화. 파일 생성/읽기/수정/삭제"),
+			modeName.Render("개발 — Qwen-Coder-30b"),
+			desc.Render("코딩 특화. 파일 생성/읽기/수정/삭제"),
 		)
 	case 2:
 		tips = fmt.Sprintf("%s\n%s",
-			dim.Render("플랜 — GPT-OSS-120b"),
-			muted.Render("분석/계획. 읽기 전용, 구조 파악, 리뷰"),
+			modeName.Render("플랜 — GPT-OSS-120b"),
+			desc.Render("분석/계획. 읽기 전용, 구조 파악, 리뷰"),
 		)
 	}
 	b.WriteString(tipStyle.Render(tips))
-	b.WriteString("\n\n")
-
-	b.WriteString(muted.Render("  Tab 모드전환  /clear 대화삭제  Ctrl+C 종료"))
 
 	return b.String()
 }
