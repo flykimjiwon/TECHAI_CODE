@@ -85,7 +85,7 @@ func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, 
 		left += Subtle.Render(fmt.Sprintf("  %.1fs", elapsed.Seconds()))
 	}
 
-	right := Subtle.Render(cwd + "  /help")
+	right := Subtle.Render("Tab 모드전환  /clear 대화삭제  Ctrl+C 종료  " + cwd)
 
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {

@@ -165,7 +165,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case tea.KeyTab:
-			oldMode := m.activeTab
 			m.activeTab = (m.activeTab + 1) % llm.ModeCount
 			// Update system prompt for new mode
 			mode := llm.Mode(m.activeTab)
@@ -173,14 +172,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Role:    openai.ChatMessageRoleSystem,
 				Content: llm.SystemPrompt(mode) + m.projectCtx,
 			}
-			// Show mode switch notification
-			oldName := ui.Tabs[oldMode].Name
-			newName := ui.Tabs[m.activeTab].Name
-			m.msgs = append(m.msgs, ui.Message{
-				Role:      ui.RoleSystem,
-				Content:   fmt.Sprintf("모드 전환: %s → %s", oldName, newName),
-				Timestamp: time.Now(),
-			})
 			m.updateViewport()
 			return m, nil
 
@@ -425,13 +416,6 @@ func (m Model) View() string {
 		return "\n  로딩중..."
 	}
 
-	// Top hint bar — shortcuts right-aligned
-	hintBar := lipgloss.NewStyle().
-		Foreground(ui.ColorMuted).
-		Width(m.width).
-		Align(lipgloss.Right).
-		Render("Tab 모드전환  /clear 대화삭제  Ctrl+C 종료 ")
-
 	content := m.viewport.View()
 
 	// Input box with gray border
@@ -441,7 +425,7 @@ func (m Model) View() string {
 		Width(m.width - 4).
 		Render(m.textarea.View())
 
-	// Status bar below input — includes cwd
+	// Status bar below input — includes cwd and hints
 	model := m.currentModel()
 	elapsed := m.lastElapsed
 	if m.streaming {
@@ -449,7 +433,7 @@ func (m Model) View() string {
 	}
 	statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width)
 
-	return lipgloss.JoinVertical(lipgloss.Left, hintBar, content, inputBox, statusBar)
+	return lipgloss.JoinVertical(lipgloss.Left, content, inputBox, statusBar)
 }
 
 func (m Model) viewSetup() string {
@@ -478,7 +462,7 @@ func (m *Model) recalcLayout() {
 		return
 	}
 	inputH := m.textarea.Height() + 2
-	fixed := inputH + 1 + 1 // input box + status bar + hint bar
+	fixed := inputH + 1 // input box + status bar
 	vpHeight := m.height - fixed
 	if vpHeight < 3 {
 		vpHeight = 3
