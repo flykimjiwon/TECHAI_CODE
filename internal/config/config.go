@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -57,8 +58,25 @@ func InitDebugLog() {
 		return
 	}
 	debugFile = f
+	DebugLog("========================================")
 	DebugLog("=== TECHAI DEBUG MODE ===")
-	DebugLog("Config dir: %s", dir)
+	DebugLog("========================================")
+	DebugLog("[SYS] OS=%s | ARCH=%s | GoVersion=%s", runtime.GOOS, runtime.GOARCH, runtime.Version())
+	hostname, _ := os.Hostname()
+	DebugLog("[SYS] Hostname=%s", hostname)
+	home, _ := os.UserHomeDir()
+	DebugLog("[SYS] HomeDir=%s", home)
+	cwd, _ := os.Getwd()
+	DebugLog("[SYS] CWD=%s", cwd)
+	DebugLog("[SYS] ConfigDir=%s", dir)
+	DebugLog("[SYS] PID=%d", os.Getpid())
+	// Dump all TGC_ env vars
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "TGC_") || strings.HasPrefix(e, "HTTP") || strings.HasPrefix(e, "NO_PROXY") || strings.HasPrefix(e, "https_proxy") || strings.HasPrefix(e, "http_proxy") || strings.HasPrefix(e, "no_proxy") {
+			DebugLog("[ENV] %s", e)
+		}
+	}
+	DebugLog("========================================")
 }
 
 // CloseDebugLog flushes and closes the debug log file.

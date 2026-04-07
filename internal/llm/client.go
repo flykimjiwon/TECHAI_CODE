@@ -2,11 +2,15 @@ package llm
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 
@@ -46,15 +50,34 @@ func NewClient(baseURL, apiKey string) *Client {
 
 	// Log network environment for debug builds
 	if config.IsDebug() {
-		config.DebugLog("[NET] HTTP_PROXY=%s", os.Getenv("HTTP_PROXY"))
-		config.DebugLog("[NET] HTTPS_PROXY=%s", os.Getenv("HTTPS_PROXY"))
-		config.DebugLog("[NET] NO_PROXY=%s", os.Getenv("NO_PROXY"))
 		config.DebugLog("[NET] API BaseURL=%s", cfg.BaseURL)
+		config.DebugLog("[NET] API Key length=%d prefix=%s", len(apiKey), safePrefix(apiKey, 8))
+
+		// DNS pre-check
+		host := extractHost(cfg.BaseURL)
+		if host != "" {
+			config.DebugLog("[NET-DNS] resolving %s ...", host)
+			start := time.Now()
+			addrs, err := net.LookupHost(host)
+			elapsed := time.Since(start)
+			if err != nil {
+				config.DebugLog("[NET-DNS] FAILED %s: %v (took %v)", host, err, elapsed)
+			} else {
+				config.DebugLog("[NET-DNS] OK %s → %v (took %v)", host, addrs, elapsed)
+			}
+		}
 
 		// Wrap transport to log TLS and response headers
 		origTransport := http.DefaultTransport.(*http.Transport).Clone()
+		origTransport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: false, // keep secure, but log details
+		}
 		cfg.HTTPClient = &http.Client{
-			Transport: &debugTransport{inner: origTransport},
+			Transport: &debugTransport{
+				inner:    origTransport,
+				reqCount: 0,
+			},
+			Timeout: 0, // no overall timeout — streaming needs to stay open
 		}
 	}
 
@@ -63,30 +86,94 @@ func NewClient(baseURL, apiKey string) *Client {
 	}
 }
 
+func extractHost(baseURL string) string {
+	// Remove scheme
+	u := baseURL
+	if idx := strings.Index(u, "://"); idx >= 0 {
+		u = u[idx+3:]
+	}
+	// Remove path
+	if idx := strings.Index(u, "/"); idx >= 0 {
+		u = u[:idx]
+	}
+	// Remove port
+	if host, _, err := net.SplitHostPort(u); err == nil {
+		return host
+	}
+	return u
+}
+
+func safePrefix(s string, n int) string {
+	if len(s) <= n {
+		return s + "..."
+	}
+	return s[:n] + "..."
+}
+
 // debugTransport wraps an http.RoundTripper to log request/response details.
 type debugTransport struct {
-	inner http.RoundTripper
+	inner    http.RoundTripper
+	reqCount int
 }
 
 func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	config.DebugLog("[NET-REQ] %s %s | Content-Type=%s | Accept=%s",
-		req.Method, req.URL.String(),
-		req.Header.Get("Content-Type"),
-		req.Header.Get("Accept"))
+	d.reqCount++
+	reqID := d.reqCount
 
+	// Log all request headers
+	config.DebugLog("[NET-REQ#%d] %s %s", reqID, req.Method, req.URL.String())
+	for k, v := range req.Header {
+		config.DebugLog("[NET-REQ#%d] Header: %s=%s", reqID, k, strings.Join(v, ", "))
+	}
+	if req.ContentLength > 0 {
+		config.DebugLog("[NET-REQ#%d] ContentLength=%d", reqID, req.ContentLength)
+	}
+
+	start := time.Now()
 	resp, err := d.inner.RoundTrip(req)
+	elapsed := time.Since(start)
+
 	if err != nil {
-		config.DebugLog("[NET-ERR] %v", err)
+		config.DebugLog("[NET-ERR#%d] after %v: %v", reqID, elapsed, err)
+		// Classify error type
+		if netErr, ok := err.(net.Error); ok {
+			config.DebugLog("[NET-ERR#%d] timeout=%v | temporary=%v", reqID, netErr.Timeout(), false)
+		}
+		if os.IsTimeout(err) {
+			config.DebugLog("[NET-ERR#%d] OS timeout detected", reqID)
+		}
 		return resp, err
 	}
 
-	config.DebugLog("[NET-RES] Status=%d | Content-Type=%s | Transfer-Encoding=%v",
-		resp.StatusCode, resp.Header.Get("Content-Type"), resp.TransferEncoding)
+	config.DebugLog("[NET-RES#%d] Status=%d | elapsed=%v", reqID, resp.StatusCode, elapsed)
+	config.DebugLog("[NET-RES#%d] Content-Type=%s", reqID, resp.Header.Get("Content-Type"))
+	config.DebugLog("[NET-RES#%d] Transfer-Encoding=%v", reqID, resp.TransferEncoding)
+	config.DebugLog("[NET-RES#%d] Content-Length=%s", reqID, resp.Header.Get("Content-Length"))
+	config.DebugLog("[NET-RES#%d] Connection=%s", reqID, resp.Header.Get("Connection"))
 
-	if resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
-		cert := resp.TLS.PeerCertificates[0]
-		config.DebugLog("[NET-TLS] server cert issuer=%s | subject=%s",
-			cert.Issuer.CommonName, cert.Subject.CommonName)
+	// Log all response headers for full visibility
+	for k, v := range resp.Header {
+		config.DebugLog("[NET-RES#%d] Header: %s=%s", reqID, k, strings.Join(v, ", "))
+	}
+
+	// TLS details
+	if resp.TLS != nil {
+		config.DebugLog("[NET-TLS#%d] Version=0x%04x CipherSuite=0x%04x", reqID, resp.TLS.Version, resp.TLS.CipherSuite)
+		config.DebugLog("[NET-TLS#%d] ServerName=%s", reqID, resp.TLS.ServerName)
+		for i, cert := range resp.TLS.PeerCertificates {
+			config.DebugLog("[NET-TLS#%d] Cert[%d] Subject=%s | Issuer=%s | NotAfter=%s",
+				reqID, i, cert.Subject.CommonName, cert.Issuer.CommonName, cert.NotAfter.Format("2006-01-02"))
+		}
+	} else {
+		config.DebugLog("[NET-TLS#%d] NO TLS (plain HTTP or proxy terminated)", reqID)
+	}
+
+	// Detect proxy
+	if via := resp.Header.Get("Via"); via != "" {
+		config.DebugLog("[NET-PROXY#%d] Via: %s", reqID, via)
+	}
+	if xfwd := resp.Header.Get("X-Forwarded-For"); xfwd != "" {
+		config.DebugLog("[NET-PROXY#%d] X-Forwarded-For: %s", reqID, xfwd)
 	}
 
 	return resp, nil
@@ -108,26 +195,60 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 			req.Tools = toolDefs
 		}
 
+		// Log tool definitions being sent
 		config.DebugLog("[API-REQ] POST /chat/completions | model=%s | msgs=%d | tools=%d", model, len(messages), len(toolDefs))
+		for i, td := range toolDefs {
+			if td.Function != nil {
+				config.DebugLog("[API-REQ] tool[%d] name=%s", i, td.Function.Name)
+			}
+		}
+		// Log last message role/content preview
+		if len(messages) > 0 {
+			last := messages[len(messages)-1]
+			preview := last.Content
+			if len(preview) > 200 {
+				preview = preview[:200] + "..."
+			}
+			config.DebugLog("[API-REQ] lastMsg role=%s | len=%d | preview=%q", last.Role, len(last.Content), preview)
+		}
 
+		// Serialize request to see what's actually sent
+		if config.IsDebug() {
+			reqJSON, _ := json.Marshal(req)
+			config.DebugLog("[API-REQ-RAW] len=%d", len(reqJSON))
+			if len(reqJSON) < 5000 {
+				config.DebugLog("[API-REQ-RAW] %s", string(reqJSON))
+			} else {
+				config.DebugLog("[API-REQ-RAW] (truncated) %s", string(reqJSON[:5000]))
+			}
+		}
+
+		streamStart := time.Now()
 		stream, err := c.api.CreateChatCompletionStream(ctx, req)
+		streamOpenElapsed := time.Since(streamStart)
 		if err != nil {
-			config.DebugLog("[API-ERR] stream create failed: %v", err)
+			config.DebugLog("[API-ERR] stream create failed after %v: %v", streamOpenElapsed, err)
 			ch <- StreamChunk{Err: err, Done: true}
 			return
 		}
 		defer stream.Close()
 
-		config.DebugLog("[API-RES] stream opened successfully")
+		config.DebugLog("[API-RES] stream opened in %v", streamOpenElapsed)
 
 		// Accumulate tool calls from deltas
 		tcMap := make(map[int]*ToolCallInfo)
 		chunkNum := 0
 		totalContentLen := 0
+		lastChunkTime := time.Now()
+		firstChunkTime := time.Time{}
 
 		for {
+			recvStart := time.Now()
 			resp, err := stream.Recv()
+			recvElapsed := time.Since(recvStart)
+
 			if errors.Is(err, io.EOF) {
+				totalElapsed := time.Since(streamStart)
 				// Stream finished — check for accumulated tool calls
 				if len(tcMap) > 0 {
 					calls := make([]ToolCallInfo, 0, len(tcMap))
@@ -136,38 +257,57 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 							calls = append(calls, *tc)
 						}
 					}
-					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=%d", chunkNum, totalContentLen, len(calls))
+					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=%d | totalTime=%v", chunkNum, totalContentLen, len(calls), totalElapsed)
 					for i, tc := range calls {
-						config.DebugLog("[STREAM-DONE] toolCall[%d] name=%s | argsLen=%d", i, tc.Name, len(tc.Arguments))
+						config.DebugLog("[STREAM-DONE] toolCall[%d] name=%s | argsLen=%d | args=%s", i, tc.Name, len(tc.Arguments), truncateForLog(tc.Arguments, 500))
 					}
 					ch <- StreamChunk{Done: true, ToolCalls: calls}
 				} else {
-					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=0", chunkNum, totalContentLen)
-					ch <- StreamChunk{Done: true}
+					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=0 | totalTime=%v", chunkNum, totalContentLen, totalElapsed)
 				}
 				return
 			}
 			if err != nil {
-				config.DebugLog("[STREAM-ERR] after %d chunks: %v", chunkNum, err)
+				totalElapsed := time.Since(streamStart)
+				config.DebugLog("[STREAM-ERR] after %d chunks, %v total: %v", chunkNum, totalElapsed, err)
+				config.DebugLog("[STREAM-ERR] lastChunkAge=%v | recvWait=%v", time.Since(lastChunkTime), recvElapsed)
 				ch <- StreamChunk{Err: err, Done: true}
 				return
 			}
 
 			chunkNum++
+			now := time.Now()
+			gap := now.Sub(lastChunkTime)
+			lastChunkTime = now
+			if firstChunkTime.IsZero() {
+				firstChunkTime = now
+				config.DebugLog("[STREAM] first chunk after %v (TTFC)", now.Sub(streamStart))
+			}
 
 			if len(resp.Choices) == 0 {
-				config.DebugLog("[CHUNK#%d] empty choices", chunkNum)
+				config.DebugLog("[CHUNK#%d] empty choices | gap=%v", chunkNum, gap)
 				continue
 			}
 
 			delta := resp.Choices[0].Delta
+			finishReason := ""
+			if resp.Choices[0].FinishReason != "" {
+				finishReason = string(resp.Choices[0].FinishReason)
+				config.DebugLog("[CHUNK#%d] finishReason=%s", chunkNum, finishReason)
+			}
 
 			// Stream text content
 			if delta.Content != "" {
 				totalContentLen += len(delta.Content)
 				hasTC := len(delta.ToolCalls) > 0
-				config.DebugLog("[CHUNK#%d] content len=%d | toolCall=%v", chunkNum, len(delta.Content), hasTC)
+				// Log content preview for first few chunks and then periodically
+				if chunkNum <= 5 || chunkNum%50 == 0 {
+					config.DebugLog("[CHUNK#%d] content len=%d | toolCall=%v | gap=%v | preview=%q", chunkNum, len(delta.Content), hasTC, gap, truncateForLog(delta.Content, 100))
+				}
 				ch <- StreamChunk{Content: delta.Content}
+			} else if len(delta.ToolCalls) == 0 && delta.Role == "" {
+				// Empty chunk — might indicate buffering
+				config.DebugLog("[CHUNK#%d] EMPTY (no content, no toolCalls) | gap=%v", chunkNum, gap)
 			}
 
 			// Accumulate tool call deltas
@@ -181,7 +321,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 						ID:   tc.ID,
 						Name: tc.Function.Name,
 					}
-					config.DebugLog("[CHUNK#%d] toolCall[%d] START name=%s | id=%s", chunkNum, idx, tc.Function.Name, tc.ID)
+					config.DebugLog("[CHUNK#%d] toolCall[%d] START name=%q | id=%q | gap=%v", chunkNum, idx, tc.Function.Name, tc.ID, gap)
 				} else {
 					if tc.ID != "" {
 						tcMap[idx].ID = tc.ID
@@ -192,13 +332,21 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 				}
 				tcMap[idx].Arguments += tc.Function.Arguments
 				if len(tc.Function.Arguments) > 0 {
-					config.DebugLog("[CHUNK#%d] toolCall[%d] argsDelta len=%d", chunkNum, idx, len(tc.Function.Arguments))
+					config.DebugLog("[CHUNK#%d] toolCall[%d] argsDelta len=%d | accumulated=%d", chunkNum, idx, len(tc.Function.Arguments), len(tcMap[idx].Arguments))
 				}
 			}
 		}
 	}()
 
 	return ch
+}
+
+func truncateForLog(s string, max int) string {
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	if len(s) > max {
+		return s[:max] + "..."
+	}
+	return s
 }
 
 func (c *Client) Chat(ctx context.Context, model string, messages []openai.ChatCompletionMessage) (string, error) {
