@@ -12,6 +12,19 @@ import (
 	"github.com/kimjiwon/tgc/internal/llm"
 )
 
+func printDebugBanner(cfg config.Config) {
+	fmt.Println()
+	fmt.Println("  ╔══════════════════════════════════════════════╗")
+	fmt.Println("  ║          [DEBUG MODE] 택가이코드             ║")
+	fmt.Println("  ╚══════════════════════════════════════════════╝")
+	fmt.Printf("  Version:   %s\n", version)
+	fmt.Printf("  BaseURL:   %s\n", cfg.API.BaseURL)
+	fmt.Printf("  Model:     %s\n", cfg.Models.Super)
+	fmt.Printf("  ConfigDir: %s\n", config.ConfigDir())
+	fmt.Printf("  LogFile:   %s\n", config.DebugLogPath())
+	fmt.Println()
+}
+
 var version = "dev"
 
 func main() {
@@ -39,6 +52,16 @@ func main() {
 		cfg = config.DefaultConfig()
 	}
 
+	// Initialize debug logging (no-op if DebugMode != "true")
+	config.InitDebugLog()
+	defer config.CloseDebugLog()
+
+	if config.IsDebug() {
+		printDebugBanner(cfg)
+		config.DebugLog("Config: baseURL=%s", cfg.API.BaseURL)
+		config.DebugLog("Config: model=%s, configDir=%s", cfg.Models.Super, config.ConfigDir())
+	}
+
 	// Check if setup is needed (no API key) or forced via --setup
 	needsSetup := config.NeedsSetup() || *setupFlag
 
@@ -52,6 +75,10 @@ func main() {
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "실행 오류: %v\n", err)
 		os.Exit(1)
+	}
+
+	if config.IsDebug() {
+		fmt.Printf("\n  [DEBUG] 로그 파일: %s\n\n", config.DebugLogPath())
 	}
 }
 

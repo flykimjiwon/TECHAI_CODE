@@ -8,6 +8,8 @@ import (
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
+
+	"github.com/kimjiwon/tgc/internal/config"
 )
 
 type paramSchema struct {
@@ -162,8 +164,19 @@ func ToolsForMode(mode int) []openai.Tool {
 
 // Execute runs a tool by name with the given JSON arguments and returns the result.
 func Execute(name string, argsJSON string) string {
+	config.DebugLog("[TOOL-CALL] %s | args=%s", name, argsJSON)
+
+	result := executeInner(name, argsJSON)
+
+	truncated := len(result) > 30000
+	config.DebugLog("[TOOL-RESULT] %s | resultLen=%d | truncated=%v", name, len(result), truncated)
+	return result
+}
+
+func executeInner(name string, argsJSON string) string {
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		config.DebugLog("[TOOL-ERR] %s | invalid JSON: %v", name, err)
 		return fmt.Sprintf("Error: invalid arguments: %v", err)
 	}
 
@@ -248,6 +261,7 @@ func Execute(name string, argsJSON string) string {
 		return output
 
 	default:
+		config.DebugLog("[TOOL-ERR] unknown tool '%s'", name)
 		return fmt.Sprintf("Error: unknown tool '%s'", name)
 	}
 }

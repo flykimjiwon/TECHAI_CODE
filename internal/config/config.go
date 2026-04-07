@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -25,22 +27,83 @@ type Config struct {
 	Models ModelsConfig `yaml:"models"`
 }
 
+// Build-time overridable defaults (set via -ldflags)
+var (
+	DefaultBaseURL  = "https://api.novita.ai/openai"
+	DefaultModel    = "openai/gpt-oss-120b"
+	DefaultDevModel = "qwen/qwen-2.5-coder-32b-instruct"
+	ConfigDirName   = ".tgc"
+	DebugMode       = "false" // set to "true" via ldflags in build-debug
+)
+
+// IsDebug returns true when the binary was built with debug mode enabled.
+func IsDebug() bool { return DebugMode == "true" }
+
+var (
+	debugFile *os.File
+	debugMu   sync.Mutex
+)
+
+// InitDebugLog opens the debug log file in the config directory.
+func InitDebugLog() {
+	if !IsDebug() {
+		return
+	}
+	dir := ConfigDir()
+	_ = os.MkdirAll(dir, 0755)
+	f, err := os.Create(filepath.Join(dir, "debug.log"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[DEBUG] failed to create debug.log: %v\n", err)
+		return
+	}
+	debugFile = f
+	DebugLog("=== TECHAI DEBUG MODE ===")
+	DebugLog("Config dir: %s", dir)
+}
+
+// CloseDebugLog flushes and closes the debug log file.
+func CloseDebugLog() {
+	debugMu.Lock()
+	defer debugMu.Unlock()
+	if debugFile != nil {
+		debugFile.Close()
+		debugFile = nil
+	}
+}
+
+// DebugLog writes a timestamped line to the debug log file.
+// No-op when debug mode is disabled or log file is not open.
+func DebugLog(format string, args ...interface{}) {
+	if !IsDebug() || debugFile == nil {
+		return
+	}
+	debugMu.Lock()
+	defer debugMu.Unlock()
+	msg := fmt.Sprintf(format, args...)
+	fmt.Fprintf(debugFile, "[%s] %s\n", time.Now().Format("15:04:05.000"), msg)
+}
+
+// DebugLogPath returns the path to the debug log file.
+func DebugLogPath() string {
+	return filepath.Join(ConfigDir(), "debug.log")
+}
+
 func DefaultConfig() Config {
 	return Config{
 		API: APIConfig{
-			BaseURL: "https://api.novita.ai/openai",
+			BaseURL: DefaultBaseURL,
 			APIKey:  "",
 		},
 		Models: ModelsConfig{
-			Super: "openai/gpt-oss-120b",
-			Dev:   "qwen/qwen-2.5-coder-32b-instruct",
+			Super: DefaultModel,
+			Dev:   DefaultDevModel,
 		},
 	}
 }
 
 func ConfigDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".tgc")
+	return filepath.Join(home, ConfigDirName)
 }
 
 func ConfigPath() string {
@@ -99,7 +162,7 @@ func RunSetupWizard() (Config, error) {
 
 	fmt.Println("\n  택가이코드 설정")
 
-	fmt.Print("  API Base URL [https://api.novita.ai/openai]: ")
+	fmt.Printf("  API Base URL [%s]: ", DefaultBaseURL)
 	if input, _ := reader.ReadString('\n'); strings.TrimSpace(input) != "" {
 		cfg.API.BaseURL = strings.TrimSpace(input)
 	}

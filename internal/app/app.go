@@ -88,7 +88,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	ta.Focus()
 
 	setupTa := textarea.New()
-	setupTa.Placeholder = "sk_..."
+	setupTa.Placeholder = "tg_..."
 	setupTa.CharLimit = 512
 	setupTa.SetWidth(60)
 	setupTa.SetHeight(1)
@@ -292,6 +292,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.streaming = false
 			m.streamCh = nil
 			m.lastElapsed = time.Since(m.streamStart)
+			config.DebugLog("[APP-STREAM] error after %v: %v", m.lastElapsed, msg.err)
 			m.msgs = append(m.msgs, ui.Message{
 				Role: ui.RoleSystem, Content: fmt.Sprintf("Error: %v", msg.err), Timestamp: time.Now(),
 			})
@@ -304,6 +305,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Check if AI wants to call tools
 			if len(msg.toolCalls) > 0 {
+				config.DebugLog("[APP-STREAM] done reason=tool_call | toolCalls=%d | bufLen=%d", len(msg.toolCalls), len(m.streamBuf))
 				if m.streamBuf != "" {
 					m.msgs = append(m.msgs, ui.Message{
 						Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),
@@ -355,6 +357,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Normal completion (no tool calls)
 			m.streaming = false
 			m.lastElapsed = time.Since(m.streamStart)
+			config.DebugLog("[APP-STREAM] done reason=normal | elapsed=%v | tokens=%d | bufLen=%d", m.lastElapsed, m.tokenCount, len(m.streamBuf))
 			if m.streamBuf != "" {
 				m.msgs = append(m.msgs, ui.Message{
 					Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),
@@ -380,7 +383,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.waitForNextChunk()
 
 	case toolResultMsg:
+		config.DebugLog("[APP-TOOL] received %d tool results | toolIter=%d/20", len(msg.results), m.toolIter+1)
 		for _, r := range msg.results {
+			config.DebugLog("[APP-TOOL] %s | resultLen=%d", r.name, len(r.output))
 			m.history = append(m.history, openai.ChatCompletionMessage{
 				Role:       openai.ChatMessageRoleTool,
 				Content:    r.output,
@@ -396,6 +401,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewport()
 
 		if m.toolIter >= 20 {
+			config.DebugLog("[APP-TOOL] loop limit reached (20 iterations)")
 			m.streaming = false
 			m.lastElapsed = time.Since(m.streamStart)
 			m.msgs = append(m.msgs, ui.Message{
@@ -458,7 +464,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.inSetup = true
 		m.setupCfg = m.cfg
 		m.setupInput.Reset()
-		m.setupInput.Placeholder = "sk_..."
+		m.setupInput.Placeholder = "tg_..."
 		m.setupInput.Focus()
 		return true, nil
 
@@ -589,6 +595,15 @@ func (m *Model) startStream() tea.Cmd {
 	history := make([]openai.ChatCompletionMessage, len(m.history))
 	copy(history, m.history)
 	toolDefs := tools.ToolsForMode(m.activeTab)
+
+	modeName := "super"
+	if m.activeTab == 1 {
+		modeName = "dev"
+	} else if m.activeTab == 2 {
+		modeName = "plan"
+	}
+	config.DebugLog("[APP-STREAM] start | mode=%s | historyMsgs=%d | tools=%d | toolIter=%d/20", modeName, len(history), len(toolDefs), m.toolIter)
+
 	m.streamCh = m.client.StreamChat(ctx, model, history, toolDefs)
 	return m.waitForNextChunk()
 }

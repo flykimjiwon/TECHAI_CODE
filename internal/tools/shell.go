@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/kimjiwon/tgc/internal/config"
 )
 
 type ShellResult struct {
@@ -38,6 +40,7 @@ func CheckSafety(command string) error {
 	lower := strings.ToLower(command)
 	for _, p := range dangerousPatterns {
 		if p.MatchString(lower) {
+			config.DebugLog("[SHELL-BLOCK] cmd=%q matched pattern=%s", command, p.String())
 			return fmt.Errorf("blocked: dangerous command pattern detected: %s", p.String())
 		}
 	}
@@ -49,6 +52,17 @@ func ShellExec(ctx context.Context, command string) (ShellResult, error) {
 	if err := CheckSafety(command); err != nil {
 		return ShellResult{ExitCode: -1}, err
 	}
+
+	cwd := ""
+	if dir, err := exec.LookPath("sh"); err == nil {
+		cwd = dir
+	}
+	deadline, hasDeadline := ctx.Deadline()
+	timeout := "none"
+	if hasDeadline {
+		timeout = fmt.Sprintf("%v", time.Until(deadline).Round(time.Millisecond))
+	}
+	config.DebugLog("[SHELL] cmd=%q | cwd=%s | timeout=%s", command, cwd, timeout)
 
 	start := time.Now()
 
@@ -72,9 +86,11 @@ func ShellExec(ctx context.Context, command string) (ShellResult, error) {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
 		} else {
+			config.DebugLog("[SHELL-ERR] cmd=%q | err=%v | elapsed=%v", command, err, duration)
 			return result, fmt.Errorf("exec failed: %w", err)
 		}
 	}
 
+	config.DebugLog("[SHELL] exitCode=%d | stdout=%dbytes | stderr=%dbytes | elapsed=%v", result.ExitCode, len(result.Stdout), len(result.Stderr), duration)
 	return result, nil
 }
