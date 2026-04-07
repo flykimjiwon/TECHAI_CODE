@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+)
 
 var (
 	// Colors — 시안/틸 기반 모던 팔레트
@@ -104,7 +108,7 @@ var (
 	PlanColor  = ColorOrange  // orange — 플랜
 )
 
-func ModeColor(mode int) lipgloss.Color {
+func ModeColor(mode int) color.Color {
 	switch mode {
 	case 0:
 		return SuperColor

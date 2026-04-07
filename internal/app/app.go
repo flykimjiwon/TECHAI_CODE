@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	openai "github.com/sashabaranov/go-openai"
 
 	"github.com/kimjiwon/tgc/internal/config"
@@ -60,6 +60,7 @@ type Model struct {
 	lastElapsed  time.Duration
 	tokenCount   int
 	toolIter     int // tool loop iteration counter (max 20)
+	pendingQueue []string // messages queued while streaming
 
 	inSetup    bool
 	setupInput textarea.Model
@@ -72,12 +73,19 @@ type Model struct {
 
 func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	ta := textarea.New()
-	ta.Placeholder = "Type your message..."
+	ta.Placeholder = ""
 	ta.CharLimit = 4096
 	ta.SetWidth(80)
 	ta.SetHeight(1)
-	ta.Focus()
 	ta.ShowLineNumbers = false
+	// Remove background color from textarea
+	styles := ta.Styles()
+	styles.Focused.CursorLine = lipgloss.NewStyle()
+	styles.Focused.EndOfBuffer = lipgloss.NewStyle()
+	styles.Blurred.CursorLine = lipgloss.NewStyle()
+	styles.Blurred.EndOfBuffer = lipgloss.NewStyle()
+	ta.SetStyles(styles)
+	ta.Focus()
 
 	setupTa := textarea.New()
 	setupTa.Placeholder = "sk_..."
@@ -86,7 +94,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	setupTa.SetHeight(1)
 	setupTa.ShowLineNumbers = false
 
-	vp := viewport.New(80, 20)
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 
 	// Get abbreviated cwd
 	cwd, _ := os.Getwd()
@@ -123,7 +131,8 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		{Role: openai.ChatMessageRoleSystem, Content: sysPrompt},
 	}
 	m.msgs = []ui.Message{
-		{Role: ui.RoleSystem, Content: ui.ModeWelcome(initialMode), Timestamp: time.Now()},
+		{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
+		{Role: ui.RoleSystem, Content: ui.ModeInfoBox(initialMode), Timestamp: time.Now(), Tag: "modebox"},
 	}
 
 	return m
@@ -139,32 +148,63 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.streaming {
-			if msg.Type == tea.KeyCtrlC || msg.Type == tea.KeyEsc {
+			switch msg.String() {
+			case "ctrl+c", "esc":
 				m.cancelStream()
+				return m, nil
+			case "enter":
+				// Queue message while streaming
+				input := strings.TrimSpace(m.textarea.Value())
+				if input != "" {
+					m.pendingQueue = append(m.pendingQueue, input)
+					m.textarea.Reset()
+					m.textarea.SetHeight(1)
+					m.recalcLayout()
+					// Show queued indicator
+					m.msgs = append(m.msgs, ui.Message{
+						Role: ui.RoleUser, Content: input + " [대기중]", Timestamp: time.Now(),
+					})
+					m.updateViewport()
+				}
+				return m, nil
+			case "shift+enter":
+				m.textarea.InsertString("\n")
+				return m, nil
+			case "tab":
+				return m, nil // ignore tab during streaming
 			}
-			return m, nil
+			// Forward other keys to textarea for typing
+			var taCmd tea.Cmd
+			m.textarea, taCmd = m.textarea.Update(msg)
+			lines := strings.Count(m.textarea.Value(), "\n") + 1
+			if lines > m.textarea.Height() && lines <= 10 {
+				m.textarea.SetHeight(lines)
+				m.recalcLayout()
+			}
+			return m, taCmd
 		}
 
-		switch msg.Type {
-		case tea.KeyCtrlC:
+		switch msg.String() {
+		case "ctrl+c":
 			return m, tea.Quit
 
-		case tea.KeyCtrlL:
+		case "ctrl+l":
 			// Keep system prompt, clear conversation
 			m.history = m.history[:1]
 			m.msgs = m.msgs[:0]
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: ui.ModeWelcome(m.activeTab), Timestamp: time.Now(),
-			})
+			m.msgs = append(m.msgs,
+				ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
+				ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab), Timestamp: time.Now(), Tag: "modebox"},
+			)
 			m.streamBuf = ""
 			m.tokenCount = 0
 			m.lastElapsed = 0
 			m.updateViewport()
 			return m, nil
 
-		case tea.KeyTab:
+		case "tab":
 			m.activeTab = (m.activeTab + 1) % llm.ModeCount
 			// Update system prompt for new mode
 			mode := llm.Mode(m.activeTab)
@@ -172,18 +212,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Role:    openai.ChatMessageRoleSystem,
 				Content: llm.SystemPrompt(mode) + m.projectCtx,
 			}
+			// Remove previous mode info boxes, keep only the new one
+			filtered := m.msgs[:0]
+			for _, msg := range m.msgs {
+				if msg.Tag != "modebox" {
+					filtered = append(filtered, msg)
+				}
+			}
+			m.msgs = append(filtered, ui.Message{
+				Role:      ui.RoleSystem,
+				Content:   ui.ModeInfoBox(m.activeTab),
+				Timestamp: time.Now(),
+				Tag:       "modebox",
+			})
 			m.updateViewport()
 			return m, nil
 
-		case tea.KeyEnter:
-			if msg.Alt {
-				h := m.textarea.Height()
-				if h < 6 {
-					m.textarea.SetHeight(h + 1)
-					m.recalcLayout()
-				}
-				break
+		case "shift+enter":
+			// Shift+Enter = newline
+			m.textarea.InsertString("\n")
+			lines := strings.Count(m.textarea.Value(), "\n") + 1
+			if lines > m.textarea.Height() && lines <= 10 {
+				m.textarea.SetHeight(lines)
+				m.recalcLayout()
 			}
+			return m, nil
+
+		case "enter":
+			// Enter = send message
 			input := strings.TrimSpace(m.textarea.Value())
 			if input != "" {
 				m.textarea.Reset()
@@ -196,11 +252,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case tea.KeyPgUp, tea.KeyPgDown:
+		case "pgup", "pgdown":
 			var vpCmd tea.Cmd
 			m.viewport, vpCmd = m.viewport.Update(msg)
 			return m, vpCmd
+
+		case "alt+up":
+			m.viewport.ScrollUp(3)
+			return m, nil
+		case "alt+down":
+			m.viewport.ScrollDown(3)
+			return m, nil
 		}
+
+		// Default: forward to textarea
+		var taCmd tea.Cmd
+		m.textarea, taCmd = m.textarea.Update(msg)
+		// Auto-grow/shrink textarea after content changes
+		lines := strings.Count(m.textarea.Value(), "\n") + 1
+		if lines > m.textarea.Height() && lines <= 10 {
+			m.textarea.SetHeight(lines)
+			m.recalcLayout()
+		} else if lines < m.textarea.Height() {
+			m.textarea.SetHeight(lines)
+			m.recalcLayout()
+		}
+		return m, taCmd
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -288,6 +365,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.streamBuf = ""
 			m.updateViewport()
+
+			// Auto-send next queued message
+			if len(m.pendingQueue) > 0 {
+				next := m.pendingQueue[0]
+				m.pendingQueue = m.pendingQueue[1:]
+				return m, m.sendMessage(next)
+			}
 			return m, nil
 		}
 		m.streamBuf += msg.content
@@ -322,19 +406,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, m.continueAfterTools()
-	}
 
-	// Forward mouse events to viewport for scroll support
-	if _, ok := msg.(tea.MouseMsg); ok {
+	// Forward mouse wheel events to viewport for touchpad scroll
+	case tea.MouseWheelMsg:
 		var vpCmd tea.Cmd
 		m.viewport, vpCmd = m.viewport.Update(msg)
 		return m, vpCmd
-	}
-
-	if _, ok := msg.(tea.KeyMsg); ok {
-		var taCmd tea.Cmd
-		m.textarea, taCmd = m.textarea.Update(msg)
-		return m, taCmd
 	}
 
 	return m, nil
@@ -342,11 +419,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateSetup(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "ctrl+c":
 			return m, tea.Quit
-		case tea.KeyEnter:
+		case "enter":
 			input := strings.TrimSpace(m.setupInput.Value())
 			if input != "" {
 				m.setupCfg.API.APIKey = input
@@ -388,9 +465,10 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 	case "/clear":
 		m.history = m.history[:1]
 		m.msgs = m.msgs[:0]
-		m.msgs = append(m.msgs, ui.Message{
-			Role: ui.RoleSystem, Content: ui.ModeWelcome(m.activeTab), Timestamp: time.Now(),
-		})
+		m.msgs = append(m.msgs,
+			ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
+			ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab), Timestamp: time.Now(), Tag: "modebox"},
+		)
 		m.streamBuf = ""
 		m.tokenCount = 0
 		m.lastElapsed = 0
@@ -398,7 +476,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		return true, nil
 
 	case "/help":
-		help := `  /clear — 대화삭제    Ctrl+C — 종료`
+		help := `  Enter — 전송    Shift+Enter — 줄바꿈    /clear — 대화삭제    Ctrl+C — 종료`
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
@@ -408,32 +486,44 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 	return false, nil
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	var content string
+
 	if m.inSetup {
-		return m.viewSetup()
+		content = m.viewSetup()
+	} else if !m.ready {
+		content = "\n  로딩중..."
+	} else {
+		vpContent := m.viewport.View()
+		// Constrain viewport output to allocated height
+		contentLines := strings.Split(vpContent, "\n")
+		if len(contentLines) > m.viewport.Height() {
+			contentLines = contentLines[:m.viewport.Height()]
+			vpContent = strings.Join(contentLines, "\n")
+		}
+
+		// Input box with gray border
+		inputBox := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#9CA3AF")).
+			Width(m.width - 4).
+			Render(m.textarea.View())
+
+		// Status bar below input — includes cwd and hints
+		model := m.currentModel()
+		elapsed := m.lastElapsed
+		if m.streaming {
+			elapsed = time.Since(m.streamStart)
+		}
+		statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width)
+
+		content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
 	}
-	if !m.ready {
-		return "\n  로딩중..."
-	}
 
-	content := m.viewport.View()
-
-	// Input box with gray border
-	inputBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#9CA3AF")).
-		Width(m.width - 4).
-		Render(m.textarea.View())
-
-	// Status bar below input — includes cwd and hints
-	model := m.currentModel()
-	elapsed := m.lastElapsed
-	if m.streaming {
-		elapsed = time.Since(m.streamStart)
-	}
-	statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width)
-
-	return lipgloss.JoinVertical(lipgloss.Left, content, inputBox, statusBar)
+	v := tea.NewView(content)
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
 }
 
 func (m Model) viewSetup() string {
@@ -467,17 +557,21 @@ func (m *Model) recalcLayout() {
 	if vpHeight < 3 {
 		vpHeight = 3
 	}
-	m.viewport.Width = m.width
-	m.viewport.Height = vpHeight
+	m.viewport.SetWidth(m.width)
+	m.viewport.SetHeight(vpHeight)
 	m.textarea.SetWidth(m.width - 6)
 }
+
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 func (m *Model) updateViewport() {
 	var stream string
 	if m.streaming {
-		stream = m.streamBuf
+		elapsed := time.Since(m.streamStart)
+		frame := spinnerFrames[int(elapsed.Milliseconds()/150)%len(spinnerFrames)]
+		stream = fmt.Sprintf("%s thinking... (%.1fs · %dtok)", frame, elapsed.Seconds(), m.tokenCount)
 	}
-	content := ui.RenderMessages(m.msgs, stream, m.viewport.Width)
+	content := ui.RenderMessages(m.msgs, stream, m.viewport.Width())
 	m.viewport.SetContent(content)
 	m.viewport.GotoBottom()
 }

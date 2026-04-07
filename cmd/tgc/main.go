@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/kimjiwon/tgc/internal/app"
 	"github.com/kimjiwon/tgc/internal/config"
@@ -45,9 +45,9 @@ func main() {
 	// Parse initial mode
 	initialMode := parseMode(*modeFlag)
 
-	// Create and run the app (setup wizard runs inside TUI if needed)
+	// Create and run the app (AltScreen and Mouse are set in View)
 	m := app.NewModel(cfg, initialMode, needsSetup)
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(m)
 
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "실행 오류: %v\n", err)

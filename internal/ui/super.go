@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 var logoLines = []string{
@@ -68,7 +68,7 @@ func ModeWelcome(mode int) string {
 		)
 	case 1:
 		tips = fmt.Sprintf("%s\n%s",
-			modeName.Render("개발 — Qwen-Coder-30b"),
+			modeName.Render("개발 — GPT-OSS-120b"),
 			desc.Render("코딩 특화. 파일 생성/읽기/수정/삭제"),
 		)
 	case 2:
@@ -80,4 +80,37 @@ func ModeWelcome(mode int) string {
 	b.WriteString(tipStyle.Render(tips))
 
 	return b.String()
+}
+
+// ModeInfoBox renders just the mode description box (no logo).
+func ModeInfoBox(mode int) string {
+	modeClr := ModeColor(mode)
+	modeName := lipgloss.NewStyle().Foreground(modeClr).Bold(true)
+	desc := lipgloss.NewStyle().Foreground(ColorText)
+
+	tipStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#9CA3AF")).
+		Padding(0, 1).
+		Width(55)
+
+	var tips string
+	switch mode {
+	case 0:
+		tips = fmt.Sprintf("%s\n%s",
+			modeName.Render("슈퍼택가이 — GPT-OSS-120b"),
+			desc.Render("만능 모드. 코드 CRUD, 분석, 대화 자동 감지"),
+		)
+	case 1:
+		tips = fmt.Sprintf("%s\n%s",
+			modeName.Render("개발 — GPT-OSS-120b"),
+			desc.Render("코딩 특화. 파일 생성/읽기/수정/삭제"),
+		)
+	case 2:
+		tips = fmt.Sprintf("%s\n%s",
+			modeName.Render("플랜 — GPT-OSS-120b"),
+			desc.Render("분석/계획. 읽기 전용, 구조 파악, 리뷰"),
+		)
+	}
+	return tipStyle.Render(tips)
 }

@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/glamour/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type Role int
@@ -21,6 +22,7 @@ type Message struct {
 	Role      Role
 	Content   string
 	Timestamp time.Time
+	Tag       string // optional tag for filtering (e.g. "modebox")
 }
 
 func RenderMessages(messages []Message, streaming string, width int) string {
@@ -34,8 +36,14 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 			content := wrapText(msg.Content, contentWidth-4)
 			lines = append(lines, prefix+content)
 		case RoleAssistant:
-			content := wrapText(msg.Content, contentWidth)
-			for _, line := range strings.Split(content, "\n") {
+			rendered := renderMarkdown(msg.Content, contentWidth)
+			msgLines := strings.Split(rendered, "\n")
+			// Show line count for long messages
+			if len(msgLines) > 20 {
+				countStyle := lipgloss.NewStyle().Foreground(ColorMuted)
+				lines = append(lines, countStyle.Render(fmt.Sprintf("  [%d lines]", len(msgLines))))
+			}
+			for _, line := range msgLines {
 				lines = append(lines, "  "+line)
 			}
 			lines = append(lines, "")
@@ -56,14 +64,9 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	}
 
 	if streaming != "" {
-		wrapped := wrapText(streaming, contentWidth)
-		for _, line := range strings.Split(wrapped, "\n") {
-			lines = append(lines, "  "+line)
-		}
-		// Add cursor to last line
-		if len(lines) > 0 {
-			lines[len(lines)-1] += "▊"
-		}
+		thinkStyle := lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
+		lines = append(lines, "")
+		lines = append(lines, thinkStyle.Render("  "+streaming))
 	}
 
 	return strings.Join(lines, "\n")
@@ -76,7 +79,8 @@ func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, 
 
 	modeName := Tabs[mode].Name
 	left := modeStyle.Render("  "+modeName) +
-		Subtle.Render("  "+model)
+		Subtle.Render("  "+model) +
+		Subtle.Render("  ./"+cwd)
 
 	if tokens > 0 {
 		left += Subtle.Render(fmt.Sprintf("  %dtok", tokens))
@@ -85,7 +89,7 @@ func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, 
 		left += Subtle.Render(fmt.Sprintf("  %.1fs", elapsed.Seconds()))
 	}
 
-	right := Subtle.Render("Tab 모드전환  /clear 대화삭제  Ctrl+C 종료  " + cwd)
+	right := Subtle.Render("Shift+Enter 줄바꿈  Tab 전환  /clear  Ctrl+C ")
 
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {
@@ -96,6 +100,25 @@ func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, 
 		Background(lipgloss.Color("#0F172A")).
 		Width(width).
 		Render(left + strings.Repeat(" ", gap) + right)
+}
+
+// renderMarkdown renders markdown content using glamour (dark theme).
+func renderMarkdown(content string, width int) string {
+	if width < 20 {
+		width = 20
+	}
+	r, err := glamour.NewTermRenderer(
+		glamour.WithStylePath("dark"),
+		glamour.WithWordWrap(width),
+	)
+	if err != nil {
+		return wrapText(content, width)
+	}
+	out, err := r.Render(content)
+	if err != nil {
+		return wrapText(content, width)
+	}
+	return strings.TrimRight(out, "\n")
 }
 
 func wrapText(text string, width int) string {
