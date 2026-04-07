@@ -36,26 +36,72 @@ techai
 
 ### Windows 10/11
 
+**방법 1: GUI (가장 확실)**
+
+1. `techai-windows-amd64.exe` 파일을 `C:\techai\techai.exe`로 복사
+2. `Win + R` → `sysdm.cpl` → 고급 → **환경 변수** 클릭
+3. **사용자 변수** → `Path` → **편집** → **새로 만들기** → `C:\techai` 입력 → **확인**
+4. **모든 터미널 창을 닫고 새로 열기** (중요!)
+5. 새 터미널에서 실행:
+
+```powershell
+techai
+```
+
+**방법 2: PowerShell (관리자 권한으로 실행)**
+
 ```powershell
 # 1. 폴더 생성 + exe 복사
-mkdir C:\techai
-copy dist\techai-windows-amd64.exe C:\techai\techai.exe
+New-Item -ItemType Directory -Force -Path C:\techai
+Copy-Item techai-windows-amd64.exe C:\techai\techai.exe
 
-# 2. PATH 환경변수 추가 (PowerShell 관리자 권한)
+# 2. PATH 환경변수 추가
 [System.Environment]::SetEnvironmentVariable("Path",
   $env:Path + ";C:\techai",
   [System.EnvironmentVariableTarget]::User)
 
-# 3. 터미널 재시작 후 실행
+# 3. 반드시 터미널을 완전히 닫고 새로 열기!
+# 4. 새 터미널에서 실행
 techai
 ```
 
-**또는 GUI로 PATH 등록:**
-1. `Win + R` → `sysdm.cpl` → 고급 → 환경 변수
-2. 사용자 변수 → `Path` → 편집 → 새로 만들기 → `C:\techai` → 확인
-3. 터미널 재시작 → `techai`
+**안 되면 확인:**
 
-> Windows Terminal (Microsoft Store 무료) 사용 권장 — 색상, 마크다운, 마우스 스크롤 지원이 우수합니다.
+```powershell
+# exe 파일 있는지 확인
+Test-Path C:\techai\techai.exe
+
+# PATH에 등록됐는지 확인
+$env:Path -split ";" | Select-String "techai"
+
+# 전체 경로로 직접 실행 (PATH 무관하게 동작)
+C:\techai\techai.exe
+```
+
+> **Windows Terminal** (Microsoft Store 무료) 사용 권장 — 색상, 마크다운, 마우스 스크롤 지원이 우수합니다.
+> CMD(명령 프롬프트)보다 PowerShell 또는 Windows Terminal을 사용하세요.
+
+**VSCode 터미널에서 `techai` 실행하기:**
+
+VSCode 내장 터미널은 PATH 변경이 바로 반영되지 않습니다. 아래 중 하나를 선택하세요:
+
+```powershell
+# 방법 1: 현재 세션에서 PATH 수동 갱신
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+techai
+```
+
+```json
+// 방법 2: VSCode settings.json에 추가 (영구적, 추천)
+// Ctrl+Shift+P → "Preferences: Open User Settings (JSON)"
+{
+  "terminal.integrated.env.windows": {
+    "PATH": "${env:PATH};C:\\techai"
+  }
+}
+```
+
+> 모든 방법은 `C:\techai`가 시스템 PATH에 등록되어 있어야 합니다.
 
 ### Linux
 
@@ -88,7 +134,7 @@ techai --reset     # 설정 초기화 후 재설정
 ```yaml
 api:
   base_url: "https://api.novita.ai/openai"
-  api_key: "sk-..."
+  api_key: "tg-..."
 models:
   super: "gpt-oss-120b"
   plan: "gpt-oss-120b"
@@ -99,7 +145,7 @@ models:
 
 ```bash
 export TGC_API_BASE_URL=https://your-api.com/v1
-export TGC_API_KEY=sk-...
+export TGC_API_KEY=tg-...
 ```
 
 ## 사용법
@@ -135,11 +181,116 @@ techai --version      # 버전 출력
 | **개발** | 코딩 특화. 파일 생성/읽기/수정/삭제 | file_read, file_write, file_edit, list_files, shell_exec |
 | **플랜** | 분석/계획. 읽기 전용, 구조 파악, 리뷰 | file_read, list_files, shell_exec (읽기 전용) |
 
+## 온프레미스 (On-Premise) 버전
+
+사내망 전용 빌드. API 엔드포인트와 모델이 고정되어 있고, 개인 API Key만 입력하면 사용 가능합니다.
+
+- **API 엔드포인트**: `https://techai-web-prod.shinhan.com/v1`
+- **모델**: `GPT-OSS-120B` (슈퍼택가이 / 플랜 / 개발 전 모드 동일)
+- **설정 파일**: `~/.tgc-onprem/config.yaml` (일반 버전과 분리)
+
+### 온프레미스 설치
+
+#### macOS (Apple Silicon — M1/M2/M3/M4)
+
+```bash
+sudo cp dist/techai-onprem-darwin-arm64 /usr/local/bin/techai
+sudo chmod +x /usr/local/bin/techai
+xattr -d com.apple.quarantine /usr/local/bin/techai   # Gatekeeper 경고 시
+techai
+```
+
+#### macOS (Intel)
+
+```bash
+sudo cp dist/techai-onprem-darwin-amd64 /usr/local/bin/techai
+sudo chmod +x /usr/local/bin/techai
+techai
+```
+
+#### Windows 10/11
+
+1. `techai-onprem-windows-amd64.exe`를 `C:\techai\techai.exe`로 복사
+2. `Win + R` → `sysdm.cpl` → 고급 → **환경 변수** → 사용자 변수 `Path` → **편집** → **새로 만들기** → `C:\techai` → **확인**
+3. **모든 터미널 창을 닫고 새로 열기** (중요!)
+
+```powershell
+# 또는 PowerShell (관리자 권한)
+New-Item -ItemType Directory -Force -Path C:\techai
+Copy-Item techai-onprem-windows-amd64.exe C:\techai\techai.exe
+[System.Environment]::SetEnvironmentVariable("Path",
+  $env:Path + ";C:\techai",
+  [System.EnvironmentVariableTarget]::User)
+
+# 터미널 완전히 닫고 새로 열기 후 실행
+techai
+```
+
+#### Linux
+
+```bash
+sudo cp dist/techai-onprem-linux-amd64 /usr/local/bin/techai
+sudo chmod +x /usr/local/bin/techai
+techai
+```
+
+### 온프레미스 첫 실행
+
+첫 실행 시 자동으로 API Key 입력 위저드가 실행됩니다:
+
+```
+  택가이코드 설정
+  API Base URL [https://techai-web-prod.shinhan.com/v1]:    ← 엔터 (기본값 사용)
+  API Key: tg-your-api-key-here                             ← 발급받은 키 입력
+```
+
+설정은 `~/.tgc-onprem/config.yaml`에 저장됩니다.
+
+### API Key 변경
+
+```bash
+# 방법 1: 설정 위저드 다시 실행
+techai --setup
+
+# 방법 2: 설정 초기화 후 재설정
+techai --reset
+
+# 방법 3: 실행 중 명령어
+/setup
+
+# 방법 4: 직접 파일 수정
+vi ~/.tgc-onprem/config.yaml      # macOS/Linux
+notepad %USERPROFILE%\.tgc-onprem\config.yaml   # Windows
+```
+
+### 온프레미스 설정 파일
+
+```yaml
+api:
+  base_url: "https://techai-web-prod.shinhan.com/v1"
+  api_key: "tg-your-api-key"
+models:
+  super: "GPT-OSS-120B"
+  dev: "GPT-OSS-120B"
+```
+
+### 온프레미스 빌드 결과물
+
+```
+dist/
+├── techai-onprem-darwin-arm64       # macOS Apple Silicon
+├── techai-onprem-darwin-amd64       # macOS Intel
+├── techai-onprem-windows-amd64.exe  # Windows
+├── techai-onprem-linux-amd64        # Linux x64
+└── techai-onprem-linux-arm64        # Linux ARM
+```
+
 ## 빌드
 
 ```bash
 make build          # 현재 플랫폼 → ./techai
 make build-all      # 크로스 컴파일 (macOS/Windows/Linux × amd64/arm64)
+make build-onprem   # 온프레미스 크로스 컴파일 (5개 플랫폼)
 make install        # go install
 make test           # 테스트
 make lint           # go vet
@@ -151,11 +302,16 @@ make clean          # 정리
 
 ```
 dist/
-├── techai-darwin-arm64       # macOS Apple Silicon
-├── techai-darwin-amd64       # macOS Intel
-├── techai-windows-amd64.exe  # Windows
-├── techai-linux-amd64        # Linux x64
-└── techai-linux-arm64        # Linux ARM
+├── techai-darwin-arm64              # macOS Apple Silicon
+├── techai-darwin-amd64              # macOS Intel
+├── techai-windows-amd64.exe         # Windows
+├── techai-linux-amd64               # Linux x64
+├── techai-linux-arm64               # Linux ARM
+├── techai-onprem-darwin-arm64       # 온프레미스 macOS Apple Silicon
+├── techai-onprem-darwin-amd64       # 온프레미스 macOS Intel
+├── techai-onprem-windows-amd64.exe  # 온프레미스 Windows
+├── techai-onprem-linux-amd64        # 온프레미스 Linux x64
+└── techai-onprem-linux-arm64        # 온프레미스 Linux ARM
 ```
 
 ## 기술 스택
