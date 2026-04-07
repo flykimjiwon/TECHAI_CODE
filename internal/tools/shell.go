@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -62,11 +63,16 @@ func ShellExec(ctx context.Context, command string) (ShellResult, error) {
 	if hasDeadline {
 		timeout = fmt.Sprintf("%v", time.Until(deadline).Round(time.Millisecond))
 	}
-	config.DebugLog("[SHELL] cmd=%q | cwd=%s | timeout=%s", command, cwd, timeout)
+	config.DebugLog("[SHELL] cmd=%q | cwd=%s | timeout=%s | os=%s", command, cwd, timeout, runtime.GOOS)
 
 	start := time.Now()
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "cmd", "/c", command)
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-c", command)
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

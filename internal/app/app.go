@@ -135,6 +135,14 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		{Role: ui.RoleSystem, Content: ui.ModeInfoBox(initialMode), Timestamp: time.Now(), Tag: "modebox"},
 	}
 
+	if config.IsDebug() {
+		m.msgs = append(m.msgs, ui.Message{
+			Role:      ui.RoleSystem,
+			Content:   fmt.Sprintf("[DEBUG MODE] 로그 파일: %s", config.DebugLogPath()),
+			Timestamp: time.Now(),
+		})
+	}
+
 	return m
 }
 
@@ -521,7 +529,7 @@ func (m Model) View() tea.View {
 		if m.streaming {
 			elapsed = time.Since(m.streamStart)
 		}
-		statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width)
+		statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug())
 
 		content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
 	}

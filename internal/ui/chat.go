@@ -72,7 +72,7 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, cwd string, width int) string {
+func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, cwd string, width int, debug bool) string {
 	modeStyle := lipgloss.NewStyle().
 		Foreground(ModeColor(mode)).
 		Bold(true)
@@ -81,6 +81,11 @@ func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, 
 	left := modeStyle.Render("  "+modeName) +
 		Subtle.Render("  "+model) +
 		Subtle.Render("  ./"+cwd)
+
+	if debug {
+		debugStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+		left += debugStyle.Render("  [DEBUG]")
+	}
 
 	if tokens > 0 {
 		left += Subtle.Render(fmt.Sprintf("  %dtok", tokens))
