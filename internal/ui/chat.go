@@ -72,7 +72,7 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, cwd string, width int, debug bool) string {
+func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, cwd string, width int, debug bool, toolEnabled *bool) string {
 	modeStyle := lipgloss.NewStyle().
 		Foreground(ModeColor(mode)).
 		Bold(true)
@@ -81,6 +81,20 @@ func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, 
 	left := modeStyle.Render("  "+modeName) +
 		Subtle.Render("  "+model) +
 		Subtle.Render("  ./"+cwd)
+
+	// Tool status indicator
+	if toolEnabled != nil {
+		if *toolEnabled {
+			toolOn := lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true)
+			left += toolOn.Render("  Tool:ON")
+		} else {
+			toolOff := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+			left += toolOff.Render("  Tool:OFF")
+		}
+	} else {
+		toolUnknown := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
+		left += toolUnknown.Render("  Tool:--")
+	}
 
 	if debug {
 		debugStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)

@@ -27,6 +27,14 @@ type streamChunkMsg struct {
 	toolCalls []llm.ToolCallInfo
 }
 
+type streamTimeoutMsg struct{} // 60s no-chunk timeout
+type streamTickMsg struct{}    // 100ms UI refresh tick
+
+type toolCheckMsg struct {
+	supported bool
+	detail    string
+}
+
 type toolResultMsg struct {
 	results []toolResult
 }
@@ -57,9 +65,13 @@ type Model struct {
 	streamCh     <-chan llm.StreamChunk
 	streamCancel context.CancelFunc
 	streamStart  time.Time
+	lastChunkAt  time.Time // last chunk received time (stall detection)
 	lastElapsed  time.Duration
 	tokenCount   int
 	toolIter     int // tool loop iteration counter (max 20)
+	retryCount   int // auto-retry counter (max 3)
+	toolEnabled  *bool  // nil=unchecked, true=supported, false=unsupported
+	toolStatus   string // human-readable tool check result
 	pendingQueue []string // messages queued while streaming
 
 	inSetup    bool
@@ -147,6 +159,17 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 }
 
 func (m Model) Init() tea.Cmd {
+	if config.IsDebug() && m.client != nil {
+		// Run tool support check in background on startup
+		client := m.client
+		model := m.cfg.Models.Super
+		return tea.Batch(textarea.Blink, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			ok, detail := client.CheckToolSupport(ctx, model)
+			return toolCheckMsg{supported: ok, detail: detail}
+		})
+	}
 	return textarea.Blink
 }
 
@@ -287,6 +310,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, taCmd
 
+	case tea.PasteMsg:
+		// Directly insert pasted content into textarea
+		if msg.Content != "" {
+			m.textarea.InsertString(msg.Content)
+			lines := strings.Count(m.textarea.Value(), "\n") + 1
+			if lines > m.textarea.Height() && lines <= 10 {
+				m.textarea.SetHeight(lines)
+				m.recalcLayout()
+			} else if lines < m.textarea.Height() {
+				m.textarea.SetHeight(lines)
+				m.recalcLayout()
+			}
+		}
+		return m, nil
+
+	case tea.PasteStartMsg, tea.PasteEndMsg:
+		// Ignore bracketed paste control messages
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -387,8 +429,68 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.streamBuf += msg.content
 		m.tokenCount++
+		m.lastChunkAt = time.Now()
 		m.updateViewport()
 		return m, m.waitForNextChunk()
+
+	case streamTickMsg:
+		// Periodic UI refresh during streaming (100ms interval)
+		if m.streaming {
+			m.updateViewport()
+			return m, tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg {
+				return streamTickMsg{}
+			})
+		}
+		return m, nil
+
+	case streamTimeoutMsg:
+		config.DebugLog("[APP-TIMEOUT] 60s no chunk | retryCount=%d/3 | tokens=%d | elapsed=%v", m.retryCount, m.tokenCount, time.Since(m.streamStart))
+		// Cancel current stream
+		if m.streamCancel != nil {
+			m.streamCancel()
+			m.streamCancel = nil
+		}
+		m.streamCh = nil
+
+		if m.retryCount < 3 {
+			m.retryCount++
+			// Save partial content before retry to avoid duplication
+			if m.streamBuf != "" {
+				m.msgs = append(m.msgs, ui.Message{
+					Role: ui.RoleAssistant, Content: m.streamBuf + "\n\n[중단됨]", Timestamp: time.Now(),
+				})
+				m.history = append(m.history, openai.ChatCompletionMessage{
+					Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
+				})
+				m.streamBuf = ""
+			}
+			retryMsg := fmt.Sprintf("[응답 지연 — 자동 재시도 %d/3]", m.retryCount)
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: retryMsg, Timestamp: time.Now(),
+			})
+			config.DebugLog("[APP-RETRY] auto-retry %d/3", m.retryCount)
+			m.lastChunkAt = time.Time{}
+			m.updateViewport()
+			return m, m.startStream()
+		}
+
+		// Max retries reached — give up
+		m.streaming = false
+		m.lastElapsed = time.Since(m.streamStart)
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: "[응답 없음 — 3회 재시도 실패. 네트워크를 확인하세요]", Timestamp: time.Now(),
+		})
+		if m.streamBuf != "" {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),
+			})
+			m.history = append(m.history, openai.ChatCompletionMessage{
+				Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
+			})
+		}
+		m.streamBuf = ""
+		m.updateViewport()
+		return m, nil
 
 	case toolResultMsg:
 		config.DebugLog("[APP-TOOL] received %d tool results | toolIter=%d/20", len(msg.results), m.toolIter+1)
@@ -420,6 +522,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, m.continueAfterTools()
+
+	case toolCheckMsg:
+		enabled := msg.supported
+		m.toolEnabled = &enabled
+		m.toolStatus = msg.detail
+		status := "OFF"
+		if enabled {
+			status = "ON"
+		}
+		m.msgs = append(m.msgs, ui.Message{
+			Role:      ui.RoleSystem,
+			Content:   fmt.Sprintf("[Tool Check] %s — %s", status, msg.detail),
+			Timestamp: time.Now(),
+		})
+		config.DebugLog("[TOOL-CHECK] result: enabled=%v detail=%s", enabled, msg.detail)
+		m.updateViewport()
+		return m, nil
 
 	// Forward mouse wheel events to viewport for touchpad scroll
 	case tea.MouseWheelMsg:
@@ -517,11 +636,19 @@ func (m Model) View() tea.View {
 		}
 
 		// Input box with gray border
+		taView := m.textarea.View()
+		totalLines := strings.Count(m.textarea.Value(), "\n") + 1
+		if totalLines > m.textarea.Height() {
+			lineIndicator := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#9CA3AF")).
+				Render(fmt.Sprintf(" [%d줄]", totalLines))
+			taView = taView + lineIndicator
+		}
 		inputBox := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#9CA3AF")).
 			Width(m.width - 4).
-			Render(m.textarea.View())
+			Render(taView)
 
 		// Status bar below input — includes cwd and hints
 		model := m.currentModel()
@@ -529,7 +656,7 @@ func (m Model) View() tea.View {
 		if m.streaming {
 			elapsed = time.Since(m.streamStart)
 		}
-		statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug())
+		statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), m.toolEnabled)
 
 		content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
 	}
@@ -578,13 +705,36 @@ func (m *Model) recalcLayout() {
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-func (m *Model) updateViewport() {
-	var stream string
-	if m.streaming {
-		elapsed := time.Since(m.streamStart)
-		frame := spinnerFrames[int(elapsed.Milliseconds()/150)%len(spinnerFrames)]
-		stream = fmt.Sprintf("%s thinking... (%.1fs · %dtok)", frame, elapsed.Seconds(), m.tokenCount)
+func (m *Model) streamStatus() string {
+	if !m.streaming {
+		return ""
 	}
+	elapsed := time.Since(m.streamStart)
+	frame := spinnerFrames[int(elapsed.Milliseconds()/150)%len(spinnerFrames)]
+
+	if m.lastChunkAt.IsZero() {
+		// No chunk received yet — connecting
+		return fmt.Sprintf("%s 연결중... (%.1fs)", frame, elapsed.Seconds())
+	}
+
+	sinceLastChunk := time.Since(m.lastChunkAt)
+	tokPerSec := float64(0)
+	if elapsed.Seconds() > 0 {
+		tokPerSec = float64(m.tokenCount) / elapsed.Seconds()
+	}
+
+	if sinceLastChunk > 15*time.Second {
+		return fmt.Sprintf("⚠ 응답 없음 %.0f초 — 연결 확인 필요 (%dtok · %.1fs)", sinceLastChunk.Seconds(), m.tokenCount, elapsed.Seconds())
+	}
+	if sinceLastChunk > 5*time.Second {
+		return fmt.Sprintf("⚠ 응답 지연 %.0f초... (%dtok · %.1fs)", sinceLastChunk.Seconds(), m.tokenCount, elapsed.Seconds())
+	}
+
+	return fmt.Sprintf("%s 수신중 (%dtok · %.0ftok/s · %.1fs)", frame, m.tokenCount, tokPerSec, elapsed.Seconds())
+}
+
+func (m *Model) updateViewport() {
+	stream := m.streamStatus()
 	content := ui.RenderMessages(m.msgs, stream, m.viewport.Width())
 	m.viewport.SetContent(content)
 	m.viewport.GotoBottom()
@@ -613,7 +763,10 @@ func (m *Model) startStream() tea.Cmd {
 	config.DebugLog("[APP-STREAM] start | mode=%s | historyMsgs=%d | tools=%d | toolIter=%d/20", modeName, len(history), len(toolDefs), m.toolIter)
 
 	m.streamCh = m.client.StreamChat(ctx, model, history, toolDefs)
-	return m.waitForNextChunk()
+	return tea.Batch(
+		m.waitForNextChunk(),
+		tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return streamTickMsg{} }),
+	)
 }
 
 func (m *Model) sendMessage(input string) tea.Cmd {
@@ -627,7 +780,9 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.streamBuf = ""
 	m.tokenCount = 0
 	m.toolIter = 0
+	m.retryCount = 0
 	m.streamStart = time.Now()
+	m.lastChunkAt = time.Time{} // reset — no chunk received yet
 	m.updateViewport()
 
 	return m.startStream()
@@ -645,15 +800,21 @@ func (m *Model) waitForNextChunk() tea.Cmd {
 		return nil
 	}
 	return func() tea.Msg {
-		chunk, ok := <-ch
-		if !ok {
-			return streamChunkMsg{done: true}
-		}
-		return streamChunkMsg{
-			content:   chunk.Content,
-			done:      chunk.Done,
-			err:       chunk.Err,
-			toolCalls: chunk.ToolCalls,
+		timer := time.NewTimer(60 * time.Second)
+		defer timer.Stop()
+		select {
+		case chunk, ok := <-ch:
+			if !ok {
+				return streamChunkMsg{done: true}
+			}
+			return streamChunkMsg{
+				content:   chunk.Content,
+				done:      chunk.Done,
+				err:       chunk.Err,
+				toolCalls: chunk.ToolCalls,
+			}
+		case <-timer.C:
+			return streamTimeoutMsg{}
 		}
 	}
 }

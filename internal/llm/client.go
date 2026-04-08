@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -347,6 +348,76 @@ func truncateForLog(s string, max int) string {
 		return s[:max] + "..."
 	}
 	return s
+}
+
+// CheckToolSupport sends a minimal request with tool_choice:"required" to verify
+// that the endpoint actually supports tool calling. Returns true if tool_calls
+// are present in the response, false otherwise.
+func (c *Client) CheckToolSupport(ctx context.Context, model string) (bool, string) {
+	config.DebugLog("[TOOL-CHECK] starting tool support check for model=%s", model)
+
+	req := openai.ChatCompletionRequest{
+		Model: model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleUser, Content: "What is 2+2? Use the calculator tool."},
+		},
+		Tools: []openai.Tool{
+			{
+				Type: openai.ToolTypeFunction,
+				Function: &openai.FunctionDefinition{
+					Name:        "calculator",
+					Description: "Calculate math expressions",
+					Parameters: json.RawMessage(`{
+						"type": "object",
+						"properties": {
+							"expression": {"type": "string", "description": "Math expression"}
+						},
+						"required": ["expression"]
+					}`),
+				},
+			},
+		},
+		MaxTokens: 100,
+	}
+	// Force tool usage
+	req.ToolChoice = "required"
+
+	resp, err := c.api.CreateChatCompletion(ctx, req)
+	if err != nil {
+		config.DebugLog("[TOOL-CHECK] FAILED: %v", err)
+		return false, fmt.Sprintf("error: %v", err)
+	}
+
+	if len(resp.Choices) == 0 {
+		config.DebugLog("[TOOL-CHECK] FAILED: no choices in response")
+		return false, "no choices"
+	}
+
+	choice := resp.Choices[0]
+	reason := string(choice.FinishReason)
+	hasToolCalls := len(choice.Message.ToolCalls) > 0
+
+	config.DebugLog("[TOOL-CHECK] finish_reason=%s | hasToolCalls=%v | contentLen=%d",
+		reason, hasToolCalls, len(choice.Message.Content))
+
+	if hasToolCalls {
+		for i, tc := range choice.Message.ToolCalls {
+			config.DebugLog("[TOOL-CHECK] toolCall[%d] name=%s args=%s", i, tc.Function.Name, tc.Function.Arguments)
+		}
+		return true, "tool_calls OK"
+	}
+
+	// Tool calling not working — log the text response for diagnosis
+	if choice.Message.Content != "" {
+		preview := choice.Message.Content
+		if len(preview) > 200 {
+			preview = preview[:200]
+		}
+		config.DebugLog("[TOOL-CHECK] NO tool_calls, got text: %q", preview)
+		return false, fmt.Sprintf("finish_reason=%s, text response (no tool_calls)", reason)
+	}
+
+	return false, fmt.Sprintf("finish_reason=%s, empty response", reason)
 }
 
 func (c *Client) Chat(ctx context.Context, model string, messages []openai.ChatCompletionMessage) (string, error) {
