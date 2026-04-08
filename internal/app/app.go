@@ -159,7 +159,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	if config.IsDebug() && m.client != nil {
+	if m.client != nil {
 		// Run tool support check in background on startup
 		client := m.client
 		model := m.cfg.Models.Super
