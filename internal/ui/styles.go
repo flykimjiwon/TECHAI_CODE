@@ -106,6 +106,11 @@ var (
 	SuperColor = ColorPrimary // teal — 만능
 	DevColor   = ColorSuccess // emerald — 개발
 	PlanColor  = ColorOrange  // orange — 플랜
+
+	// HUD colors
+	ColorHUD     = lipgloss.Color("#475569") // slate 600 — HUD secondary line
+	ColorHUDCtx  = lipgloss.Color("#818CF8") // indigo 400 — context meter
+	ColorHUDTime = lipgloss.Color("#94A3B8") // slate 400 — session time
 )
 
 func ModeColor(mode int) color.Color {

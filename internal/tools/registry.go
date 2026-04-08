@@ -90,13 +90,46 @@ func AllTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "shell_exec",
-				Description: "Execute a shell command. Use for: git, npm, build, test, lint, grep, find, etc. Dangerous commands (rm -rf /, sudo) are blocked.",
+				Description: "Execute a shell command. Use for: git, npm, build, test, lint, etc. Dangerous commands (rm -rf /, sudo) are blocked. Prefer grep_search/glob_search over shell grep/find.",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{
 						"command": {Type: "string", Description: "Shell command to execute"},
 					},
 					Required: []string{"command"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "grep_search",
+				Description: "Search file contents by regex pattern. Returns file:line:content matches. Faster and safer than shell grep. Skips binary files, .git, node_modules, dist.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"pattern":       {Type: "string", Description: "Regex pattern to search for (required)"},
+						"path":          {Type: "string", Description: "Directory to search in (default: current directory)"},
+						"glob":          {Type: "string", Description: "File filter glob (e.g. '*.go', '*.ts')"},
+						"ignore_case":   {Type: "string", Description: "Set to 'true' for case-insensitive search"},
+						"context_lines": {Type: "string", Description: "Number of context lines around matches (default: 0)"},
+					},
+					Required: []string{"pattern"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "glob_search",
+				Description: "Find files by glob pattern (supports **). Returns matching file paths. Use instead of shell find. Skips .git, node_modules, dist.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"pattern": {Type: "string", Description: "Glob pattern (e.g. '**/*.go', 'src/**/*.ts', '*.json')"},
+						"path":    {Type: "string", Description: "Base directory to search in (default: current directory)"},
+					},
+					Required: []string{"pattern"},
 				},
 			},
 		},
@@ -139,13 +172,46 @@ func ReadOnlyTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "shell_exec",
-				Description: "Execute read-only shell commands: ls, find, grep, cat, git log, git status, etc.",
+				Description: "Execute read-only shell commands: ls, cat, git log, git status, etc. Prefer grep_search/glob_search over shell grep/find.",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{
 						"command": {Type: "string", Description: "Shell command (read-only operations only)"},
 					},
 					Required: []string{"command"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "grep_search",
+				Description: "Search file contents by regex pattern. Returns file:line:content matches.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"pattern":       {Type: "string", Description: "Regex pattern to search for (required)"},
+						"path":          {Type: "string", Description: "Directory to search in (default: current directory)"},
+						"glob":          {Type: "string", Description: "File filter glob (e.g. '*.go', '*.ts')"},
+						"ignore_case":   {Type: "string", Description: "Set to 'true' for case-insensitive search"},
+						"context_lines": {Type: "string", Description: "Number of context lines around matches (default: 0)"},
+					},
+					Required: []string{"pattern"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "glob_search",
+				Description: "Find files by glob pattern (supports **). Returns matching file paths.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"pattern": {Type: "string", Description: "Glob pattern (e.g. '**/*.go', 'src/**/*.ts')"},
+						"path":    {Type: "string", Description: "Base directory (default: current directory)"},
+					},
+					Required: []string{"pattern"},
 				},
 			},
 		},
@@ -259,6 +325,45 @@ func executeInner(name string, argsJSON string) string {
 			output = output[:30000] + "\n\n... [truncated]"
 		}
 		return output
+
+	case "grep_search":
+		pattern, _ := args["pattern"].(string)
+		if pattern == "" {
+			return "Error: pattern is required"
+		}
+		searchPath, _ := args["path"].(string)
+		glob, _ := args["glob"].(string)
+		ignoreCase := false
+		if ic, ok := args["ignore_case"].(string); ok && ic == "true" {
+			ignoreCase = true
+		}
+		if ic, ok := args["ignore_case"].(bool); ok && ic {
+			ignoreCase = true
+		}
+		contextLines := 0
+		if cl, ok := args["context_lines"].(string); ok {
+			fmt.Sscanf(cl, "%d", &contextLines)
+		}
+		if cl, ok := args["context_lines"].(float64); ok {
+			contextLines = int(cl)
+		}
+		result, err := GrepSearch(pattern, searchPath, glob, ignoreCase, contextLines)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return result
+
+	case "glob_search":
+		pattern, _ := args["pattern"].(string)
+		if pattern == "" {
+			return "Error: pattern is required"
+		}
+		searchPath, _ := args["path"].(string)
+		result, err := GlobSearch(pattern, searchPath)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return result
 
 	default:
 		config.DebugLog("[TOOL-ERR] unknown tool '%s'", name)

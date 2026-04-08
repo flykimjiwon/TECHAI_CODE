@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -74,6 +75,9 @@ type Model struct {
 	toolStatus   string // human-readable tool check result
 	pendingQueue []string // messages queued while streaming
 
+	sessionStart time.Time
+	osInfo       string // "darwin/arm64"
+
 	inSetup    bool
 	setupInput textarea.Model
 	setupCfg   config.Config
@@ -118,16 +122,21 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		projectCtx = "\n\n## Project Context (.techai.md)\n" + string(data)
 	}
 
+	// Gather system context (IP, OS, CWD, files, git, etc.)
+	projectCtx += llm.GatherSystemContext()
+
 	m := Model{
-		cfg:        cfg,
-		activeTab:  initialMode,
-		cwd:        cwdShort,
-		projectCtx: projectCtx,
-		textarea:   ta,
-		viewport:   vp,
-		inSetup:    needsSetup,
-		setupCfg:   config.DefaultConfig(),
-		setupInput: setupTa,
+		cfg:          cfg,
+		activeTab:    initialMode,
+		cwd:          cwdShort,
+		projectCtx:   projectCtx,
+		textarea:     ta,
+		viewport:     vp,
+		sessionStart: time.Now(),
+		osInfo:       friendlyOS(runtime.GOOS),
+		inSetup:      needsSetup,
+		setupCfg:     config.DefaultConfig(),
+		setupInput:   setupTa,
 	}
 
 	if needsSetup {
@@ -144,7 +153,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	}
 	m.msgs = []ui.Message{
 		{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
-		{Role: ui.RoleSystem, Content: ui.ModeInfoBox(initialMode), Timestamp: time.Now(), Tag: "modebox"},
+		{Role: ui.RoleSystem, Content: ui.ModeInfoBox(initialMode, llm.GetDisplayName(cfg.Models.Super), llm.GetDisplayName(cfg.Models.Dev)), Timestamp: time.Now(), Tag: "modebox"},
 	}
 
 	if config.IsDebug() {
@@ -227,7 +236,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.msgs = m.msgs[:0]
 			m.msgs = append(m.msgs,
 				ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
-				ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab), Timestamp: time.Now(), Tag: "modebox"},
+				ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab, m.superDisplayName(), m.devDisplayName()), Timestamp: time.Now(), Tag: "modebox"},
 			)
 			m.streamBuf = ""
 			m.tokenCount = 0
@@ -252,7 +261,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.msgs = append(filtered, ui.Message{
 				Role:      ui.RoleSystem,
-				Content:   ui.ModeInfoBox(m.activeTab),
+				Content:   ui.ModeInfoBox(m.activeTab, m.superDisplayName(), m.devDisplayName()),
 				Timestamp: time.Now(),
 				Tag:       "modebox",
 			})
@@ -545,6 +554,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var vpCmd tea.Cmd
 		m.viewport, vpCmd = m.viewport.Update(msg)
 		return m, vpCmd
+
 	}
 
 	return m, nil
@@ -600,7 +610,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.msgs = m.msgs[:0]
 		m.msgs = append(m.msgs,
 			ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
-			ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab), Timestamp: time.Now(), Tag: "modebox"},
+			ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab, m.superDisplayName(), m.devDisplayName()), Timestamp: time.Now(), Tag: "modebox"},
 		)
 		m.streamBuf = ""
 		m.tokenCount = 0
@@ -656,14 +666,36 @@ func (m Model) View() tea.View {
 		if m.streaming {
 			elapsed = time.Since(m.streamStart)
 		}
-		statusBar := ui.RenderStatusBar(model, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), m.toolEnabled)
+		historyChars := 0
+		for _, h := range m.history {
+			historyChars += len(h.Content)
+		}
+		sbData := ui.StatusBarData{
+			Model:        model,
+			Tokens:       m.tokenCount,
+			Elapsed:      elapsed,
+			Mode:         m.activeTab,
+			CWD:          m.cwd,
+			Width:        m.width,
+			Debug:        config.IsDebug(),
+			ToolEnabled:  m.toolEnabled,
+			OS:           m.osInfo,
+			ToolCount:    len(tools.ToolsForMode(m.activeTab)),
+			HistoryLen:   len(m.history),
+			HistoryChars: historyChars,
+			MaxContext:   llm.GetMaxContext(model),
+			SessionStart: m.sessionStart,
+			ToolIter:     m.toolIter,
+		}
+		statusBar := ui.RenderStatusBar(sbData)
 
 		content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
 	}
 
 	v := tea.NewView(content)
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
+	// MouseMode disabled — some terminals block keyboard input with cell motion tracking
+	// v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 
@@ -693,7 +725,7 @@ func (m *Model) recalcLayout() {
 		return
 	}
 	inputH := m.textarea.Height() + 2
-	fixed := inputH + 1 // input box + status bar
+	fixed := inputH + 2 // input box + status bar (2 lines: main + HUD)
 	vpHeight := m.height - fixed
 	if vpHeight < 3 {
 		vpHeight = 3
@@ -740,9 +772,22 @@ func (m *Model) updateViewport() {
 	m.viewport.GotoBottom()
 }
 
+func (m Model) superDisplayName() string {
+	return llm.GetDisplayName(m.cfg.Models.Super)
+}
+
+func (m Model) devDisplayName() string {
+	return llm.GetDisplayName(m.cfg.Models.Dev)
+}
+
 func (m Model) currentModel() string {
-	// gpt-oss-120b for all modes — superior in intelligence, speed, and cost
-	return m.cfg.Models.Super
+	mode := llm.Mode(m.activeTab)
+	switch mode {
+	case llm.ModeDev:
+		return m.cfg.Models.Dev // Qwen3-Coder-30B
+	default:
+		return m.cfg.Models.Super // GPT-OSS-120B (슈퍼/플랜)
+	}
 }
 
 // startStream creates a new streaming request with tool definitions.
@@ -763,10 +808,7 @@ func (m *Model) startStream() tea.Cmd {
 	config.DebugLog("[APP-STREAM] start | mode=%s | historyMsgs=%d | tools=%d | toolIter=%d/20", modeName, len(history), len(toolDefs), m.toolIter)
 
 	m.streamCh = m.client.StreamChat(ctx, model, history, toolDefs)
-	return tea.Batch(
-		m.waitForNextChunk(),
-		tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return streamTickMsg{} }),
-	)
+	return m.waitForNextChunk()
 }
 
 func (m *Model) sendMessage(input string) tea.Cmd {
@@ -785,7 +827,10 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.lastChunkAt = time.Time{} // reset — no chunk received yet
 	m.updateViewport()
 
-	return m.startStream()
+	return tea.Batch(
+		m.startStream(),
+		tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return streamTickMsg{} }),
+	)
 }
 
 // continueAfterTools starts a new stream after tool results are added to history.
@@ -837,6 +882,19 @@ func (m *Model) cancelStream() {
 	}
 	m.streamBuf = ""
 	m.updateViewport()
+}
+
+func friendlyOS(goos string) string {
+	switch goos {
+	case "darwin":
+		return "Mac"
+	case "windows":
+		return "Windows"
+	case "linux":
+		return "Linux"
+	default:
+		return goos
+	}
 }
 
 func truncateArgs(s string, max int) string {
