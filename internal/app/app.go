@@ -28,9 +28,6 @@ type streamChunkMsg struct {
 	toolCalls []llm.ToolCallInfo
 }
 
-type streamTimeoutMsg struct{} // 60s no-chunk timeout
-type streamTickMsg struct{}    // 100ms UI refresh tick
-
 type toolCheckMsg struct {
 	supported bool
 	detail    string
@@ -172,7 +169,6 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	if m.inSetup {
 		return m.updateSetup(msg)
 	}
@@ -309,25 +305,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, taCmd
 
-	case tea.PasteMsg:
-		// Directly insert pasted content into textarea
-		if msg.Content != "" {
-			m.textarea.InsertString(msg.Content)
-			lines := strings.Count(m.textarea.Value(), "\n") + 1
-			if lines > m.textarea.Height() && lines <= 10 {
-				m.textarea.SetHeight(lines)
-				m.recalcLayout()
-			} else if lines < m.textarea.Height() {
-				m.textarea.SetHeight(lines)
-				m.recalcLayout()
-			}
-		}
-		return m, nil
-
-	case tea.PasteStartMsg, tea.PasteEndMsg:
-		// Ignore bracketed paste control messages
-		return m, nil
-
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -426,70 +403,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		m.streamBuf += msg.content
-		m.tokenCount++
-		m.lastChunkAt = time.Now()
+		if msg.content != "" {
+			m.streamBuf += msg.content
+			m.tokenCount++
+			m.lastChunkAt = time.Now()
+		}
 		m.updateViewport()
 		return m, m.waitForNextChunk()
 
-	case streamTickMsg:
-		// Periodic UI refresh during streaming (100ms interval)
-		if m.streaming {
-			m.updateViewport()
-			return m, tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg {
-				return streamTickMsg{}
-			})
-		}
-		return m, nil
-
-	case streamTimeoutMsg:
-		config.DebugLog("[APP-TIMEOUT] 60s no chunk | retryCount=%d/3 | tokens=%d | elapsed=%v", m.retryCount, m.tokenCount, time.Since(m.streamStart))
-		// Cancel current stream
-		if m.streamCancel != nil {
-			m.streamCancel()
-			m.streamCancel = nil
-		}
-		m.streamCh = nil
-
-		if m.retryCount < 3 {
-			m.retryCount++
-			// Save partial content before retry to avoid duplication
-			if m.streamBuf != "" {
-				m.msgs = append(m.msgs, ui.Message{
-					Role: ui.RoleAssistant, Content: m.streamBuf + "\n\n[중단됨]", Timestamp: time.Now(),
-				})
-				m.history = append(m.history, openai.ChatCompletionMessage{
-					Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
-				})
-				m.streamBuf = ""
-			}
-			retryMsg := fmt.Sprintf("[응답 지연 — 자동 재시도 %d/3]", m.retryCount)
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: retryMsg, Timestamp: time.Now(),
-			})
-			config.DebugLog("[APP-RETRY] auto-retry %d/3", m.retryCount)
-			m.lastChunkAt = time.Time{}
-			m.updateViewport()
-			return m, m.startStream()
-		}
-
-		// Max retries reached — give up
-		m.streaming = false
-		m.lastElapsed = time.Since(m.streamStart)
-		m.msgs = append(m.msgs, ui.Message{
-			Role: ui.RoleSystem, Content: "[응답 없음 — 3회 재시도 실패. 네트워크를 확인하세요]", Timestamp: time.Now(),
-		})
-		if m.streamBuf != "" {
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),
-			})
-			m.history = append(m.history, openai.ChatCompletionMessage{
-				Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
-			})
-		}
-		m.streamBuf = ""
-		m.updateViewport()
-		return m, nil
 
 	case toolResultMsg:
 		config.DebugLog("[APP-TOOL] received %d tool results | toolIter=%d/20", len(msg.results), m.toolIter+1)
@@ -547,7 +468,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	}
 
-	return m, nil
+	// Forward unhandled messages (cursor blink, focus, etc.) to textarea
+	// to keep the cursor blink chain alive
+	var taCmd tea.Cmd
+	m.textarea, taCmd = m.textarea.Update(msg)
+	return m, taCmd
 }
 
 func (m Model) updateSetup(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -684,7 +609,8 @@ func (m Model) View() tea.View {
 
 	v := tea.NewView(content)
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
+	// MouseMode disabled — causes freeze in some terminals with Bubble Tea v2
+	// v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 

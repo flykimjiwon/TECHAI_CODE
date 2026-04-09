@@ -307,8 +307,14 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 				}
 				ch <- StreamChunk{Content: delta.Content}
 			} else if len(delta.ToolCalls) == 0 && delta.Role == "" {
-				// Empty chunk — might indicate buffering
-				config.DebugLog("[CHUNK#%d] EMPTY (no content, no toolCalls) | gap=%v", chunkNum, gap)
+				// Stall detection: no real content after 30s → timeout
+				if totalContentLen == 0 && time.Since(streamStart) > 30*time.Second {
+					config.DebugLog("[STREAM-STALL] no content after 30s | chunks=%d", chunkNum)
+					ch <- StreamChunk{Err: fmt.Errorf("API stall: no content after 30s (%d empty chunks)", chunkNum), Done: true}
+					return
+				}
+				// Send empty chunk as heartbeat to keep UI event loop alive
+				ch <- StreamChunk{Content: ""}
 			}
 
 			// Accumulate tool call deltas
