@@ -72,126 +72,52 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-// StatusBarData holds all data needed to render the status bar.
-type StatusBarData struct {
-	Model        string
-	Tokens       int
-	Elapsed      time.Duration
-	Mode         int
-	CWD          string
-	Width        int
-	Debug        bool
-	ToolEnabled  *bool
-	OS           string // "darwin/arm64"
-	ToolCount    int
-	HistoryLen   int // history message count
-	HistoryChars int // total character count across history (for token estimation)
-	MaxContext   int // model max context window
-	SessionStart time.Time
-	ToolIter     int
-}
-
-func RenderStatusBar(d StatusBarData) string {
+func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, cwd string, width int, debug bool, toolCount int) string {
 	modeStyle := lipgloss.NewStyle().
-		Foreground(ModeColor(d.Mode)).
+		Foreground(ModeColor(mode)).
 		Bold(true)
 
-	modeName := Tabs[d.Mode].Name
-	displayName := d.Model
-	// Use short display name from model registry if available
-	if len(d.Model) > 20 {
-		parts := strings.Split(d.Model, "/")
-		if len(parts) > 1 {
-			displayName = parts[len(parts)-1]
-		}
+	modeName := Tabs[mode].Name
+	// Strip provider prefix (e.g. "google/gemma-4-31b-it" → "gemma-4-31b-it")
+	shortModel := model
+	if idx := strings.LastIndex(model, "/"); idx >= 0 {
+		shortModel = model[idx+1:]
 	}
-
 	left := modeStyle.Render("  "+modeName) +
-		Subtle.Render("  "+strings.ToUpper(displayName)) +
-		Subtle.Render("  "+d.OS) +
-		Subtle.Render("  ./"+d.CWD)
+		Subtle.Render("  "+shortModel) +
+		Subtle.Render("  ./"+cwd)
 
-	// Tool status indicator
-	if d.ToolEnabled != nil {
-		if *d.ToolEnabled {
-			toolOn := lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true)
-			left += toolOn.Render(fmt.Sprintf("  Tool:ON  %dtools", d.ToolCount))
-		} else {
-			toolOff := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
-			left += toolOff.Render("  Tool:OFF")
-		}
+	if debug {
+		debugStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+		left += debugStyle.Render("  [DEBUG]")
+	}
+
+	if toolCount > 0 {
+		toolStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true)
+		left += toolStyle.Render(fmt.Sprintf("  Tool:ON(%d)", toolCount))
 	} else {
-		toolUnknown := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
-		left += toolUnknown.Render("  Tool:--")
+		toolOffStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+		left += toolOffStyle.Render("  Tool:OFF")
 	}
 
-	if d.Tokens > 0 {
-		left += Subtle.Render(fmt.Sprintf("  %dtok", d.Tokens))
+	if tokens > 0 {
+		left += Subtle.Render(fmt.Sprintf("  %dtok", tokens))
 	}
-	if d.Elapsed > 0 {
-		left += Subtle.Render(fmt.Sprintf("  %.1fs", d.Elapsed.Seconds()))
+	if elapsed > 0 {
+		left += Subtle.Render(fmt.Sprintf("  %.1fs", elapsed.Seconds()))
 	}
 
 	right := Subtle.Render("Shift+Enter 줄바꿈  Tab 전환  /clear  Ctrl+C ")
 
-	gap := d.Width - lipgloss.Width(left) - lipgloss.Width(right) - 2
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {
 		gap = 1
 	}
 
-	line1 := lipgloss.NewStyle().
+	return lipgloss.NewStyle().
 		Background(lipgloss.Color("#0F172A")).
-		Width(d.Width).
+		Width(width).
 		Render(left + strings.Repeat(" ", gap) + right)
-
-	// HUD line 2: context meter, session time, tool iteration, debug
-	hudStyle := lipgloss.NewStyle().Foreground(ColorHUD)
-	ctxStyle := lipgloss.NewStyle().Foreground(ColorHUDCtx)
-	timeStyle := lipgloss.NewStyle().Foreground(ColorHUDTime)
-	debugStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
-
-	// Estimate tokens from history (~4 chars per token avg)
-	estTokens := d.HistoryChars / 4
-	if estTokens == 0 && d.HistoryLen > 0 {
-		estTokens = d.HistoryLen * 100 // fallback if chars not tracked
-	}
-	ctxPercent := 0
-	if d.MaxContext > 0 {
-		ctxPercent = (estTokens * 100) / d.MaxContext
-	}
-	ctxStr := ctxStyle.Render(fmt.Sprintf("ctx:~%dK/%dK(%d%%)", estTokens/1000, d.MaxContext/1000, ctxPercent))
-
-	sessionDur := time.Since(d.SessionStart)
-	sessionStr := timeStyle.Render(fmt.Sprintf("session:%s", formatDuration(sessionDur)))
-
-	iterStr := hudStyle.Render(fmt.Sprintf("toolIter:%d/20", d.ToolIter))
-
-	hudLeft := "  " + ctxStr + "  " + sessionStr + "  " + iterStr
-	if d.Debug {
-		hudLeft += "  " + debugStyle.Render("[DEBUG]")
-	}
-
-	hudGap := d.Width - lipgloss.Width(hudLeft) - 2
-	if hudGap < 1 {
-		hudGap = 1
-	}
-
-	line2 := lipgloss.NewStyle().
-		Background(lipgloss.Color("#0F172A")).
-		Width(d.Width).
-		Render(hudLeft + strings.Repeat(" ", hudGap))
-
-	return line1 + "\n" + line2
-}
-
-func formatDuration(d time.Duration) string {
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	}
-	if d < time.Hour {
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	}
-	return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
 }
 
 // renderMarkdown renders markdown content using glamour (dark theme).

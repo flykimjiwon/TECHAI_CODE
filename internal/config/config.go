@@ -23,17 +23,9 @@ type ModelsConfig struct {
 	Dev   string `yaml:"dev"`
 }
 
-// EndpointsConfig allows per-model endpoint overrides.
-// If empty, falls back to api.base_url / api.api_key.
-type EndpointsConfig struct {
-	DevBaseURL string `yaml:"dev_base_url"`
-	DevAPIKey  string `yaml:"dev_api_key"`
-}
-
 type Config struct {
-	API       APIConfig       `yaml:"api"`
-	Models    ModelsConfig    `yaml:"models"`
-	Endpoints EndpointsConfig `yaml:"endpoints"`
+	API    APIConfig    `yaml:"api"`
+	Models ModelsConfig `yaml:"models"`
 }
 
 // Build-time overridable defaults (set via -ldflags)
@@ -42,7 +34,7 @@ var (
 	DefaultModel    = "openai/gpt-oss-120b"
 	DefaultDevModel = "qwen/qwen3-coder-30b"
 	ConfigDirName   = ".tgc"
-	DebugMode       = "true" // v0.4.0: always ON for all builds
+	DebugMode       = "false" // set to "true" via ldflags in build-debug
 )
 
 // IsDebug returns true when the binary was built with debug mode enabled.
@@ -112,24 +104,6 @@ func DebugLog(format string, args ...interface{}) {
 // DebugLogPath returns the path to the debug log file.
 func DebugLogPath() string {
 	return filepath.Join(ConfigDir(), "debug.log")
-}
-
-// DevBaseURL returns the base URL for the dev model.
-// Falls back to api.base_url if endpoints.dev_base_url is empty.
-func (c Config) DevBaseURL() string {
-	if c.Endpoints.DevBaseURL != "" {
-		return c.Endpoints.DevBaseURL
-	}
-	return c.API.BaseURL
-}
-
-// DevAPIKey returns the API key for the dev model.
-// Falls back to api.api_key if endpoints.dev_api_key is empty.
-func (c Config) DevAPIKey() string {
-	if c.Endpoints.DevAPIKey != "" {
-		return c.Endpoints.DevAPIKey
-	}
-	return c.API.APIKey
 }
 
 func DefaultConfig() Config {

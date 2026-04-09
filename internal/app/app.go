@@ -147,7 +147,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	}
 	m.msgs = []ui.Message{
 		{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
-		{Role: ui.RoleSystem, Content: ui.ModeInfoBox(initialMode), Timestamp: time.Now(), Tag: "modebox"},
+		{Role: ui.RoleSystem, Content: ui.ModeInfoBox(initialMode, m.currentModel()), Timestamp: time.Now(), Tag: "modebox"},
 	}
 
 	if config.IsDebug() {
@@ -219,7 +219,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.msgs = m.msgs[:0]
 			m.msgs = append(m.msgs,
 				ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
-				ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab), Timestamp: time.Now(), Tag: "modebox"},
+				ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab, m.currentModel()), Timestamp: time.Now(), Tag: "modebox"},
 			)
 			m.streamBuf = ""
 			m.tokenCount = 0
@@ -244,7 +244,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.msgs = append(filtered, ui.Message{
 				Role:      ui.RoleSystem,
-				Content:   ui.ModeInfoBox(m.activeTab),
+				Content:   ui.ModeInfoBox(m.activeTab, m.currentModel()),
 				Timestamp: time.Now(),
 				Tag:       "modebox",
 			})
@@ -497,7 +497,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.msgs = m.msgs[:0]
 		m.msgs = append(m.msgs,
 			ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
-			ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab), Timestamp: time.Now(), Tag: "modebox"},
+			ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab, m.currentModel()), Timestamp: time.Now(), Tag: "modebox"},
 		)
 		m.streamBuf = ""
 		m.tokenCount = 0
