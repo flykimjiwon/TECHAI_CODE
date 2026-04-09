@@ -1,6 +1,58 @@
 {
   "documents": [
     {
+      "path": "knowledge/docs/charts/chartjs.md",
+      "title": "Chart.js + react-chartjs-2 Reference",
+      "tier": 1,
+      "keywords": [
+        "charts",
+        "chartjs"
+      ],
+      "tokens": 804
+    },
+    {
+      "path": "knowledge/docs/charts/d3.md",
+      "title": "D3.js",
+      "tier": 1,
+      "keywords": [
+        "charts",
+        "d3"
+      ],
+      "tokens": 413
+    },
+    {
+      "path": "knowledge/docs/charts/echarts.md",
+      "title": "Apache ECharts",
+      "tier": 1,
+      "keywords": [
+        "charts",
+        "echarts"
+      ],
+      "tokens": 415
+    },
+    {
+      "path": "knowledge/docs/charts/recharts.md",
+      "title": "Recharts Reference",
+      "tier": 1,
+      "keywords": [
+        "charts",
+        "recharts"
+      ],
+      "tokens": 720
+    },
+    {
+      "path": "knowledge/docs/css/shadcn-ui.md",
+      "title": "shadcn/ui Components Reference",
+      "tier": 1,
+      "keywords": [
+        "css",
+        "shadcn-ui",
+        "shadcn",
+        "ui"
+      ],
+      "tokens": 828
+    },
+    {
       "path": "knowledge/docs/css/tailwind-v4.md",
       "title": "Tailwind CSS v4 Reference",
       "tier": 1,
@@ -23,6 +75,109 @@
       "tokens": 155
     },
     {
+      "path": "knowledge/docs/java/spring.md",
+      "title": "Spring Boot",
+      "tier": 2,
+      "keywords": [
+        "java",
+        "spring"
+      ],
+      "tokens": 497
+    },
+    {
+      "path": "knowledge/docs/javascript/es2024.md",
+      "title": "JavaScript ES2024+ Features Reference",
+      "tier": 1,
+      "keywords": [
+        "javascript",
+        "es2024"
+      ],
+      "tokens": 748
+    },
+    {
+      "path": "knowledge/docs/python/fastapi.md",
+      "title": "FastAPI",
+      "tier": 3,
+      "keywords": [
+        "python",
+        "fastapi"
+      ],
+      "tokens": 566
+    },
+    {
+      "path": "knowledge/docs/react/hooks.md",
+      "title": "React 19 Hooks Reference",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "hooks"
+      ],
+      "tokens": 621
+    },
+    {
+      "path": "knowledge/docs/react/nextjs.md",
+      "title": "Next.js 15 App Router Reference",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "nextjs"
+      ],
+      "tokens": 904
+    },
+    {
+      "path": "knowledge/docs/terminal/linux.md",
+      "title": "Linux/Bash Terminal Reference",
+      "tier": 1,
+      "os": "linux",
+      "keywords": [
+        "terminal",
+        "linux"
+      ],
+      "tokens": 820
+    },
+    {
+      "path": "knowledge/docs/terminal/windows.md",
+      "title": "Windows PowerShell \u0026 CMD Reference",
+      "tier": 1,
+      "os": "windows",
+      "keywords": [
+        "terminal",
+        "windows"
+      ],
+      "tokens": 584
+    },
+    {
+      "path": "knowledge/docs/typescript/types.md",
+      "title": "TypeScript Type System Reference",
+      "tier": 1,
+      "keywords": [
+        "typescript",
+        "types"
+      ],
+      "tokens": 791
+    },
+    {
+      "path": "knowledge/docs/vue/composition.md",
+      "title": "Vue 3 Composition API",
+      "tier": 2,
+      "keywords": [
+        "vue",
+        "composition"
+      ],
+      "tokens": 402
+    },
+    {
+      "path": "knowledge/skills/code-review.md",
+      "title": "Code Review Checklist",
+      "tier": 1,
+      "keywords": [
+        "code-review",
+        "code",
+        "review"
+      ],
+      "tokens": 476
+    },
+    {
       "path": "knowledge/skills/debugging.md",
       "title": "Debugging Skill",
       "tier": 1,
@@ -30,6 +185,53 @@
         "debugging"
       ],
       "tokens": 108
+    },
+    {
+      "path": "knowledge/skills/git-workflow.md",
+      "title": "Git Workflow Guide",
+      "tier": 1,
+      "keywords": [
+        "git-workflow",
+        "git",
+        "workflow"
+      ],
+      "tokens": 427
+    },
+    {
+      "path": "knowledge/skills/performance.md",
+      "title": "Performance Optimization",
+      "tier": 1,
+      "keywords": [
+        "performance"
+      ],
+      "tokens": 634
+    },
+    {
+      "path": "knowledge/skills/refactoring.md",
+      "title": "Refactoring Patterns",
+      "tier": 1,
+      "keywords": [
+        "refactoring"
+      ],
+      "tokens": 549
+    },
+    {
+      "path": "knowledge/skills/security.md",
+      "title": "Security Essentials",
+      "tier": 1,
+      "keywords": [
+        "security"
+      ],
+      "tokens": 716
+    },
+    {
+      "path": "knowledge/skills/tdd.md",
+      "title": "Test-Driven Development",
+      "tier": 1,
+      "keywords": [
+        "tdd"
+      ],
+      "tokens": 439
     }
   ]
 }
