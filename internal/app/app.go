@@ -168,21 +168,11 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	if m.client != nil {
-		// Run tool support check in background on startup
-		client := m.client
-		model := m.cfg.Models.Super
-		return tea.Batch(textarea.Blink, func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			ok, detail := client.CheckToolSupport(ctx, model)
-			return toolCheckMsg{supported: ok, detail: detail}
-		})
-	}
 	return textarea.Blink
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
 	if m.inSetup {
 		return m.updateSetup(msg)
 	}
@@ -694,8 +684,7 @@ func (m Model) View() tea.View {
 
 	v := tea.NewView(content)
 	v.AltScreen = true
-	// MouseMode disabled — some terminals block keyboard input with cell motion tracking
-	// v.MouseMode = tea.MouseModeCellMotion
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 
@@ -827,10 +816,7 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.lastChunkAt = time.Time{} // reset — no chunk received yet
 	m.updateViewport()
 
-	return tea.Batch(
-		m.startStream(),
-		tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return streamTickMsg{} }),
-	)
+	return m.startStream()
 }
 
 // continueAfterTools starts a new stream after tool results are added to history.
@@ -845,21 +831,15 @@ func (m *Model) waitForNextChunk() tea.Cmd {
 		return nil
 	}
 	return func() tea.Msg {
-		timer := time.NewTimer(60 * time.Second)
-		defer timer.Stop()
-		select {
-		case chunk, ok := <-ch:
-			if !ok {
-				return streamChunkMsg{done: true}
-			}
-			return streamChunkMsg{
-				content:   chunk.Content,
-				done:      chunk.Done,
-				err:       chunk.Err,
-				toolCalls: chunk.ToolCalls,
-			}
-		case <-timer.C:
-			return streamTimeoutMsg{}
+		chunk, ok := <-ch
+		if !ok {
+			return streamChunkMsg{done: true}
+		}
+		return streamChunkMsg{
+			content:   chunk.Content,
+			done:      chunk.Done,
+			err:       chunk.Err,
+			toolCalls: chunk.ToolCalls,
 		}
 	}
 }
