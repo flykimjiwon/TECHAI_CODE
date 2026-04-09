@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>택갈이코드 기능 비교 분석 — hanimo vs Claude Code vs Codex vs TGC</title>
+<style>
+  :root {
+    --bg: #0B0E14;
+    --surface: #111827;
+    --border: #1E293B;
+    --text: #E2E8F0;
+    --muted: #64748B;
+    --accent: #60A5FA;
+    --green: #34D399;
+    --red: #F87171;
+    --yellow: #FBBF24;
+    --purple: #A78BFA;
+    --orange: #FB923C;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  h1 {
+    font-size: 1.8rem;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+  }
+  .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.85rem; }
+  .section-title {
+    font-size: 1.2rem;
+    color: var(--accent);
+    margin: 2rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 2rem;
+    font-size: 0.82rem;
+  }
+  th, td {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  th {
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  th:first-child, td:first-child {
+    text-align: left;
+    font-weight: 500;
+    min-width: 200px;
+  }
+  tr:hover { background: rgba(96, 165, 250, 0.05); }
+  .yes { color: var(--green); font-weight: 700; }
+  .no { color: var(--red); }
+  .partial { color: var(--yellow); }
+  .best { color: var(--green); background: rgba(52, 211, 153, 0.08); font-weight: 700; }
+  .category-row {
+    background: rgba(96, 165, 250, 0.08);
+    font-weight: 700;
+    color: var(--purple);
+  }
+  .category-row td { border-bottom: 2px solid var(--accent); }
+  .summary-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem;
+  }
+  .card h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+  }
+  .card .score {
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  .card .label {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+  .missing-list {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .missing-list h3 {
+    color: var(--red);
+    margin-bottom: 1rem;
+  }
+  .missing-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .missing-item:last-child { border-bottom: none; }
+  .priority {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+    min-width: 48px;
+    text-align: center;
+  }
+  .p-critical { background: rgba(248, 113, 113, 0.2); color: var(--red); }
+  .p-high { background: rgba(251, 191, 36, 0.2); color: var(--yellow); }
+  .p-medium { background: rgba(96, 165, 250, 0.2); color: var(--accent); }
+  .p-low { background: rgba(100, 116, 139, 0.2); color: var(--muted); }
+  .missing-desc { font-size: 0.82rem; }
+  .missing-desc strong { color: var(--text); }
+  .missing-desc span { color: var(--muted); display: block; font-size: 0.75rem; margin-top: 0.2rem; }
+  .footer { color: var(--muted); font-size: 0.7rem; margin-top: 3rem; text-align: center; }
+  @media (max-width: 900px) {
+    .summary-cards { grid-template-columns: repeat(2, 1fr); }
+    table { font-size: 0.7rem; }
+    th, td { padding: 0.4rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>택갈이코드 기능 비교 분석</h1>
+<p class="subtitle">hanimo vs Claude Code vs OpenAI Codex vs 택갈이코드 (TGC) — 2026-04-08 기준</p>
+
+<!-- Summary Cards -->
+<div class="summary-cards">
+  <div class="card">
+    <h3 style="color:var(--purple)">hanimo</h3>
+    <div class="score" style="color:var(--purple)">20</div>
+    <div class="label">도구 수 (tools)</div>
+  </div>
+  <div class="card">
+    <h3 style="color:var(--accent)">Claude Code</h3>
+    <div class="score" style="color:var(--accent)">15+</div>
+    <div class="label">도구 수 + MCP 확장</div>
+  </div>
+  <div class="card">
+    <h3 style="color:var(--orange)">Codex CLI</h3>
+    <div class="score" style="color:var(--orange)">~6</div>
+    <div class="label">도구 수 (샌드박스)</div>
+  </div>
+  <div class="card">
+    <h3 style="color:var(--green)">택갈이코드</h3>
+    <div class="score" style="color:var(--green)">5</div>
+    <div class="label">도구 수 (현재)</div>
+  </div>
+</div>
+
+<!-- Full Feature Comparison Table -->
+<h2 class="section-title">전체 기능 비교표</h2>
+<table>
+<thead>
+<tr>
+  <th>기능</th>
+  <th style="color:var(--purple)">hanimo</th>
+  <th style="color:var(--accent)">Claude Code</th>
+  <th style="color:var(--orange)">Codex CLI</th>
+  <th style="color:var(--green)">택갈이코드</th>
+</tr>
+</thead>
+<tbody>
+<!-- 파일 조작 -->
+<tr class="category-row"><td colspan="5">파일 조작</td></tr>
+<tr><td>파일 읽기</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td></tr>
+<tr><td>파일 쓰기</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td></tr>
+<tr><td>파일 편집 (string replace)</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td></tr>
+<tr><td>해시 앵커 편집 (stale-line 방지)</td><td class="best">O (독창)</td><td class="no">X</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>Unified Diff 패치</td><td class="best">O</td><td class="no">X</td><td class="partial">부분</td><td class="no">X</td></tr>
+<tr><td>디렉토리 목록</td><td class="yes">O</td><td class="yes">O (Glob)</td><td class="yes">O</td><td class="yes">O</td></tr>
+<tr><td>Glob 패턴 검색</td><td class="yes">O</td><td class="yes">O</td><td class="partial">shell</td><td class="no">X</td></tr>
+<tr><td>Grep 텍스트 검색</td><td class="yes">O</td><td class="yes">O (ripgrep)</td><td class="partial">shell</td><td class="no">X</td></tr>
+<tr><td>Batch 병렬 읽기</td><td class="best">O</td><td class="yes">O (병렬 호출)</td><td class="no">X</td><td class="no">X</td></tr>
+
+<!-- Git 통합 -->
+<tr class="category-row"><td colspan="5">Git 통합</td></tr>
+<tr><td>git status</td><td class="best">전용 도구</td><td class="partial">Bash</td><td class="partial">shell</td><td class="partial">shell_exec</td></tr>
+<tr><td>git diff</td><td class="best">전용 도구</td><td class="partial">Bash</td><td class="partial">shell</td><td class="partial">shell_exec</td></tr>
+<tr><td>git commit</td><td class="best">전용 도구</td><td class="partial">Bash</td><td class="partial">shell</td><td class="partial">shell_exec</td></tr>
+<tr><td>git log</td><td class="best">전용 도구</td><td class="partial">Bash</td><td class="partial">shell</td><td class="partial">shell_exec</td></tr>
+
+<!-- 웹 & 검색 -->
+<tr class="category-row"><td colspan="5">웹 & 검색</td></tr>
+<tr><td>웹페이지 가져오기</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>웹 검색 (DuckDuckGo 등)</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+
+<!-- 진단 & 품질 -->
+<tr class="category-row"><td colspan="5">진단 & 코드 품질</td></tr>
+<tr><td>TypeScript 진단 (tsc)</td><td class="best">전용 도구</td><td class="partial">MCP/Bash</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>ESLint 진단</td><td class="best">전용 도구</td><td class="partial">MCP/Bash</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>LSP 통합</td><td class="yes">O (tsc+eslint)</td><td class="yes">O (MCP)</td><td class="no">X</td><td class="no">X</td></tr>
+
+<!-- 기억 & 세션 -->
+<tr class="category-row"><td colspan="5">기억 & 세션</td></tr>
+<tr><td>영구 기억 (Memory)</td><td class="yes">O (tool call)</td><td class="yes">O (CLAUDE.md)</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>토픽별 기억 분류</td><td class="best">O</td><td class="yes">O (파일별)</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>세션 저장/복원</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>컨텍스트 자동 압축</td><td class="best">O (smart)</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+
+<!-- 자율 실행 -->
+<tr class="category-row"><td colspan="5">자율 실행 & 에이전트</td></tr>
+<tr><td>자율 모드 (Autonomous)</td><td class="yes">O</td><td class="yes">O (hooks)</td><td class="yes">O (auto)</td><td class="no">X</td></tr>
+<tr><td>멀티 에이전트</td><td class="yes">O</td><td class="best">O (Team)</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>서브에이전트 위임</td><td class="yes">O</td><td class="best">O (Task)</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>TODO 추적</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>Plan 모드 (읽기 전용)</td><td class="yes">O (역할)</td><td class="yes">O</td><td class="no">X</td><td class="yes">O</td></tr>
+
+<!-- LLM & 프로바이더 -->
+<tr class="category-row"><td colspan="5">LLM & 프로바이더</td></tr>
+<tr><td>멀티 프로바이더</td><td class="best">14개</td><td class="partial">Anthropic only</td><td class="partial">OpenAI only</td><td class="yes">OpenAI호환</td></tr>
+<tr><td>멀티 엔드포인트</td><td class="best">O</td><td class="no">X</td><td class="no">X</td><td class="partial">수동</td></tr>
+<tr><td>Thinking 모드</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>스트리밍</td><td class="yes">O</td><td class="yes">O</td><td class="partial">부분</td><td class="yes">O</td></tr>
+<tr><td>Tool Calling</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O (v0.3)</td></tr>
+
+<!-- UX & 인터페이스 -->
+<tr class="category-row"><td colspan="5">UX & 인터페이스</td></tr>
+<tr><td>TUI (터미널 UI)</td><td class="yes">Ink/React</td><td class="yes">자체</td><td class="partial">기본</td><td class="yes">Bubble Tea</td></tr>
+<tr><td>모드 전환 (Tab)</td><td class="partial">역할 시스템</td><td class="no">X</td><td class="no">X</td><td class="best">O (Tab 3모드)</td></tr>
+<tr><td>데스크톱 알림</td><td class="best">O (3 OS)</td><td class="no">X</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>MCP 프로토콜</td><td class="yes">O</td><td class="best">O (네이티브)</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>권한 샌드박스</td><td class="yes">O</td><td class="yes">O</td><td class="best">O (Docker)</td><td class="partial">기본 차단</td></tr>
+<tr><td>스트리밍 상태 표시</td><td class="partial">기본</td><td class="partial">기본</td><td class="no">X</td><td class="best">O (v0.3 상세)</td></tr>
+<tr><td>자동 재시도 (60s)</td><td class="no">X</td><td class="no">X</td><td class="no">X</td><td class="best">O (v0.3)</td></tr>
+<tr><td>Tool ON/OFF 상태바</td><td class="no">X</td><td class="no">X</td><td class="no">X</td><td class="best">O (v0.3)</td></tr>
+
+<!-- 배포 -->
+<tr class="category-row"><td colspan="5">배포 & 환경</td></tr>
+<tr><td>싱글 바이너리</td><td class="no">npm 설치</td><td class="no">npm 설치</td><td class="no">npm 설치</td><td class="best">O (Go)</td></tr>
+<tr><td>사내망 (온프레미스)</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td><td class="best">O (전용 빌드)</td></tr>
+<tr><td>크로스 플랫폼 빌드</td><td class="partial">Node.js</td><td class="partial">Node.js</td><td class="partial">Node.js</td><td class="best">11개 바이너리</td></tr>
+</tbody>
+</table>
+
+<!-- Missing Features List -->
+<h2 class="section-title">택갈이코드에 없는 기능 목록 (우선순위순)</h2>
+<div class="missing-list">
+  <h3>CRITICAL — 에이전트 핵심 기능</h3>
+
+  <div class="missing-item">
+    <span class="priority p-critical">P0</span>
+    <div class="missing-desc">
+      <strong>Grep 텍스트 검색 도구</strong>
+      <span>hanimo: grep_search / Claude: Grep (ripgrep). 코드베이스에서 패턴 검색은 에이전트의 가장 기본 능력. shell_exec로 대체 가능하지만 전용 도구가 더 정확하고 토큰 효율적.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-critical">P0</span>
+    <div class="missing-desc">
+      <strong>Glob 파일 검색 도구</strong>
+      <span>hanimo: glob_search / Claude: Glob. 파일명 패턴으로 빠르게 찾기. list_files의 recursive=true보다 훨씬 효율적.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-critical">P0</span>
+    <div class="missing-desc">
+      <strong>Thinking 모드 지원</strong>
+      <span>Gemma 4의 &lt;|think|&gt; 토큰 파싱. 사내망 Gemma 4 전환 시 핵심 차별화 기능. Claude, hanimo 모두 지원.</span>
+    </div>
+  </div>
+</div>
+
+<div class="missing-list">
+  <h3>HIGH — 생산성 대폭 향상</h3>
+
+  <div class="missing-item">
+    <span class="priority p-high">P1</span>
+    <div class="missing-desc">
+      <strong>영구 기억 시스템 (Memory)</strong>
+      <span>hanimo: memory_write/read + 토픽별 분류. Claude: CLAUDE.md + auto memory. 세션 간 컨텍스트 유지로 반복 질문 제거.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-high">P1</span>
+    <div class="missing-desc">
+      <strong>세션 저장/복원</strong>
+      <span>hanimo: 대화 히스토리 파일 저장 + 이어하기. 긴 작업 중단 후 복원 가능.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-high">P1</span>
+    <div class="missing-desc">
+      <strong>컨텍스트 자동 압축 (Smart Compaction)</strong>
+      <span>hanimo: 대화가 길어지면 자동으로 오래된 메시지 요약. 컨텍스트 윈도우 효율적 사용. Gemma 4 256K에서도 여전히 필요.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-high">P1</span>
+    <div class="missing-desc">
+      <strong>해시 앵커 편집 (Hash-Anchored Edit)</strong>
+      <span>hanimo 독창 기능. 각 줄에 MD5 해시 태그 → 편집 시 줄이 변경됐는지 검증. file_edit의 stale match 문제 해결.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-high">P1</span>
+    <div class="missing-desc">
+      <strong>자율 모드 (Autonomous)</strong>
+      <span>사용자 확인 없이 자동으로 도구 실행 + 반복. hanimo/Claude/Codex 모두 지원. 복잡한 작업 자동화의 핵심.</span>
+    </div>
+  </div>
+</div>
+
+<div class="missing-list">
+  <h3>MEDIUM — 워크플로우 개선</h3>
+
+  <div class="missing-item">
+    <span class="priority p-medium">P2</span>
+    <div class="missing-desc">
+      <strong>Git 전용 도구 (status/diff/commit/log)</strong>
+      <span>현재 shell_exec로 가능하지만, 전용 도구가 출력 파싱 + 토큰 최적화에 유리. hanimo는 4개 전용 도구 보유.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-medium">P2</span>
+    <div class="missing-desc">
+      <strong>TODO 추적 도구</strong>
+      <span>hanimo: todo tool (add/update/list/remove). 복잡한 멀티스텝 작업 진행 추적. 에이전트가 스스로 계획 관리.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-medium">P2</span>
+    <div class="missing-desc">
+      <strong>웹 검색 + 페이지 가져오기</strong>
+      <span>hanimo: web_search (DuckDuckGo) + webfetch. 에러 메시지 검색, 문서 참조에 필수. 사내망에서는 제한적.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-medium">P2</span>
+    <div class="missing-desc">
+      <strong>LSP/진단 도구 (tsc + eslint)</strong>
+      <span>hanimo: diagnostics tool. 코드 수정 후 즉시 타입 에러 확인. 자동 수정 루프 가능.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-medium">P2</span>
+    <div class="missing-desc">
+      <strong>데스크톱 알림</strong>
+      <span>hanimo: macOS/Linux/Windows 알림 + 터미널 벨. 긴 작업 완료 시 알림. 사내망에서 유용.</span>
+    </div>
+  </div>
+</div>
+
+<div class="missing-list">
+  <h3>LOW — 고급 기능</h3>
+
+  <div class="missing-item">
+    <span class="priority p-low">P3</span>
+    <div class="missing-desc">
+      <strong>Unified Diff 패치 도구</strong>
+      <span>hanimo: patch tool. git diff 형식으로 여러 파일 동시 수정. 대규모 리팩토링에 유용.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-low">P3</span>
+    <div class="missing-desc">
+      <strong>Batch 병렬 실행</strong>
+      <span>hanimo: batch tool. 3+ 파일 동시 읽기, 여러 glob 동시 실행. 2~5배 속도 향상.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-low">P3</span>
+    <div class="missing-desc">
+      <strong>MCP 프로토콜 지원</strong>
+      <span>hanimo/Claude 지원. 외부 도구 서버 연결 프로토콜. 사내망 환경에서 커스텀 도구 확장에 유용.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-low">P3</span>
+    <div class="missing-desc">
+      <strong>멀티 에이전트 / 서브에이전트</strong>
+      <span>Claude: Team + Task. hanimo: multi-agent. 복잡한 작업을 여러 에이전트가 분담.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority p-low">P3</span>
+    <div class="missing-desc">
+      <strong>권한 샌드박스 강화</strong>
+      <span>현재 위험 명령 차단만. hanimo: path sandbox + permission system. Codex: Docker 격리.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Score Summary -->
+<h2 class="section-title">택갈이코드만의 강점 (다른 도구에 없는 것)</h2>
+<div class="missing-list" style="border-color: var(--green);">
+  <h3 style="color: var(--green);">택갈이코드 독보적 기능</h3>
+
+  <div class="missing-item">
+    <span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span>
+    <div class="missing-desc">
+      <strong>싱글 바이너리 배포 (Go)</strong>
+      <span>Node.js 설치 불필요. USB로 복사해서 바로 실행. 사내망 배포의 결정적 장점.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span>
+    <div class="missing-desc">
+      <strong>사내망 전용 빌드 (onprem)</strong>
+      <span>API Gateway 프록시 URL 하드코딩. 환경 변수 설정 없이 바로 사용 가능.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span>
+    <div class="missing-desc">
+      <strong>Tab 3모드 전환 (슈퍼/개발/플랜)</strong>
+      <span>한 화면에서 Tab으로 모드 전환. 다른 도구는 명령어나 설정으로 전환.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span>
+    <div class="missing-desc">
+      <strong>스트리밍 상세 상태 (연결중/수신중/지연/응답없음)</strong>
+      <span>100ms 실시간 갱신 + 토큰 속도 표시. 사내망 불안정 네트워크 대응.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span>
+    <div class="missing-desc">
+      <strong>60초 자동 재시도 (최대 3회)</strong>
+      <span>사내망 네트워크 끊김 시 자동 복구. 다른 도구에 없는 기능.</span>
+    </div>
+  </div>
+
+  <div class="missing-item">
+    <span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span>
+    <div class="missing-desc">
+      <strong>Tool Calling 시작점검 + 상태바 표시</strong>
+      <span>시작 시 tool_choice:"required"로 실제 동작 확인. Tool:ON/OFF 실시간 표시.</span>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  택갈이코드 v0.3.0 기능 비교 분석 — 2026-04-08<br>
+  Generated for internal review
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>택갈이코드 로드맵 — 기능 비교 · 모델 전략 · 멀티에이전트 아키텍처</title>
+<style>
+  :root {
+    --bg: #0B0E14; --surface: #111827; --surface2: #1A2332;
+    --border: #1E293B; --text: #E2E8F0; --muted: #64748B;
+    --accent: #60A5FA; --green: #34D399; --red: #F87171;
+    --yellow: #FBBF24; --purple: #A78BFA; --orange: #FB923C; --cyan: #22D3EE;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'SF Mono','Fira Code',monospace; background:var(--bg); color:var(--text); line-height:1.7; padding:2rem; }
+  .container { max-width:1400px; margin:0 auto; }
+  h1 { font-size:2rem; background:linear-gradient(135deg,var(--cyan),var(--accent),var(--purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .subtitle { color:var(--muted); font-size:0.85rem; margin-bottom:2rem; }
+  .nav { display:flex; gap:0.5rem; margin-bottom:2rem; flex-wrap:wrap; }
+  .nav a { padding:0.4rem 1rem; border:1px solid var(--border); border-radius:6px; color:var(--muted); text-decoration:none; font-size:0.78rem; transition:all 0.2s; }
+  .nav a:hover, .nav a.active { border-color:var(--accent); color:var(--accent); background:rgba(96,165,250,0.08); }
+  .section { margin-bottom:3rem; scroll-margin-top:2rem; }
+  .section-title { font-size:1.3rem; color:var(--accent); margin-bottom:1.5rem; padding-bottom:0.5rem; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:0.5rem; }
+  .section-num { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:var(--accent); color:var(--bg); font-size:0.8rem; font-weight:700; flex-shrink:0; }
+  table { width:100%; border-collapse:collapse; font-size:0.78rem; margin-bottom:1.5rem; }
+  th,td { padding:0.5rem 0.6rem; border:1px solid var(--border); text-align:center; }
+  th { background:var(--surface); color:var(--accent); font-weight:600; position:sticky; top:0; z-index:10; }
+  th:first-child,td:first-child { text-align:left; min-width:160px; }
+  tr:hover { background:rgba(96,165,250,0.03); }
+  .yes { color:var(--green); font-weight:700; }
+  .no { color:var(--red); }
+  .partial { color:var(--yellow); }
+  .best { color:var(--green); background:rgba(52,211,153,0.06); font-weight:700; }
+  .cat-row { background:rgba(96,165,250,0.06); font-weight:700; color:var(--purple); }
+  .cat-row td { border-bottom:2px solid var(--accent); }
+  .highlight-row { background:rgba(34,211,238,0.04); }
+  .improve { color:var(--green); font-weight:700; }
+  .same { color:var(--muted); }
+  .unknown { color:var(--yellow); }
+  .card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1.3rem; transition:border-color 0.2s; }
+  .card:hover { border-color:var(--accent); }
+  .card h3 { font-size:0.9rem; margin-bottom:0.6rem; }
+  .card p { font-size:0.78rem; color:var(--muted); }
+  .card .metric { font-size:1.6rem; font-weight:700; margin:0.4rem 0; }
+  .tag { display:inline-block; padding:0.1rem 0.5rem; border-radius:4px; font-size:0.65rem; font-weight:600; }
+  .callout { background:var(--surface2); border:1px solid var(--border); border-left:3px solid var(--cyan); border-radius:6px; padding:1.2rem; margin:1.5rem 0; font-size:0.82rem; }
+  .callout strong { color:var(--cyan); }
+  .missing-list { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1.3rem; margin-bottom:1.5rem; }
+  .missing-list h3 { margin-bottom:0.8rem; }
+  .missing-item { display:flex; align-items:flex-start; gap:0.7rem; padding:0.5rem 0; border-bottom:1px solid var(--border); }
+  .missing-item:last-child { border-bottom:none; }
+  .priority { display:inline-block; padding:0.12rem 0.45rem; border-radius:4px; font-size:0.65rem; font-weight:700; white-space:nowrap; min-width:42px; text-align:center; }
+  .p-critical { background:rgba(248,113,113,0.2); color:var(--red); }
+  .p-high { background:rgba(251,191,36,0.2); color:var(--yellow); }
+  .p-medium { background:rgba(96,165,250,0.2); color:var(--accent); }
+  .p-low { background:rgba(100,116,139,0.2); color:var(--muted); }
+  .missing-desc { font-size:0.78rem; }
+  .missing-desc strong { color:var(--text); }
+  .missing-desc span { color:var(--muted); display:block; font-size:0.72rem; margin-top:0.15rem; }
+  /* Architecture diagram */
+  .arch-flow { display:flex; flex-direction:column; align-items:center; gap:0; margin:1.5rem 0; }
+  .arch-node { background:var(--surface); border:2px solid var(--border); border-radius:10px; padding:1rem 1.5rem; text-align:center; min-width:280px; position:relative; }
+  .arch-node h4 { font-size:0.85rem; margin-bottom:0.3rem; }
+  .arch-node p { font-size:0.72rem; color:var(--muted); }
+  .arch-arrow { font-size:1.5rem; color:var(--accent); margin:0.3rem 0; }
+  .arch-workers { display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; }
+  .arch-workers .arch-node { min-width:200px; }
+  .bar-chart { margin:1.5rem 0; }
+  .bar-row { display:flex; align-items:center; margin-bottom:0.5rem; gap:0.6rem; }
+  .bar-label { width:120px; font-size:0.72rem; text-align:right; flex-shrink:0; }
+  .bar-track { flex:1; height:22px; background:var(--surface); border-radius:4px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:4px; display:flex; align-items:center; padding-left:6px; font-size:0.65rem; font-weight:600; color:var(--bg); }
+  .bar-value { width:50px; text-align:left; font-size:0.72rem; font-weight:600; flex-shrink:0; }
+  .footer { text-align:center; color:var(--muted); font-size:0.7rem; margin-top:3rem; padding-top:2rem; border-top:1px solid var(--border); }
+  @media(max-width:768px) { .card-grid{grid-template-columns:1fr;} .arch-workers{flex-direction:column;align-items:center;} body{padding:1rem;} }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>택갈이코드 종합 로드맵</h1>
+<p class="subtitle">기능 비교 · 모델 전략 · 멀티에이전트 아키텍처 — 2026-04-08</p>
+
+<nav class="nav">
+  <a href="#compare" class="active">1. 기능 비교</a>
+  <a href="#missing">2. 추가 기능</a>
+  <a href="#models">3. 모델 전략</a>
+  <a href="#multiagent">4. 멀티에이전트</a>
+  <a href="#context">5. 컨텍스트 최적화</a>
+  <a href="#gemma">6. Gemma 4 전환</a>
+  <a href="#roadmap">7. 로드맵</a>
+</nav>
+
+<!-- ==================== 1. FEATURE COMPARISON ==================== -->
+<div class="section" id="compare">
+<h2 class="section-title"><span class="section-num">1</span> 기능 비교 — hanimo vs Claude Code vs Codex vs TGC</h2>
+
+<div class="card-grid" style="grid-template-columns:repeat(4,1fr);">
+  <div class="card"><h3 style="color:var(--purple)">hanimo</h3><div class="metric" style="color:var(--purple)">20</div><p>도구 수 (tools)</p></div>
+  <div class="card"><h3 style="color:var(--accent)">Claude Code</h3><div class="metric" style="color:var(--accent)">15+</div><p>도구 수 + MCP</p></div>
+  <div class="card"><h3 style="color:var(--orange)">Codex CLI</h3><div class="metric" style="color:var(--orange)">~6</div><p>도구 수 (샌드박스)</p></div>
+  <div class="card"><h3 style="color:var(--green)">택갈이코드</h3><div class="metric" style="color:var(--green)">5</div><p>도구 수 (현재)</p></div>
+</div>
+
+<table>
+<thead><tr>
+  <th>기능</th>
+  <th style="color:var(--purple)">hanimo</th>
+  <th style="color:var(--accent)">Claude Code</th>
+  <th style="color:var(--orange)">Codex CLI</th>
+  <th style="color:var(--green)">택갈이코드</th>
+</tr></thead>
+<tbody>
+<tr class="cat-row"><td colspan="5">파일 조작</td></tr>
+<tr><td>파일 읽기/쓰기/편집</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td></tr>
+<tr><td>해시 앵커 편집</td><td class="best">독창</td><td class="no">X</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>Unified Diff 패치</td><td class="best">O</td><td class="no">X</td><td class="partial">부분</td><td class="no">X</td></tr>
+<tr><td>Glob 패턴 검색</td><td class="yes">O</td><td class="yes">O</td><td class="partial">shell</td><td class="no">X</td></tr>
+<tr><td>Grep 텍스트 검색</td><td class="yes">O</td><td class="yes">O (ripgrep)</td><td class="partial">shell</td><td class="no">X</td></tr>
+<tr><td>Batch 병렬 읽기</td><td class="best">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr class="cat-row"><td colspan="5">Git 통합</td></tr>
+<tr><td>git 전용 도구 (4종)</td><td class="best">전용</td><td class="partial">Bash</td><td class="partial">shell</td><td class="partial">shell_exec</td></tr>
+<tr class="cat-row"><td colspan="5">웹 & 검색</td></tr>
+<tr><td>웹페이지 / 웹 검색</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr class="cat-row"><td colspan="5">진단 & 품질</td></tr>
+<tr><td>TypeScript / ESLint 진단</td><td class="best">전용</td><td class="partial">MCP</td><td class="no">X</td><td class="no">X</td></tr>
+<tr class="cat-row"><td colspan="5">기억 & 세션</td></tr>
+<tr><td>영구 기억 (Memory)</td><td class="yes">O (tool)</td><td class="yes">O (CLAUDE.md)</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>세션 저장/복원</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>컨텍스트 자동 압축</td><td class="best">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr class="cat-row"><td colspan="5">자율 실행 & 에이전트</td></tr>
+<tr><td>자율 모드</td><td class="yes">O</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td></tr>
+<tr><td>멀티 에이전트</td><td class="yes">O</td><td class="best">O (Team)</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>TODO 추적</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>Plan 모드 (읽기전용)</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="yes">O</td></tr>
+<tr class="cat-row"><td colspan="5">LLM & 프로바이더</td></tr>
+<tr><td>멀티 프로바이더</td><td class="best">14개</td><td class="partial">Anthropic</td><td class="partial">OpenAI</td><td class="yes">OpenAI호환</td></tr>
+<tr><td>Thinking 모드</td><td class="yes">O</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td></tr>
+<tr class="cat-row"><td colspan="5">UX & 배포</td></tr>
+<tr><td>모드 전환 (Tab 3모드)</td><td class="partial">역할</td><td class="no">X</td><td class="no">X</td><td class="best">O</td></tr>
+<tr><td>데스크톱 알림</td><td class="best">O (3OS)</td><td class="no">X</td><td class="no">X</td><td class="no">X</td></tr>
+<tr><td>스트리밍 상태 (4단계)</td><td class="partial">기본</td><td class="partial">기본</td><td class="no">X</td><td class="best">O</td></tr>
+<tr><td>60초 자동 재시도</td><td class="no">X</td><td class="no">X</td><td class="no">X</td><td class="best">O</td></tr>
+<tr><td>Tool ON/OFF 상태바</td><td class="no">X</td><td class="no">X</td><td class="no">X</td><td class="best">O</td></tr>
+<tr><td>싱글 바이너리 (Go)</td><td class="no">npm</td><td class="no">npm</td><td class="no">npm</td><td class="best">O</td></tr>
+<tr><td>사내망 전용 빌드</td><td class="yes">O</td><td class="no">X</td><td class="no">X</td><td class="best">O</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ==================== 2. MISSING FEATURES ==================== -->
+<div class="section" id="missing">
+<h2 class="section-title"><span class="section-num">2</span> 택갈이코드에 추가할 기능 (우선순위순)</h2>
+
+<div class="missing-list">
+<h3 style="color:var(--red)">P0 — CRITICAL (에이전트 핵심)</h3>
+<div class="missing-item"><span class="priority p-critical">P0</span><div class="missing-desc"><strong>Grep 텍스트 검색 도구</strong><span>코드베이스 패턴 검색. shell_exec 대체 → 토큰 효율 + 정확도 향상</span></div></div>
+<div class="missing-item"><span class="priority p-critical">P0</span><div class="missing-desc"><strong>Glob 파일 검색 도구</strong><span>파일명 패턴으로 빠르게 찾기. list_files recursive보다 효율적</span></div></div>
+<div class="missing-item"><span class="priority p-critical">P0</span><div class="missing-desc"><strong>멀티 에이전트 오케스트레이션</strong><span>GPT-OSS-120B(리드) → 3x Qwen3(워커) → GPT-OSS-120B(리뷰). 아래 섹션 4 참조</span></div></div>
+<div class="missing-item"><span class="priority p-critical">P0</span><div class="missing-desc"><strong>시스템 사전정보 자동 수집</strong><span>IP, OS, CWD, 파일 목록, git 상태. v0.3.1에 구현 완료 (context.go)</span></div></div>
+</div>
+
+<div class="missing-list">
+<h3 style="color:var(--yellow)">P1 — HIGH (생산성 대폭 향상)</h3>
+<div class="missing-item"><span class="priority p-high">P1</span><div class="missing-desc"><strong>영구 기억 시스템 (Memory)</strong><span>세션 간 컨텍스트 유지. ~/.tgc/memory/ 에 토픽별 md 파일 저장</span></div></div>
+<div class="missing-item"><span class="priority p-high">P1</span><div class="missing-desc"><strong>세션 저장/복원</strong><span>대화 히스토리 파일 저장 + 이어하기</span></div></div>
+<div class="missing-item"><span class="priority p-high">P1</span><div class="missing-desc"><strong>컨텍스트 자동 압축</strong><span>대화 길어지면 오래된 메시지 요약. 256K에서도 필요</span></div></div>
+<div class="missing-item"><span class="priority p-high">P1</span><div class="missing-desc"><strong>해시 앵커 편집</strong><span>hanimo 독창. 줄마다 MD5 해시 → 편집 시 stale match 방지</span></div></div>
+<div class="missing-item"><span class="priority p-high">P1</span><div class="missing-desc"><strong>자율 모드 (Autonomous)</strong><span>사용자 확인 없이 자동 도구 실행 + 반복. 복잡한 작업 자동화</span></div></div>
+<div class="missing-item"><span class="priority p-high">P1</span><div class="missing-desc"><strong>Thinking 모드 지원</strong><span>Gemma 4 &lt;|think|&gt; 토큰 파싱. 추론 과정 UI 접기/펼치기</span></div></div>
+</div>
+
+<div class="missing-list">
+<h3 style="color:var(--accent)">P2 — MEDIUM (워크플로우 개선)</h3>
+<div class="missing-item"><span class="priority p-medium">P2</span><div class="missing-desc"><strong>Git 전용 도구 (4종)</strong><span>status/diff/commit/log. 출력 파싱 + 토큰 최적화</span></div></div>
+<div class="missing-item"><span class="priority p-medium">P2</span><div class="missing-desc"><strong>TODO 추적 도구</strong><span>멀티스텝 작업 진행 추적. 에이전트 자기 관리</span></div></div>
+<div class="missing-item"><span class="priority p-medium">P2</span><div class="missing-desc"><strong>웹 검색 + 페이지 가져오기</strong><span>에러 메시지 검색, 문서 참조 (사내망 제한적)</span></div></div>
+<div class="missing-item"><span class="priority p-medium">P2</span><div class="missing-desc"><strong>LSP/진단 도구</strong><span>tsc + eslint 자동 점검. 수정 후 즉시 타입 에러 확인</span></div></div>
+<div class="missing-item"><span class="priority p-medium">P2</span><div class="missing-desc"><strong>데스크톱 알림</strong><span>macOS/Linux/Windows. 긴 작업 완료 시 알림</span></div></div>
+</div>
+
+<div class="missing-list">
+<h3 style="color:var(--muted)">P3 — LOW (고급 기능)</h3>
+<div class="missing-item"><span class="priority p-low">P3</span><div class="missing-desc"><strong>Unified Diff 패치</strong><span>git diff 형식으로 여러 파일 동시 수정</span></div></div>
+<div class="missing-item"><span class="priority p-low">P3</span><div class="missing-desc"><strong>Batch 병렬 실행</strong><span>3+ 파일 동시 읽기. 2~5배 속도 향상</span></div></div>
+<div class="missing-item"><span class="priority p-low">P3</span><div class="missing-desc"><strong>MCP 프로토콜</strong><span>외부 도구 서버 연결. 커스텀 확장</span></div></div>
+<div class="missing-item"><span class="priority p-low">P3</span><div class="missing-desc"><strong>권한 샌드박스 강화</strong><span>path sandbox + permission system</span></div></div>
+</div>
+
+<!-- TGC 강점 -->
+<div class="missing-list" style="border-color:var(--green)">
+<h3 style="color:var(--green)">택갈이코드만의 강점 (다른 도구에 없는 것)</h3>
+<div class="missing-item"><span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span><div class="missing-desc"><strong>싱글 바이너리 배포</strong><span>Go 크로스 컴파일. USB 복사로 즉시 실행. npm 불필요</span></div></div>
+<div class="missing-item"><span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span><div class="missing-desc"><strong>사내망 전용 빌드 (onprem)</strong><span>API Gateway URL 하드코딩. 환경 변수 설정 없이 즉시 사용</span></div></div>
+<div class="missing-item"><span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span><div class="missing-desc"><strong>Tab 3모드 전환</strong><span>슈퍼/개발/플랜 한 화면에서 Tab 전환</span></div></div>
+<div class="missing-item"><span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span><div class="missing-desc"><strong>스트리밍 상세 상태 + 60초 자동 재시도</strong><span>사내망 불안정 네트워크 대응. 100ms 실시간 갱신</span></div></div>
+<div class="missing-item"><span class="priority" style="background:rgba(52,211,153,0.2);color:var(--green)">TGC</span><div class="missing-desc"><strong>Tool ON/OFF 시작점검 + 상태바</strong><span>tool_choice:"required"로 실제 동작 확인</span></div></div>
+</div>
+</div>
+
+<!-- ==================== 3. MODEL STRATEGY ==================== -->
+<div class="section" id="models">
+<h2 class="section-title"><span class="section-num">3</span> 모델 전략 — 현재 운영 구성</h2>
+
+<table>
+<thead><tr>
+  <th>항목</th>
+  <th>GPT-OSS-120B</th>
+  <th style="color:var(--orange)">Qwen3-Coder-30B</th>
+  <th style="color:var(--cyan)">Gemma 4 31B (예정)</th>
+  <th style="color:var(--purple)">Gemma 4 26B (예정)</th>
+</tr></thead>
+<tbody>
+<tr class="highlight-row">
+  <td>Tool Calling</td>
+  <td style="color:var(--green)">O (v0.3 해결)</td>
+  <td style="color:var(--yellow)">vLLM hermes</td>
+  <td class="improve">네이티브</td>
+  <td class="improve">네이티브</td>
+</tr>
+<tr><td>Thinking 모드</td><td class="same">없음</td><td class="same">없음</td><td class="improve">&lt;|think|&gt;</td><td class="improve">&lt;|think|&gt;</td></tr>
+<tr><td>컨텍스트</td><td>추정 8~32K</td><td>32~128K</td><td class="improve">256K</td><td class="improve">256K</td></tr>
+<tr class="highlight-row"><td>코딩 (LCB v6)</td><td class="same">불명</td><td style="color:var(--orange)">코딩 특화</td><td class="improve">80.0%</td><td style="color:var(--purple)">77.1%</td></tr>
+<tr><td>AIME 2026</td><td class="same">불명</td><td class="same">불명</td><td class="improve">89.2%</td><td style="color:var(--purple)">88.3%</td></tr>
+<tr><td>Codeforces ELO</td><td class="same">불명</td><td class="same">불명</td><td class="improve">2150</td><td style="color:var(--purple)">1718</td></tr>
+<tr class="highlight-row"><td>모델 크기 / VRAM</td><td>120B / ~80GB</td><td style="color:var(--orange)">30B / ~20GB</td><td>31B / ~20GB</td><td class="improve">26B(4.5B) / ~18GB</td></tr>
+<tr><td>추론 속도</td><td class="same">1x</td><td style="color:var(--orange)">~3x</td><td class="improve">~3x</td><td class="improve">~10x (MoE)</td></tr>
+<tr><td>아키텍처</td><td>Dense</td><td>Dense</td><td>Dense</td><td style="color:var(--purple)">MoE (128E/8A)</td></tr>
+</tbody>
+</table>
+
+<h3 style="font-size:0.9rem;color:var(--yellow);margin-bottom:1rem;">현재 운영 모드별 모델 배치</h3>
+<table>
+<thead><tr><th>모드</th><th>모델</th><th>역할</th></tr></thead>
+<tbody>
+<tr class="highlight-row"><td><strong>슈퍼택가이</strong></td><td style="color:var(--accent)">GPT-OSS-120B</td><td>리드 에이전트 — 분석, 계획, 코드 리뷰, 최종 통합</td></tr>
+<tr><td><strong>플랜</strong></td><td style="color:var(--accent)">GPT-OSS-120B</td><td>설계/분석 — 읽기 전용, 아키텍처 파악</td></tr>
+<tr class="highlight-row"><td><strong>개발</strong></td><td style="color:var(--orange)">Qwen3-Coder-30B</td><td>워커 에이전트 — 빠른 코딩, 서브태스크 실행</td></tr>
+</tbody>
+</table>
+
+<div class="callout">
+  <strong>ONPREM 빌드:</strong> GPT-OSS-120B를 메인(슈퍼/플랜), Qwen3-Coder-30B를 개발 모드로 하드코딩.
+  Gemma 4 테스트 완료 후 전환 예정.
+</div>
+</div>
+
+<!-- ==================== 4. MULTI-AGENT ARCHITECTURE ==================== -->
+<div class="section" id="multiagent">
+<h2 class="section-title"><span class="section-num">4</span> 멀티에이전트 아키텍처 설계</h2>
+
+<p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.5rem;">
+  슈퍼택가이 모드에서 GPT-OSS-120B가 작업을 분석하고, Qwen3-Coder-30B 워커 3개에 분배 후, 결과를 통합 리뷰하는 파이프라인.
+</p>
+
+<!-- Architecture Flow Diagram -->
+<div class="arch-flow">
+  <div class="arch-node" style="border-color:var(--accent);">
+    <h4 style="color:var(--accent)">1. GPT-OSS-120B — 리드 (분석 & 계획)</h4>
+    <p>사용자 요청 분석 → 작업을 3개 이하 서브태스크로 분해<br>
+    각 서브태스크에 필요한 파일, 컨텍스트 정리</p>
+  </div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-workers">
+    <div class="arch-node" style="border-color:var(--orange);">
+      <h4 style="color:var(--orange)">Qwen3 #1</h4>
+      <p>서브태스크 A<br>(예: 컴포넌트 생성)</p>
+    </div>
+    <div class="arch-node" style="border-color:var(--orange);">
+      <h4 style="color:var(--orange)">Qwen3 #2</h4>
+      <p>서브태스크 B<br>(예: API 라우트)</p>
+    </div>
+    <div class="arch-node" style="border-color:var(--orange);">
+      <h4 style="color:var(--orange)">Qwen3 #3</h4>
+      <p>서브태스크 C<br>(예: 테스트 작성)</p>
+    </div>
+  </div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-node" style="border-color:var(--green);">
+    <h4 style="color:var(--green)">2. GPT-OSS-120B — 리뷰 (통합 & 검증)</h4>
+    <p>워커 결과물 취합 → 충돌 해결 → 코드 리뷰<br>
+    최종 결과 사용자에게 전달</p>
+  </div>
+</div>
+
+<h3 style="font-size:0.9rem;color:var(--muted);margin:1.5rem 0 1rem;">동작 흐름 상세</h3>
+<table>
+<thead><tr><th>단계</th><th>모델</th><th>동작</th><th>토큰 예산</th></tr></thead>
+<tbody>
+<tr class="highlight-row">
+  <td><strong>1. 분석</strong></td>
+  <td style="color:var(--accent)">GPT-OSS-120B</td>
+  <td>사용자 요청 이해, 관련 파일 읽기, 서브태스크 분해 (JSON 출력)</td>
+  <td>~2000 tok</td>
+</tr>
+<tr>
+  <td><strong>2. 분배</strong></td>
+  <td style="color:var(--muted)">택갈이코드</td>
+  <td>서브태스크 JSON 파싱 → Qwen3 워커에 각각 전달</td>
+  <td>0 (로컬)</td>
+</tr>
+<tr class="highlight-row">
+  <td><strong>3. 실행</strong></td>
+  <td style="color:var(--orange)">Qwen3 x3 (병렬)</td>
+  <td>각자 파일 읽기 → 코드 작성/수정 → tool call 실행</td>
+  <td>~3000 tok x3</td>
+</tr>
+<tr>
+  <td><strong>4. 수집</strong></td>
+  <td style="color:var(--muted)">택갈이코드</td>
+  <td>3개 워커 결과물 수집, 변경 파일 목록 취합</td>
+  <td>0 (로컬)</td>
+</tr>
+<tr class="highlight-row">
+  <td><strong>5. 리뷰</strong></td>
+  <td style="color:var(--green)">GPT-OSS-120B</td>
+  <td>결과물 전체 리뷰, 충돌 해결, 품질 검증, 최종 답변</td>
+  <td>~3000 tok</td>
+</tr>
+</tbody>
+</table>
+
+<div class="card-grid" style="grid-template-columns:repeat(3,1fr);">
+  <div class="card" style="border-color:var(--green)">
+    <h3 style="color:var(--green)">장점</h3>
+    <p>- 120B 추론력으로 정확한 분석<br>- Qwen3 병렬로 3배 빠른 실행<br>- 120B 리뷰로 품질 보장<br>- Claude Code Team과 동일 패턴</p>
+  </div>
+  <div class="card" style="border-color:var(--yellow)">
+    <h3 style="color:var(--yellow)">고려사항</h3>
+    <p>- 워커 간 파일 충돌 방지 필요<br>- 서브태스크 분해 품질이 핵심<br>- 단순 작업에는 오버헤드<br>- 워커 3개 동시 GPU 부하</p>
+  </div>
+  <div class="card" style="border-color:var(--cyan)">
+    <h3 style="color:var(--cyan)">구현 전략</h3>
+    <p>- 단순 작업: 직접 120B 실행 (fallback)<br>- 복잡 작업: 자동 분해 → 워커 분배<br>- 판별 기준: 파일 2개+ 수정 시<br>- Go goroutine으로 병렬 호출</p>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>핵심:</strong> 모든 작업에 멀티에이전트를 쓰면 오버헤드. "파일 하나 수정해줘"는 120B 직접 처리.
+  "이 프로젝트에 인증 시스템 추가해줘"처럼 복잡한 요청일 때만 자동으로 멀티에이전트 모드 진입.
+  판별은 GPT-OSS-120B가 첫 분석 단계에서 결정.
+</div>
+</div>
+
+<!-- ==================== 5. CONTEXT OPTIMIZATION ==================== -->
+<div class="section" id="context">
+<h2 class="section-title"><span class="section-num">5</span> 컨텍스트 최적화 전략</h2>
+
+<p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.5rem;">
+  시스템 프롬프트에 모든 정보를 상시 주입하면 토큰 낭비. 하이브리드 방식 권장.
+</p>
+
+<table>
+<thead><tr><th>전략</th><th>상시 토큰</th><th>장점</th><th>단점</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>A. 상시 전체 주입</strong></td>
+  <td style="color:var(--red)">~500 tok</td>
+  <td>단순, 확실</td>
+  <td>매 요청마다 불필요한 IP/파일목록 포함</td>
+</tr>
+<tr class="highlight-row">
+  <td><strong>B. 최소 상시 + 도구 (권장)</strong></td>
+  <td style="color:var(--green)">~50 tok</td>
+  <td>토큰 최소, 필요시 shell_exec로 조회</td>
+  <td>AI가 도구 사용 판단 필요</td>
+</tr>
+<tr>
+  <td><strong>C. 컨텍스트 파일 (Obsidian식)</strong></td>
+  <td style="color:var(--green)">~50 tok + 필요분</td>
+  <td>키워드 감지로 필요한 것만 로드</td>
+  <td>키워드 감지 로직 필요</td>
+</tr>
+</tbody>
+</table>
+
+<h3 style="font-size:0.9rem;color:var(--cyan);margin:1.5rem 0 1rem;">권장: B+C 하이브리드</h3>
+<div class="card-grid" style="grid-template-columns:repeat(3,1fr);">
+  <div class="card" style="border-color:var(--green)">
+    <h3 style="color:var(--green)">상시 주입 (~50 tok)</h3>
+    <p>- OS/arch<br>- CWD (전체 경로)<br>- 현재 날짜/시간<br><br>이것만으로 기본 환경 파악 가능</p>
+  </div>
+  <div class="card" style="border-color:var(--yellow)">
+    <h3 style="color:var(--yellow)">키워드 감지 주입</h3>
+    <p>- "IP" "네트워크" → IP 정보<br>- "파일" "목록" → 디렉토리 리스팅<br>- "깃" "브랜치" → git status<br>- "환경" "변수" → env 정보</p>
+  </div>
+  <div class="card" style="border-color:var(--accent)">
+    <h3 style="color:var(--accent)">나머지 → 도구 호출</h3>
+    <p>- 디스크 용량 → shell_exec df<br>- 프로세스 목록 → shell_exec ps<br>- 네트워크 상태 → shell_exec ping<br>- 상세 시스템 정보 → shell_exec</p>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>싱글 바이너리 호환:</strong> Go 표준 라이브러리만으로 구현 가능. ~/.tgc/context/ 에 JSON/MD 파일 저장.
+  외부 의존성 제로. 빌드에 영향 없음.
+</div>
+</div>
+
+<!-- ==================== 6. GEMMA 4 ==================== -->
+<div class="section" id="gemma">
+<h2 class="section-title"><span class="section-num">6</span> Gemma 4 전환 효과 예측</h2>
+
+<h3 style="font-size:0.9rem;color:var(--muted);margin-bottom:1rem;">벤치마크 비교 — Gemma 4 31B vs 26B</h3>
+<div class="bar-chart">
+  <div class="bar-row">
+    <div class="bar-label">MMLU Pro</div>
+    <div class="bar-track"><div class="bar-fill" style="width:85.2%;background:linear-gradient(90deg,var(--cyan),var(--accent))">31B</div></div>
+    <div class="bar-value" style="color:var(--cyan)">85.2%</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label"></div>
+    <div class="bar-track"><div class="bar-fill" style="width:82.6%;background:linear-gradient(90deg,var(--purple),var(--accent));opacity:0.7">26B</div></div>
+    <div class="bar-value" style="color:var(--purple)">82.6%</div>
+  </div>
+  <div class="bar-row" style="margin-top:0.8rem">
+    <div class="bar-label">AIME 2026</div>
+    <div class="bar-track"><div class="bar-fill" style="width:89.2%;background:linear-gradient(90deg,var(--cyan),var(--accent))">31B</div></div>
+    <div class="bar-value" style="color:var(--cyan)">89.2%</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label"></div>
+    <div class="bar-track"><div class="bar-fill" style="width:88.3%;background:linear-gradient(90deg,var(--purple),var(--accent));opacity:0.7">26B</div></div>
+    <div class="bar-value" style="color:var(--purple)">88.3%</div>
+  </div>
+  <div class="bar-row" style="margin-top:0.8rem">
+    <div class="bar-label">LiveCodeBench v6</div>
+    <div class="bar-track"><div class="bar-fill" style="width:80%;background:linear-gradient(90deg,var(--cyan),var(--accent))">31B</div></div>
+    <div class="bar-value" style="color:var(--cyan)">80.0%</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label"></div>
+    <div class="bar-track"><div class="bar-fill" style="width:77.1%;background:linear-gradient(90deg,var(--purple),var(--accent));opacity:0.7">26B</div></div>
+    <div class="bar-value" style="color:var(--purple)">77.1%</div>
+  </div>
+  <div class="bar-row" style="margin-top:0.8rem">
+    <div class="bar-label">Codeforces ELO</div>
+    <div class="bar-track"><div class="bar-fill" style="width:71.7%;background:linear-gradient(90deg,var(--cyan),var(--accent))">31B: 2150</div></div>
+    <div class="bar-value" style="color:var(--cyan)">2150</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label"></div>
+    <div class="bar-track"><div class="bar-fill" style="width:57.3%;background:linear-gradient(90deg,var(--purple),var(--accent));opacity:0.7">26B: 1718</div></div>
+    <div class="bar-value" style="color:var(--purple)">1718</div>
+  </div>
+</div>
+
+<h3 style="font-size:0.9rem;color:var(--cyan);margin:1.5rem 0 1rem;">Gemma 4 도입 후 목표 구성</h3>
+<table>
+<thead><tr><th>모드</th><th>모델</th><th>역할</th></tr></thead>
+<tbody>
+<tr class="highlight-row"><td><strong>슈퍼택가이</strong></td><td style="color:var(--cyan)">Gemma 4 31B</td><td>리드 — 네이티브 tool calling + thinking + 256K</td></tr>
+<tr><td><strong>플랜</strong></td><td style="color:var(--cyan)">Gemma 4 31B</td><td>설계 — Thinking 모드로 추론 과정 시각화</td></tr>
+<tr class="highlight-row"><td><strong>개발</strong></td><td style="color:var(--purple)">Gemma 4 26B</td><td>워커 — MoE 10배 빠름. LCB 77.1% 충분</td></tr>
+<tr><td><strong>폴백</strong></td><td style="color:var(--muted)">GPT-OSS-120B</td><td>비상 폴백</td></tr>
+</tbody>
+</table>
+
+<div class="card-grid" style="grid-template-columns:repeat(2,1fr);">
+  <div class="card" style="border-color:var(--cyan)">
+    <h3 style="color:var(--cyan)">전환 효과</h3>
+    <div class="metric" style="color:var(--cyan)">+60%</div>
+    <p>코딩 품질 향상 (LCB 80%, CF 2150)<br>네이티브 tool calling (parser 의존 제거)<br>Thinking 모드 (추론 시각화)<br>256K 컨텍스트 (8배 확장)</p>
+  </div>
+  <div class="card" style="border-color:var(--green)">
+    <h3 style="color:var(--green)">비용 절감</h3>
+    <div class="metric" style="color:var(--green)">75%</div>
+    <p>GPU 메모리 1/4 (120B→31B)<br>속도 3~4배 (31B), 10배 (26B MoE)<br>동시 사용자 3배 증가<br>멀티모달(이미지) 보너스</p>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>리스크:</strong> vLLM Gemma 4 tool call parser 확인 필수 (인프라팀). 한국어 성능 별도 검증 필요.
+  롤백은 config 변경만으로 즉시 가능.
+</div>
+</div>
+
+<!-- ==================== 7. ROADMAP ==================== -->
+<div class="section" id="roadmap">
+<h2 class="section-title"><span class="section-num">7</span> 버전별 로드맵</h2>
+
+<table>
+<thead><tr><th>버전</th><th>핵심 기능</th><th>모델</th><th>상태</th></tr></thead>
+<tbody>
+<tr style="background:rgba(52,211,153,0.06)">
+  <td><strong>v0.3.0</strong></td>
+  <td>붙여넣기 수정, 스트리밍 상태, 자동 재시도, Tool 점검</td>
+  <td>GPT-OSS-120B + Qwen-Coder</td>
+  <td style="color:var(--green)">릴리즈 완료</td>
+</tr>
+<tr style="background:rgba(251,191,36,0.06)">
+  <td><strong>v0.3.1</strong></td>
+  <td>시스템 사전정보 자동 수집 (context.go), Qwen3-Coder-30B 반영</td>
+  <td>GPT-OSS-120B + Qwen3-Coder-30B</td>
+  <td style="color:var(--yellow)">구현 중</td>
+</tr>
+<tr>
+  <td><strong>v0.4.0</strong></td>
+  <td>grep/glob 전용 도구, 컨텍스트 하이브리드 최적화, 영구 기억</td>
+  <td>GPT-OSS-120B + Qwen3-Coder-30B</td>
+  <td style="color:var(--muted)">계획</td>
+</tr>
+<tr>
+  <td><strong>v0.5.0</strong></td>
+  <td>멀티에이전트 오케스트레이션 (120B 리드 → 3x Qwen3 워커)</td>
+  <td>GPT-OSS-120B + Qwen3-Coder-30B x3</td>
+  <td style="color:var(--muted)">계획</td>
+</tr>
+<tr>
+  <td><strong>v0.6.0</strong></td>
+  <td>Gemma 4 전환, Thinking 모드, 256K 컨텍스트</td>
+  <td>Gemma 4 31B + 26B</td>
+  <td style="color:var(--muted)">Gemma 4 테스트 후</td>
+</tr>
+<tr>
+  <td><strong>v1.0.0</strong></td>
+  <td>자율 모드, 세션 관리, MCP, 해시 앵커 편집</td>
+  <td>Gemma 4 31B + 26B</td>
+  <td style="color:var(--muted)">목표</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="footer">
+  택갈이코드 종합 로드맵 — 기능 비교 · 모델 전략 · 멀티에이전트 아키텍처<br>
+  2026-04-08 · v0.3.0 세션 분석 기반<br>
+  Generated for internal review — Shinhan AI Platform Team
+</div>
+
+</div>
+</body>
+</html>

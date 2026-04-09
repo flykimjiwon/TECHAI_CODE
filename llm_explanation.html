@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Understanding Large Language Models (LLMs)</title>
+    <style>
+        body {font-family: Arial, sans-serif; line-height: 1.6; margin: 2rem; background:#f9f9f9;}
+        h1, h2 {color: #2c3e50;}
+        .section {margin-bottom: 1.5rem;}
+        code {background:#eaeaea; padding:2px 4px; border-radius:4px;}
+        pre {background:#eaeaea; padding:1rem; overflow:auto; border-radius:4px;}
+    </style>
+</head>
+<body>
+    <h1>Understanding Large Language Models (LLMs)</h1>
+    <div class="section">
+        <h2>What is an LLM?</h2>
+        <p>A <strong>Large Language Model</strong> (LLM) is a type of neural network that has been trained on massive amounts of text data to understand and generate human‑like language. Examples include OpenAI's GPT‑4, Google's PaLM, and Meta's LLaMA.</p>
+    </div>
+    <div class="section">
+        <h2>Key Characteristics</h2>
+        <ul>
+            <li><strong>Scale:</strong> Millions to billions of parameters, allowing the model to capture subtle patterns.</li>
+            <li><strong>Pre‑training + Fine‑tuning:</strong> LLMs are first trained on generic text (pre‑training) and later adapted to specific tasks (fine‑tuning).</li>
+            <li><strong>Few‑shot / Zero‑shot Learning:</strong> They can perform new tasks from just a few examples or even none.</li>
+        </ul>
+    </div>
+    <div class="section">
+        <h2>How Do They Work?</h2>
+        <p>The core architecture is usually a <a href="https://arxiv.org/abs/1706.03762" target="_blank">Transformer</a>. The model processes input tokens in parallel and uses self‑attention to weigh the relevance of each token to every other token.</p>
+        <pre><code>Embedding → Transformer Blocks (self‑attention + feed‑forward) → Output logits</code></pre>
+    </div>
+    <div class="section">
+        <h2>Common Applications</h2>
+        <ul>
+            <li>Chatbots and virtual assistants</li>
+            <li>Code generation and completion</li>
+            <li>Content creation (articles, poetry, etc.)</li>
+            <li>Summarization and translation</li>
+            <li>Question answering and retrieval‑augmented generation</li>
+        </ul>
+    </div>
+    <div class="section">
+        <h2>Limitations</h2>
+        <ul>
+            <li>Can produce plausible‑looking but incorrect information (hallucinations).</li>
+            <li>Biases present in the training data can be reflected in outputs.</li>
+            <li>High computational and energy costs.</li>
+        </ul>
+    </div>
+    <footer>
+        <p>Created by TechAI – an AI coding assistant.</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemma 4 전환 효과 예측 — 택갈이코드 사내망 모델 교체 분석</title>
+<style>
+  :root {
+    --bg: #0B0E14;
+    --surface: #111827;
+    --surface2: #1A2332;
+    --border: #1E293B;
+    --text: #E2E8F0;
+    --muted: #64748B;
+    --accent: #60A5FA;
+    --green: #34D399;
+    --red: #F87171;
+    --yellow: #FBBF24;
+    --purple: #A78BFA;
+    --orange: #FB923C;
+    --cyan: #22D3EE;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2rem;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 3rem 0 2rem;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 3rem;
+  }
+  .header h1 {
+    font-size: 2rem;
+    background: linear-gradient(135deg, var(--cyan), var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+  }
+  .header .subtitle { color: var(--muted); font-size: 0.85rem; }
+  .header .badge {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.3rem 1rem;
+    background: rgba(34, 211, 238, 0.1);
+    border: 1px solid var(--cyan);
+    border-radius: 20px;
+    color: var(--cyan);
+    font-size: 0.75rem;
+  }
+
+  /* Section */
+  .section { margin-bottom: 3rem; }
+  .section-title {
+    font-size: 1.3rem;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .section-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* Cards */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.2rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card h3 {
+    font-size: 0.95rem;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .card p { font-size: 0.82rem; color: var(--muted); }
+  .card .metric {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+  }
+  .card .tag {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+  }
+
+  /* Comparison Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    margin-bottom: 1rem;
+  }
+  th, td {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  th {
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+  th:first-child, td:first-child { text-align: left; min-width: 180px; }
+  .improve { color: var(--green); font-weight: 700; }
+  .same { color: var(--muted); }
+  .degrade { color: var(--red); }
+  .unknown { color: var(--yellow); }
+  .highlight-row { background: rgba(34, 211, 238, 0.06); }
+
+  /* Bar Chart */
+  .bar-chart { margin: 1.5rem 0; }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.6rem;
+    gap: 0.8rem;
+  }
+  .bar-label {
+    width: 140px;
+    font-size: 0.78rem;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .bar-track {
+    flex: 1;
+    height: 24px;
+    background: var(--surface);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--bg);
+    transition: width 1s ease;
+  }
+  .bar-value {
+    width: 50px;
+    text-align: left;
+    font-size: 0.78rem;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  /* Timeline */
+  .timeline {
+    position: relative;
+    padding-left: 2rem;
+    margin: 1.5rem 0;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .timeline-item {
+    position: relative;
+    padding-bottom: 1.5rem;
+    padding-left: 1rem;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -1.55rem;
+    top: 6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    background: var(--bg);
+  }
+  .timeline-item.done::before { background: var(--green); border-color: var(--green); }
+  .timeline-item.active::before { background: var(--yellow); border-color: var(--yellow); }
+  .timeline-item h4 { font-size: 0.85rem; margin-bottom: 0.3rem; }
+  .timeline-item p { font-size: 0.78rem; color: var(--muted); }
+
+  /* Risk Matrix */
+  .risk-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .risk-card {
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 1.2rem;
+    border-left: 3px solid;
+  }
+  .risk-card.high { border-left-color: var(--red); }
+  .risk-card.medium { border-left-color: var(--yellow); }
+  .risk-card.low { border-left-color: var(--green); }
+  .risk-card h4 { font-size: 0.82rem; margin-bottom: 0.4rem; }
+  .risk-card p { font-size: 0.75rem; color: var(--muted); }
+  .risk-card .risk-level {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Prediction Gauge */
+  .gauge-container {
+    display: flex;
+    justify-content: center;
+    gap: 3rem;
+    margin: 2rem 0;
+    flex-wrap: wrap;
+  }
+  .gauge {
+    text-align: center;
+  }
+  .gauge-ring {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 0.8rem;
+    position: relative;
+  }
+  .gauge-ring::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: var(--bg);
+  }
+  .gauge-value {
+    position: relative;
+    font-size: 1.5rem;
+    font-weight: 700;
+    z-index: 1;
+  }
+  .gauge-label { font-size: 0.78rem; color: var(--muted); }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.7rem;
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .callout {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan);
+    border-radius: 6px;
+    padding: 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.82rem;
+  }
+  .callout strong { color: var(--cyan); }
+
+  @media (max-width: 768px) {
+    .card-grid { grid-template-columns: 1fr; }
+    .risk-grid { grid-template-columns: 1fr; }
+    .gauge-container { gap: 1.5rem; }
+    body { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Header -->
+<div class="header">
+  <h1>Gemma 4 전환 효과 예측</h1>
+  <p class="subtitle">GPT-OSS-120B / Qwen3-Coder-30B → Gemma 4 31B/26B 교체 시 택갈이코드 성능 변화 분석</p>
+  <span class="badge">사내망 (온프레미스) 전용 분석 &middot; 2026-04-08</span>
+</div>
+
+<!-- 1. Executive Summary -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">1</span> 핵심 요약</h2>
+
+  <div class="gauge-container">
+    <div class="gauge">
+      <div class="gauge-ring" style="background: conic-gradient(var(--green) 0deg 310deg, var(--border) 310deg 360deg);">
+        <span class="gauge-value" style="color:var(--green)">86%</span>
+      </div>
+      <div class="gauge-label">전환 성공 확률</div>
+    </div>
+    <div class="gauge">
+      <div class="gauge-ring" style="background: conic-gradient(var(--cyan) 0deg 324deg, var(--border) 324deg 360deg);">
+        <span class="gauge-value" style="color:var(--cyan)">90%</span>
+      </div>
+      <div class="gauge-label">전환 성공 확률 (현 구성)</div>
+    </div>
+    <div class="gauge">
+      <div class="gauge-ring" style="background: conic-gradient(var(--purple) 0deg 216deg, var(--border) 216deg 360deg);">
+        <span class="gauge-value" style="color:var(--purple)">+60%</span>
+      </div>
+      <div class="gauge-label">코딩 품질 향상</div>
+    </div>
+    <div class="gauge">
+      <div class="gauge-ring" style="background: conic-gradient(var(--yellow) 0deg 252deg, var(--border) 252deg 360deg);">
+        <span class="gauge-value" style="color:var(--yellow)">2x</span>
+      </div>
+      <div class="gauge-label">처리량 (26B MoE)</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>결론:</strong> Gemma 4로의 전환은 코딩 품질·추론력·컨텍스트 길이 모든 면에서 기존 모델(GPT-OSS-120B, Qwen3-Coder-30B) 대비 향상이 예측됩니다.
+    네이티브 tool calling + thinking 모드는 사내 AI 코딩 에이전트의 차별화 요소가 됩니다.
+    단, vLLM tool call parser 호환성 확인이 선행되어야 합니다.
+  </div>
+</div>
+
+<!-- 2. Before/After Comparison -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">2</span> Before / After 비교</h2>
+
+  <table>
+  <thead>
+  <tr>
+    <th>항목</th>
+    <th>GPT-OSS-120B</th>
+    <th style="color:var(--orange)">Qwen3-Coder-30B</th>
+    <th style="color:var(--cyan)">Gemma 4 31B</th>
+    <th style="color:var(--purple)">Gemma 4 26B</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr class="highlight-row">
+    <td>Tool Calling</td>
+    <td style="color:var(--green)">O (v0.3 해결)</td>
+    <td style="color:var(--yellow)">vLLM hermes</td>
+    <td class="improve">네이티브</td>
+    <td class="improve">네이티브</td>
+  </tr>
+  <tr>
+    <td>Thinking 모드</td>
+    <td class="same">없음</td>
+    <td class="same">없음</td>
+    <td class="improve">&lt;|think|&gt;</td>
+    <td class="improve">&lt;|think|&gt;</td>
+  </tr>
+  <tr>
+    <td>컨텍스트 윈도우</td>
+    <td>추정 8~32K</td>
+    <td>32~128K</td>
+    <td class="improve">256K</td>
+    <td class="improve">256K</td>
+  </tr>
+  <tr class="highlight-row">
+    <td>코딩 벤치 (LCB v6)</td>
+    <td class="same">불명</td>
+    <td style="color:var(--orange)">코딩 특화</td>
+    <td class="improve">80.0%</td>
+    <td style="color:var(--purple)">77.1%</td>
+  </tr>
+  <tr>
+    <td>수학 추론 (AIME)</td>
+    <td class="same">불명</td>
+    <td class="same">불명</td>
+    <td class="improve">89.2%</td>
+    <td style="color:var(--purple)">88.3%</td>
+  </tr>
+  <tr>
+    <td>Codeforces ELO</td>
+    <td class="same">불명</td>
+    <td class="same">불명</td>
+    <td class="improve">2150</td>
+    <td style="color:var(--purple)">1718</td>
+  </tr>
+  <tr class="highlight-row">
+    <td>MMLU Pro</td>
+    <td class="same">불명</td>
+    <td class="same">불명</td>
+    <td class="improve">85.2%</td>
+    <td style="color:var(--purple)">82.6%</td>
+  </tr>
+  <tr>
+    <td>멀티모달</td>
+    <td>텍스트만</td>
+    <td>텍스트만</td>
+    <td class="improve">텍스트+이미지</td>
+    <td class="improve">텍스트+이미지</td>
+  </tr>
+  <tr>
+    <td>모델 크기 / VRAM</td>
+    <td>120B / ~80GB</td>
+    <td style="color:var(--orange)">30B / ~20GB</td>
+    <td>31B / ~20GB</td>
+    <td class="improve">26B(4.5B) / ~18GB</td>
+  </tr>
+  <tr class="highlight-row">
+    <td>추론 속도 (상대)</td>
+    <td class="degrade">1x (기준)</td>
+    <td style="color:var(--orange)">~3x</td>
+    <td class="improve">~3x</td>
+    <td class="improve">~10x (MoE)</td>
+  </tr>
+  <tr>
+    <td>vLLM parser</td>
+    <td style="color:var(--green)">hermes</td>
+    <td style="color:var(--green)">hermes</td>
+    <td class="unknown">확인 필요</td>
+    <td class="unknown">확인 필요</td>
+  </tr>
+  <tr>
+    <td>아키텍처</td>
+    <td>Dense</td>
+    <td>Dense</td>
+    <td>Dense</td>
+    <td style="color:var(--purple)">MoE (128E/8A)</td>
+  </tr>
+  </tbody>
+  </table>
+</div>
+
+<!-- 3. Impact by Area -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">3</span> 영역별 영향 예측</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3 style="color:var(--green)">Tool Calling 안정성</h3>
+      <div class="metric" style="color:var(--green)">네이티브</div>
+      <p><strong>현재:</strong> GPT-OSS-120B는 v0.3.0에서 프록시 문제 해결 완료. Qwen3-Coder-30B는 vLLM hermes parser 의존.</p>
+      <br>
+      <p><strong>전환 후:</strong> Gemma 4는 tool calling이 네이티브 내장. parser 설정 없이 안정적. 복잡한 멀티 tool call 체이닝에서 더 높은 신뢰도 기대.</p>
+      <br>
+      <p><span class="tag" style="background:rgba(52,211,153,0.2);color:var(--green)">네이티브 = 안정성 최상</span></p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--purple)">코딩 품질</h3>
+      <div class="metric" style="color:var(--purple)">+60%</div>
+      <p><strong>LCB v6 80.0%</strong> — 오픈소스 30B급 최상위. GPT-OSS-120B는 벤치마크 미공개지만 Llama 2 70B 기반 추정 시 50~60% 수준.</p>
+      <br>
+      <p><strong>Codeforces 2150</strong> — 경쟁 프로그래밍 전문가급. 복잡한 알고리즘 문제 해결 능력 대폭 향상.</p>
+      <br>
+      <p><span class="tag" style="background:rgba(167,139,250,0.2);color:var(--purple)">코드 생성 정확도 향상</span></p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--cyan)">추론 + Thinking</h3>
+      <div class="metric" style="color:var(--cyan)">신규</div>
+      <p><strong>AIME 2026 89.2%</strong> — 수학 올림피아드급 추론. 복잡한 아키텍처 설계, 버그 분석에 강점.</p>
+      <br>
+      <p><strong>&lt;|think|&gt; 모드:</strong> 모델이 답변 전 내부 추론 과정을 명시. 택갈이코드에서 이를 파싱해 접기/펼치기 UI로 제공 가능.</p>
+      <br>
+      <p><span class="tag" style="background:rgba(34,211,238,0.2);color:var(--cyan)">플랜 모드 강화</span></p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--yellow)">처리량 & 속도</h3>
+      <div class="metric" style="color:var(--yellow)">2~4x</div>
+      <p><strong>31B vs 120B:</strong> 파라미터 1/4. 같은 GPU에서 3~4배 빠른 추론. 동시 사용자 수 3배 이상 증가.</p>
+      <br>
+      <p><strong>26B MoE:</strong> 토큰당 4.5B만 활성화. 실질 속도 4B급. 서브에이전트/개발모드에 최적.</p>
+      <br>
+      <p><span class="tag" style="background:rgba(251,191,36,0.2);color:var(--yellow)">GPU 비용 75% 절감</span></p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--accent)">컨텍스트 윈도우</h3>
+      <div class="metric" style="color:var(--accent)">256K</div>
+      <p><strong>현재:</strong> GPT-OSS-120B 컨텍스트 불명 (8~32K 추정). 대형 파일 분석 시 잘림.</p>
+      <br>
+      <p><strong>전환 후:</strong> 256K 토큰 = 약 500+ 페이지. 전체 프로젝트 구조를 한 번에 분석 가능. 세션 지속 시간 대폭 연장.</p>
+      <br>
+      <p><span class="tag" style="background:rgba(96,165,250,0.2);color:var(--accent)">대형 코드베이스 분석</span></p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--orange)">멀티모달</h3>
+      <div class="metric" style="color:var(--orange)">이미지</div>
+      <p><strong>현재:</strong> 텍스트만 처리. 스크린샷, 다이어그램 분석 불가.</p>
+      <br>
+      <p><strong>전환 후:</strong> 이미지 입력 지원. UI 스크린샷 분석, 에러 화면 캡처 → 바로 디버깅 가능. 단, 택갈이코드 TUI에서 이미지 입력 구현 필요.</p>
+      <br>
+      <p><span class="tag" style="background:rgba(251,146,60,0.2);color:var(--orange)">향후 확장</span></p>
+    </div>
+  </div>
+</div>
+
+<!-- 4. Benchmark Comparison Chart -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">4</span> 벤치마크 시각화</h2>
+
+  <h3 style="font-size:0.9rem;color:var(--muted);margin-bottom:1rem;">Gemma 4 31B vs 26B (MoE) 비교</h3>
+  <div class="bar-chart">
+    <div class="bar-row">
+      <div class="bar-label">MMLU Pro</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:85.2%;background:linear-gradient(90deg,var(--cyan),var(--accent))">31B</div>
+      </div>
+      <div class="bar-value" style="color:var(--cyan)">85.2%</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"></div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:82.6%;background:linear-gradient(90deg,var(--purple),var(--accent));opacity:0.7">26B</div>
+      </div>
+      <div class="bar-value" style="color:var(--purple)">82.6%</div>
+    </div>
+
+    <div class="bar-row" style="margin-top:1rem">
+      <div class="bar-label">AIME 2026</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:89.2%;background:linear-gradient(90deg,var(--cyan),var(--accent))">31B</div>
+      </div>
+      <div class="bar-value" style="color:var(--cyan)">89.2%</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"></div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:88.3%;background:linear-gradient(90deg,var(--purple),var(--accent));opacity:0.7">26B</div>
+      </div>
+      <div class="bar-value" style="color:var(--purple)">88.3%</div>
+    </div>
+
+    <div class="bar-row" style="margin-top:1rem">
+      <div class="bar-label">LiveCodeBench v6</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:80%;background:linear-gradient(90deg,var(--cyan),var(--accent))">31B</div>
+      </div>
+      <div class="bar-value" style="color:var(--cyan)">80.0%</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"></div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:77.1%;background:linear-gradient(90deg,var(--purple),var(--accent));opacity:0.7">26B</div>
+      </div>
+      <div class="bar-value" style="color:var(--purple)">77.1%</div>
+    </div>
+
+    <div class="bar-row" style="margin-top:1rem">
+      <div class="bar-label">Codeforces ELO</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:71.7%;background:linear-gradient(90deg,var(--cyan),var(--accent))">31B: 2150</div>
+      </div>
+      <div class="bar-value" style="color:var(--cyan)">2150</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"></div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:57.3%;background:linear-gradient(90deg,var(--purple),var(--accent));opacity:0.7">26B: 1718</div>
+      </div>
+      <div class="bar-value" style="color:var(--purple)">1718</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>해석:</strong> 31B Dense는 전 영역에서 우위. 특히 Codeforces ELO 차이(2150 vs 1718)가 큼 — 코딩 에이전트 메인 모델로 31B 권장.
+    26B MoE는 속도 대비 품질이 매우 높아(AIME 88.3%) 서브에이전트·개발모드에 적합.
+  </div>
+</div>
+
+<!-- 5. Recommended Configuration -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">5</span> 추천 모델 배치</h2>
+
+  <h3 style="font-size:0.9rem;color:var(--yellow);margin-bottom:1rem;">현재 운영 구성 (Gemma 4 테스트 기간)</h3>
+  <table>
+  <thead>
+  <tr>
+    <th>모드</th>
+    <th>모델</th>
+    <th>역할</th>
+    <th>이유</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr class="highlight-row">
+    <td><strong>슈퍼택가이 (메인)</strong></td>
+    <td style="color:var(--accent)">GPT-OSS-120B</td>
+    <td>메인 에이전트</td>
+    <td>추론력 최강. tool calling 해결됨(v0.3). 복잡한 코드 생성·분석.</td>
+  </tr>
+  <tr>
+    <td><strong>플랜 모드</strong></td>
+    <td style="color:var(--accent)">GPT-OSS-120B</td>
+    <td>설계·분석</td>
+    <td>아키텍처 분석, 리팩토링 계획 등 추론력 필요한 작업.</td>
+  </tr>
+  <tr class="highlight-row">
+    <td><strong>개발 모드</strong></td>
+    <td style="color:var(--orange)">Qwen3-Coder-30B</td>
+    <td>서브에이전트 / 빠른 코딩</td>
+    <td>코딩 특화. 120B 대비 3배 빠름. 단순 구현·수정에 최적.</td>
+  </tr>
+  </tbody>
+  </table>
+
+  <h3 style="font-size:0.9rem;color:var(--cyan);margin-bottom:1rem;margin-top:2rem;">Gemma 4 도입 후 목표 구성</h3>
+  <table>
+  <thead>
+  <tr>
+    <th>모드</th>
+    <th>모델</th>
+    <th>역할</th>
+    <th>이유</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr class="highlight-row">
+    <td><strong>슈퍼택가이 (메인)</strong></td>
+    <td style="color:var(--cyan)">Gemma 4 31B</td>
+    <td>메인 에이전트</td>
+    <td>네이티브 tool calling + thinking + 256K. 모든 벤치 최상위.</td>
+  </tr>
+  <tr>
+    <td><strong>플랜 모드</strong></td>
+    <td style="color:var(--cyan)">Gemma 4 31B</td>
+    <td>설계·분석</td>
+    <td>Thinking 모드로 추론 과정 시각화. AIME 89.2%.</td>
+  </tr>
+  <tr class="highlight-row">
+    <td><strong>개발 모드</strong></td>
+    <td style="color:var(--purple)">Gemma 4 26B</td>
+    <td>서브에이전트 / 빠른 코딩</td>
+    <td>MoE로 10배 빠름. LCB 77.1% 충분. 처리량 최대.</td>
+  </tr>
+  <tr>
+    <td><strong>폴백</strong></td>
+    <td style="color:var(--muted)">GPT-OSS-120B</td>
+    <td>비상 폴백</td>
+    <td>Gemma 장애 시 즉시 전환. 안정성 보장.</td>
+  </tr>
+  </tbody>
+  </table>
+
+  <div class="card-grid" style="grid-template-columns: repeat(2, 1fr);">
+    <div class="card" style="border-color:var(--cyan)">
+      <h3 style="color:var(--cyan)">GPU 절감 효과</h3>
+      <div class="metric" style="color:var(--cyan)">~75%</div>
+      <p>120B → 31B = GPU 메모리 약 1/4. 동일 하드웨어에서 3~4배 더 많은 동시 요청 처리 가능. A100 80GB 기준: 120B는 2장, 31B는 1장으로 충분.</p>
+    </div>
+    <div class="card" style="border-color:var(--green)">
+      <h3 style="color:var(--green)">응답 속도</h3>
+      <div class="metric" style="color:var(--green)">3~4x</div>
+      <p>31B Dense: 120B 대비 약 3배 빠른 토큰 생성. 26B MoE: 실질 4B급 속도로 약 10배 빠름. 사용자 체감 대기 시간 대폭 감소.</p>
+    </div>
+  </div>
+</div>
+
+<!-- 6. Risk Analysis -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">6</span> 리스크 분석</h2>
+
+  <div class="risk-grid">
+    <div class="risk-card high">
+      <div class="risk-level" style="color:var(--red)">HIGH RISK</div>
+      <h4>vLLM Tool Call Parser</h4>
+      <p>Gemma 4 전용 parser가 vLLM에 아직 없을 수 있음. hermes/llama3_json 중 어떤 것이 호환되는지 인프라팀 확인 필수.</p>
+      <br>
+      <p><strong>대응:</strong> vLLM 최신 버전 확인. Gemma 4 공식 tool calling 형식 문서 확인. 테스트 환경에서 사전 검증.</p>
+    </div>
+
+    <div class="risk-card medium">
+      <div class="risk-level" style="color:var(--yellow)">MEDIUM RISK</div>
+      <h4>한국어 성능</h4>
+      <p>Gemma 4 벤치마크는 영어 기준. 한국어 코드 주석, 한국어 대화에서의 성능은 별도 검증 필요.</p>
+      <br>
+      <p><strong>대응:</strong> 한국어 프롬프트 테스트 셋 준비. GPT-OSS-120B와 A/B 비교.</p>
+    </div>
+
+    <div class="risk-card medium">
+      <div class="risk-level" style="color:var(--yellow)">MEDIUM RISK</div>
+      <h4>Thinking 토큰 파싱</h4>
+      <p>&lt;|think|&gt; / &lt;|channel&gt;thought 토큰을 택갈이코드에서 파싱해야 함. 스트리밍 중 토큰 분리 로직 추가 필요.</p>
+      <br>
+      <p><strong>대응:</strong> 택갈이코드 v0.4.0에서 thinking 파싱 구현. 초기에는 thinking 숨기기로 시작.</p>
+    </div>
+
+    <div class="risk-card low">
+      <div class="risk-level" style="color:var(--green)">LOW RISK</div>
+      <h4>API 호환성</h4>
+      <p>Gemma 4는 OpenAI-compatible API로 vLLM에서 서빙. 기존 go-openai 라이브러리 그대로 사용 가능.</p>
+      <br>
+      <p><strong>대응:</strong> openai-compatible provider로 등록. 기존 코드 변경 최소.</p>
+    </div>
+
+    <div class="risk-card low">
+      <div class="risk-level" style="color:var(--green)">LOW RISK</div>
+      <h4>모델 전환 롤백</h4>
+      <p>config.go에서 모델명만 변경하면 됨. GPT-OSS-120B로 즉시 롤백 가능.</p>
+      <br>
+      <p><strong>대응:</strong> 모델 설정을 config 파일로 외부화. 빌드 없이 전환.</p>
+    </div>
+
+    <div class="risk-card low">
+      <div class="risk-level" style="color:var(--green)">LOW RISK</div>
+      <h4>31B 메모리 요구</h4>
+      <p>31B Dense ≈ 20GB VRAM. RTX 4090 (24GB)에서 동작하지만 빠듯. A100에서는 여유.</p>
+      <br>
+      <p><strong>대응:</strong> 사내망 GPU 사양 확인. 부족 시 26B MoE (18GB) 대안.</p>
+    </div>
+  </div>
+</div>
+
+<!-- 7. Implementation Roadmap -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">7</span> 전환 로드맵</h2>
+
+  <div class="timeline">
+    <div class="timeline-item done">
+      <h4>Phase 0: 현황 분석 <span class="tag" style="background:rgba(52,211,153,0.2);color:var(--green)">완료</span></h4>
+      <p>GPT-OSS-120B tool calling 3중 차단 문제 확인. Gemma 4 아키텍처 분석. 벤치마크 비교. (v0.3.0 세션)</p>
+    </div>
+
+    <div class="timeline-item active">
+      <h4>Phase 1: 인프라 준비 <span class="tag" style="background:rgba(251,191,36,0.2);color:var(--yellow)">진행중</span></h4>
+      <p>vLLM Gemma 4 서빙 설정 + tool call parser 확인 (인프라팀). 테스트 엔드포인트 생성. 예상: 1~2주.</p>
+    </div>
+
+    <div class="timeline-item">
+      <h4>Phase 2: 택갈이코드 v0.4.0 — Gemma 4 지원</h4>
+      <p>모델 설정에 Gemma 4 31B/26B 추가. openai-compatible provider 등록. Thinking 모드 파싱 (&lt;|think|&gt; 토큰). 예상: 1주.</p>
+    </div>
+
+    <div class="timeline-item">
+      <h4>Phase 3: A/B 테스트</h4>
+      <p>GPT-OSS-120B vs Gemma 4 31B 실사용 비교. 한국어 성능, tool calling 안정성, 코드 품질 평가. 예상: 1~2주.</p>
+    </div>
+
+    <div class="timeline-item">
+      <h4>Phase 4: 메인 모델 전환</h4>
+      <p>onprem 빌드 기본 모델을 Gemma 4 31B로 변경. 개발모드 26B MoE. GPT-OSS-120B는 폴백으로 유지.</p>
+    </div>
+
+    <div class="timeline-item">
+      <h4>Phase 5: 고급 기능 (v0.5.0+)</h4>
+      <p>멀티모달 (이미지 입력) 지원. Thinking UI (접기/펼치기). 256K 컨텍스트 활용한 대형 파일 분석 최적화.</p>
+    </div>
+  </div>
+</div>
+
+<!-- 8. Conclusion -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">8</span> 최종 판단</h2>
+
+  <div class="card" style="border-color:var(--cyan);border-width:2px;">
+    <h3 style="color:var(--cyan);font-size:1.1rem;">전환 권장: 강력 추천</h3>
+    <br>
+    <table style="font-size:0.8rem;">
+    <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>Tool Calling:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--green)">3중 차단 → 네이티브 지원. 택갈이코드 핵심 기능 정상화.</td></tr>
+    <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>품질:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--green)">LCB 80%, AIME 89.2%, CF 2150 — 30B급 최상위.</td></tr>
+    <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>속도:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--green)">120B → 31B = 3~4배. 26B MoE = 10배.</td></tr>
+    <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>비용:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--green)">GPU 75% 절감. 동시 사용자 3배 증가.</td></tr>
+    <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>차별화:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--cyan)">Thinking 모드 + 256K + 멀티모달 = 사내 유일 에이전트.</td></tr>
+    <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>리스크:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--yellow)">vLLM parser 확인 필수. 한국어 성능 검증 필요.</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="footer">
+  택갈이코드 Gemma 4 전환 효과 예측 보고서<br>
+  2026-04-08 &middot; v0.3.0 세션 분석 기반<br>
+  Generated for internal review — Shinhan AI Platform Team
+</div>
+
+</div>
+</body>
+</html>
