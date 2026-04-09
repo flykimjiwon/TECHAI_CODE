@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -15,7 +14,9 @@ import (
 	"charm.land/lipgloss/v2"
 	openai "github.com/sashabaranov/go-openai"
 
+	tgc "github.com/kimjiwon/tgc"
 	"github.com/kimjiwon/tgc/internal/config"
+	"github.com/kimjiwon/tgc/internal/knowledge"
 	"github.com/kimjiwon/tgc/internal/llm"
 	"github.com/kimjiwon/tgc/internal/tools"
 	"github.com/kimjiwon/tgc/internal/ui"
@@ -26,11 +27,6 @@ type streamChunkMsg struct {
 	done      bool
 	err       error
 	toolCalls []llm.ToolCallInfo
-}
-
-type toolCheckMsg struct {
-	supported bool
-	detail    string
 }
 
 type toolResultMsg struct {
@@ -63,17 +59,12 @@ type Model struct {
 	streamCh     <-chan llm.StreamChunk
 	streamCancel context.CancelFunc
 	streamStart  time.Time
-	lastChunkAt  time.Time // last chunk received time (stall detection)
+	lastChunkAt  time.Time
 	lastElapsed  time.Duration
 	tokenCount   int
 	toolIter     int // tool loop iteration counter (max 20)
-	retryCount   int // auto-retry counter (max 3)
-	toolEnabled  *bool  // nil=unchecked, true=supported, false=unsupported
-	toolStatus   string // human-readable tool check result
 	pendingQueue []string // messages queued while streaming
-
-	sessionStart time.Time
-	osInfo       string // "darwin/arm64"
+	knowledgeInj *knowledge.Injector
 
 	inSetup    bool
 	setupInput textarea.Model
@@ -118,19 +109,25 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	if data, err := os.ReadFile(".techai.md"); err == nil && len(data) > 0 {
 		projectCtx = "\n\n## Project Context (.techai.md)\n" + string(data)
 	}
-
-	// Gather system context (IP, OS, CWD, files, git, etc.)
 	projectCtx += llm.GatherSystemContext()
+
+	// Initialize knowledge store
+	var knowledgeInj *knowledge.Injector
+	if knowledgeStore, err := knowledge.NewStore(tgc.KnowledgeFS); err == nil {
+		knowledgeInj = knowledge.NewInjector(knowledgeStore, 8192)
+		config.DebugLog("[KNOWLEDGE] loaded %d documents", knowledgeStore.DocCount())
+	} else {
+		config.DebugLog("[KNOWLEDGE] failed to load: %v", err)
+	}
 
 	m := Model{
 		cfg:          cfg,
 		activeTab:    initialMode,
 		cwd:          cwdShort,
 		projectCtx:   projectCtx,
+		knowledgeInj: knowledgeInj,
 		textarea:     ta,
 		viewport:     vp,
-		sessionStart: time.Now(),
-		osInfo:       friendlyOS(runtime.GOOS),
 		inSetup:      needsSetup,
 		setupCfg:     config.DefaultConfig(),
 		setupInput:   setupTa,
@@ -150,7 +147,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	}
 	m.msgs = []ui.Message{
 		{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
-		{Role: ui.RoleSystem, Content: ui.ModeInfoBox(initialMode, llm.GetDisplayName(cfg.Models.Super), llm.GetDisplayName(cfg.Models.Dev)), Timestamp: time.Now(), Tag: "modebox"},
+		{Role: ui.RoleSystem, Content: ui.ModeInfoBox(initialMode), Timestamp: time.Now(), Tag: "modebox"},
 	}
 
 	if config.IsDebug() {
@@ -222,7 +219,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.msgs = m.msgs[:0]
 			m.msgs = append(m.msgs,
 				ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
-				ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab, m.superDisplayName(), m.devDisplayName()), Timestamp: time.Now(), Tag: "modebox"},
+				ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab), Timestamp: time.Now(), Tag: "modebox"},
 			)
 			m.streamBuf = ""
 			m.tokenCount = 0
@@ -247,7 +244,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.msgs = append(filtered, ui.Message{
 				Role:      ui.RoleSystem,
-				Content:   ui.ModeInfoBox(m.activeTab, m.superDisplayName(), m.devDisplayName()),
+				Content:   ui.ModeInfoBox(m.activeTab),
 				Timestamp: time.Now(),
 				Tag:       "modebox",
 			})
@@ -403,14 +400,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if msg.content != "" {
-			m.streamBuf += msg.content
-			m.tokenCount++
-			m.lastChunkAt = time.Now()
-		}
+		m.streamBuf += msg.content
+		m.tokenCount++
+		m.lastChunkAt = time.Now()
 		m.updateViewport()
 		return m, m.waitForNextChunk()
-
 
 	case toolResultMsg:
 		config.DebugLog("[APP-TOOL] received %d tool results | toolIter=%d/20", len(msg.results), m.toolIter+1)
@@ -443,36 +437,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, m.continueAfterTools()
 
-	case toolCheckMsg:
-		enabled := msg.supported
-		m.toolEnabled = &enabled
-		m.toolStatus = msg.detail
-		status := "OFF"
-		if enabled {
-			status = "ON"
-		}
-		m.msgs = append(m.msgs, ui.Message{
-			Role:      ui.RoleSystem,
-			Content:   fmt.Sprintf("[Tool Check] %s — %s", status, msg.detail),
-			Timestamp: time.Now(),
-		})
-		config.DebugLog("[TOOL-CHECK] result: enabled=%v detail=%s", enabled, msg.detail)
-		m.updateViewport()
-		return m, nil
-
 	// Forward mouse wheel events to viewport for touchpad scroll
 	case tea.MouseWheelMsg:
 		var vpCmd tea.Cmd
 		m.viewport, vpCmd = m.viewport.Update(msg)
 		return m, vpCmd
-
 	}
 
-	// Forward unhandled messages (cursor blink, focus, etc.) to textarea
-	// to keep the cursor blink chain alive
-	var taCmd tea.Cmd
-	m.textarea, taCmd = m.textarea.Update(msg)
-	return m, taCmd
+	return m, nil
 }
 
 func (m Model) updateSetup(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -525,7 +497,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.msgs = m.msgs[:0]
 		m.msgs = append(m.msgs,
 			ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
-			ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab, m.superDisplayName(), m.devDisplayName()), Timestamp: time.Now(), Tag: "modebox"},
+			ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab), Timestamp: time.Now(), Tag: "modebox"},
 		)
 		m.streamBuf = ""
 		m.tokenCount = 0
@@ -561,56 +533,30 @@ func (m Model) View() tea.View {
 		}
 
 		// Input box with gray border
-		taView := m.textarea.View()
-		totalLines := strings.Count(m.textarea.Value(), "\n") + 1
-		if totalLines > m.textarea.Height() {
-			lineIndicator := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#9CA3AF")).
-				Render(fmt.Sprintf(" [%d줄]", totalLines))
-			taView = taView + lineIndicator
-		}
 		inputBox := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#9CA3AF")).
 			Width(m.width - 4).
-			Render(taView)
+			Render(m.textarea.View())
 
 		// Status bar below input — includes cwd and hints
-		model := m.currentModel()
+		modelID := m.currentModel()
+		displayModel := modelID
+		if info, ok := llm.Models[modelID]; ok {
+			displayModel = info.DisplayName
+		}
 		elapsed := m.lastElapsed
 		if m.streaming {
 			elapsed = time.Since(m.streamStart)
 		}
-		historyChars := 0
-		for _, h := range m.history {
-			historyChars += len(h.Content)
-		}
-		sbData := ui.StatusBarData{
-			Model:        model,
-			Tokens:       m.tokenCount,
-			Elapsed:      elapsed,
-			Mode:         m.activeTab,
-			CWD:          m.cwd,
-			Width:        m.width,
-			Debug:        config.IsDebug(),
-			ToolEnabled:  m.toolEnabled,
-			OS:           m.osInfo,
-			ToolCount:    len(tools.ToolsForMode(m.activeTab)),
-			HistoryLen:   len(m.history),
-			HistoryChars: historyChars,
-			MaxContext:   llm.GetMaxContext(model),
-			SessionStart: m.sessionStart,
-			ToolIter:     m.toolIter,
-		}
-		statusBar := ui.RenderStatusBar(sbData)
+		statusBar := ui.RenderStatusBar(displayModel, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), len(tools.ToolsForMode(m.activeTab)))
 
 		content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
 	}
 
 	v := tea.NewView(content)
 	v.AltScreen = true
-	// MouseMode disabled — causes freeze in some terminals with Bubble Tea v2
-	// v.MouseMode = tea.MouseModeCellMotion
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 
@@ -640,7 +586,7 @@ func (m *Model) recalcLayout() {
 		return
 	}
 	inputH := m.textarea.Height() + 2
-	fixed := inputH + 2 // input box + status bar (2 lines: main + HUD)
+	fixed := inputH + 1 // input box + status bar
 	vpHeight := m.height - fixed
 	if vpHeight < 3 {
 		vpHeight = 3
@@ -653,55 +599,45 @@ func (m *Model) recalcLayout() {
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 func (m *Model) streamStatus() string {
-	if !m.streaming {
-		return ""
-	}
 	elapsed := time.Since(m.streamStart)
 	frame := spinnerFrames[int(elapsed.Milliseconds()/150)%len(spinnerFrames)]
 
 	if m.lastChunkAt.IsZero() {
-		// No chunk received yet — connecting
+		// No chunks received yet
 		return fmt.Sprintf("%s 연결중... (%.1fs)", frame, elapsed.Seconds())
 	}
 
 	sinceLastChunk := time.Since(m.lastChunkAt)
-	tokPerSec := float64(0)
+	tps := float64(0)
 	if elapsed.Seconds() > 0 {
-		tokPerSec = float64(m.tokenCount) / elapsed.Seconds()
+		tps = float64(m.tokenCount) / elapsed.Seconds()
 	}
 
 	if sinceLastChunk > 15*time.Second {
-		return fmt.Sprintf("⚠ 응답 없음 %.0f초 — 연결 확인 필요 (%dtok · %.1fs)", sinceLastChunk.Seconds(), m.tokenCount, elapsed.Seconds())
+		return fmt.Sprintf("%s 응답없음 (%.0fs 대기중 · %dtok)", frame, sinceLastChunk.Seconds(), m.tokenCount)
 	}
 	if sinceLastChunk > 5*time.Second {
-		return fmt.Sprintf("⚠ 응답 지연 %.0f초... (%dtok · %.1fs)", sinceLastChunk.Seconds(), m.tokenCount, elapsed.Seconds())
+		return fmt.Sprintf("%s 응답지연... (%.0fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 	}
-
-	return fmt.Sprintf("%s 수신중 (%dtok · %.0ftok/s · %.1fs)", frame, m.tokenCount, tokPerSec, elapsed.Seconds())
+	return fmt.Sprintf("%s 수신중 (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 }
 
 func (m *Model) updateViewport() {
-	stream := m.streamStatus()
+	var stream string
+	if m.streaming {
+		stream = m.streamStatus()
+	}
 	content := ui.RenderMessages(m.msgs, stream, m.viewport.Width())
 	m.viewport.SetContent(content)
 	m.viewport.GotoBottom()
 }
 
-func (m Model) superDisplayName() string {
-	return llm.GetDisplayName(m.cfg.Models.Super)
-}
-
-func (m Model) devDisplayName() string {
-	return llm.GetDisplayName(m.cfg.Models.Dev)
-}
-
 func (m Model) currentModel() string {
-	mode := llm.Mode(m.activeTab)
-	switch mode {
-	case llm.ModeDev:
-		return m.cfg.Models.Dev // Qwen3-Coder-30B
-	default:
-		return m.cfg.Models.Super // GPT-OSS-120B (슈퍼/플랜)
+	switch m.activeTab {
+	case 1: // Dev mode → qwen3-coder-30b
+		return m.cfg.Models.Dev
+	default: // Super, Plan → gpt-oss-120b
+		return m.cfg.Models.Super
 	}
 }
 
@@ -730,6 +666,21 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.msgs = append(m.msgs, ui.Message{
 		Role: ui.RoleUser, Content: input, Timestamp: time.Now(),
 	})
+
+	// Inject knowledge context into system prompt
+	if m.knowledgeInj != nil {
+		knowledgeCtx := m.knowledgeInj.Inject(m.activeTab, input)
+		if knowledgeCtx != "" {
+			mode := llm.Mode(m.activeTab)
+			sysPrompt := llm.SystemPrompt(mode) + m.projectCtx + knowledgeCtx
+			m.history[0] = openai.ChatCompletionMessage{
+				Role: openai.ChatMessageRoleSystem, Content: sysPrompt,
+			}
+			config.DebugLog("[KNOWLEDGE] injected %d chars for query: %s",
+				len(knowledgeCtx), truncate(input, 50))
+		}
+	}
+
 	m.history = append(m.history, openai.ChatCompletionMessage{
 		Role: openai.ChatMessageRoleUser, Content: input,
 	})
@@ -737,9 +688,8 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.streamBuf = ""
 	m.tokenCount = 0
 	m.toolIter = 0
-	m.retryCount = 0
 	m.streamStart = time.Now()
-	m.lastChunkAt = time.Time{} // reset — no chunk received yet
+	m.lastChunkAt = time.Time{}
 	m.updateViewport()
 
 	return m.startStream()
@@ -790,17 +740,12 @@ func (m *Model) cancelStream() {
 	m.updateViewport()
 }
 
-func friendlyOS(goos string) string {
-	switch goos {
-	case "darwin":
-		return "Mac"
-	case "windows":
-		return "Windows"
-	case "linux":
-		return "Linux"
-	default:
-		return goos
+func truncate(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
 	}
+	return string(runes[:n]) + "..."
 }
 
 func truncateArgs(s string, max int) string {
