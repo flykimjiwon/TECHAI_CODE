@@ -16,9 +16,15 @@ ONPREM_LDFLAGS = -ldflags "-s -w -X main.version=$(VERSION)-onprem \
 	-X 'github.com/kimjiwon/tgc/internal/config.ConfigDirName=.tgc-onprem' \
 	-X 'github.com/kimjiwon/tgc/internal/config.DebugMode=true'"
 
-.PHONY: build run clean build-all build-onprem install lint test
+.PHONY: build run clean build-all build-onprem install lint test build-index
 
-build:
+# Knowledge index
+build-index:
+	@echo "Building knowledge index..."
+	@go run ./cmd/build-index/
+	@echo "Index built."
+
+build: build-index
 	go build $(LDFLAGS) -o $(BINARY) ./cmd/tgc
 
 run: build

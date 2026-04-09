@@ -1,0 +1,35 @@
+{
+  "documents": [
+    {
+      "path": "knowledge/docs/css/tailwind-v4.md",
+      "title": "Tailwind CSS v4 Reference",
+      "tier": 1,
+      "keywords": [
+        "css",
+        "tailwind-v4",
+        "tailwind",
+        "v4"
+      ],
+      "tokens": 492
+    },
+    {
+      "path": "knowledge/docs/go/stdlib.md",
+      "title": "Go Standard Library Quick Reference",
+      "tier": 1,
+      "keywords": [
+        "go",
+        "stdlib"
+      ],
+      "tokens": 155
+    },
+    {
+      "path": "knowledge/skills/debugging.md",
+      "title": "Debugging Skill",
+      "tier": 1,
+      "keywords": [
+        "debugging"
+      ],
+      "tokens": 108
+    }
+  ]
+}
