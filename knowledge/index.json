@@ -1,6 +1,142 @@
 {
   "documents": [
     {
+      "path": "knowledge/docs/bxm/batch.md",
+      "title": "배치 처리 패턴",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "batch"
+      ],
+      "tokens": 364
+    },
+    {
+      "path": "knowledge/docs/bxm/bean.md",
+      "title": "Bean 작성",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "bean"
+      ],
+      "tokens": 547
+    },
+    {
+      "path": "knowledge/docs/bxm/config.md",
+      "title": "Framework Config 파일",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "config"
+      ],
+      "tokens": 10195
+    },
+    {
+      "path": "knowledge/docs/bxm/dbio.md",
+      "title": "DBIO 작성",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "dbio"
+      ],
+      "tokens": 595
+    },
+    {
+      "path": "knowledge/docs/bxm/dev-process.md",
+      "title": "개발 프로세스",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "dev-process",
+        "dev",
+        "process"
+      ],
+      "tokens": 255
+    },
+    {
+      "path": "knowledge/docs/bxm/exception.md",
+      "title": "메시지처리 (정상, 오류)",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "exception"
+      ],
+      "tokens": 493
+    },
+    {
+      "path": "knowledge/docs/bxm/logging.md",
+      "title": "예외 처리",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "logging"
+      ],
+      "tokens": 208
+    },
+    {
+      "path": "knowledge/docs/bxm/overview.md",
+      "title": "BX Framework",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "overview"
+      ],
+      "tokens": 1186
+    },
+    {
+      "path": "knowledge/docs/bxm/select-multi.md",
+      "title": "다건 Select",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "select-multi",
+        "select",
+        "multi"
+      ],
+      "tokens": 455
+    },
+    {
+      "path": "knowledge/docs/bxm/select-paging.md",
+      "title": "Paging Select",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "select-paging",
+        "select",
+        "paging"
+      ],
+      "tokens": 2106
+    },
+    {
+      "path": "knowledge/docs/bxm/service.md",
+      "title": "Service 작성",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "service"
+      ],
+      "tokens": 966
+    },
+    {
+      "path": "knowledge/docs/bxm/studio.md",
+      "title": "시작하기",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "studio"
+      ],
+      "tokens": 740
+    },
+    {
+      "path": "knowledge/docs/bxm/transaction.md",
+      "title": "트랜잭션 처리",
+      "tier": 0,
+      "keywords": [
+        "bxm",
+        "transaction"
+      ],
+      "tokens": 5418
+    },
+    {
       "path": "knowledge/docs/charts/chartjs.md",
       "title": "Chart.js + react-chartjs-2 Reference",
       "tier": 1,
