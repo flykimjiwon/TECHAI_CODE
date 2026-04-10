@@ -29,6 +29,24 @@ type StreamChunk struct {
 	Done      bool
 	Err       error
 	ToolCalls []ToolCallInfo // non-nil when AI wants to call tools
+	// Usage is populated on the final Done chunk when the provider supports
+	// stream_options.include_usage (OpenAI, most compatible gateways). It is
+	// nil when the provider does not return usage statistics, in which case
+	// callers should fall back to a chunk-based or char-based estimate.
+	Usage *openai.Usage
+}
+
+// tokenCountFromUsage extracts a usable token total from an optional
+// *openai.Usage. It is nil-safe and falls back to prompt+completion when
+// TotalTokens is 0 (some compatible providers leave TotalTokens unset).
+func tokenCountFromUsage(u *openai.Usage) int {
+	if u == nil {
+		return 0
+	}
+	if u.TotalTokens > 0 {
+		return u.TotalTokens
+	}
+	return u.PromptTokens + u.CompletionTokens
 }
 
 type Client struct {
@@ -180,6 +198,12 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 			Model:    model,
 			Messages: messages,
 			Stream:   true,
+			// Ask the provider to include a final usage chunk so we can
+			// update the HUD token counter with real prompt+completion
+			// totals instead of the chunk-count fallback.
+			StreamOptions: &openai.StreamOptions{
+				IncludeUsage: true,
+			},
 		}
 		if len(toolDefs) > 0 {
 			req.Tools = toolDefs
@@ -231,6 +255,10 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 		totalContentLen := 0
 		lastChunkTime := time.Now()
 		firstChunkTime := time.Time{}
+		// lastUsage captures the final usage chunk the provider emits when
+		// stream_options.include_usage is set. It is propagated on the Done
+		// chunk so the HUD can show real token counts.
+		var lastUsage *openai.Usage
 
 		for {
 			recvStart := time.Now()
@@ -247,13 +275,14 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 							calls = append(calls, *tc)
 						}
 					}
-					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=%d | totalTime=%v", chunkNum, totalContentLen, len(calls), totalElapsed)
+					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=%d | totalTime=%v | usageTokens=%d", chunkNum, totalContentLen, len(calls), totalElapsed, tokenCountFromUsage(lastUsage))
 					for i, tc := range calls {
 						config.DebugLog("[STREAM-DONE] toolCall[%d] name=%s | argsLen=%d | args=%s", i, tc.Name, len(tc.Arguments), truncateForLog(tc.Arguments, 500))
 					}
-					ch <- StreamChunk{Done: true, ToolCalls: calls}
+					ch <- StreamChunk{Done: true, ToolCalls: calls, Usage: lastUsage}
 				} else {
-					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=0 | totalTime=%v", chunkNum, totalContentLen, totalElapsed)
+					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=0 | totalTime=%v | usageTokens=%d", chunkNum, totalContentLen, totalElapsed, tokenCountFromUsage(lastUsage))
+					ch <- StreamChunk{Done: true, Usage: lastUsage}
 				}
 				return
 			}
@@ -272,6 +301,16 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 			if firstChunkTime.IsZero() {
 				firstChunkTime = now
 				config.DebugLog("[STREAM] first chunk after %v (TTFC)", now.Sub(streamStart))
+			}
+
+			// Capture usage from whichever chunk the provider attaches it
+			// to. With StreamOptions.IncludeUsage=true, OpenAI emits a
+			// final chunk with empty Choices and non-nil Usage; some
+			// gateways attach it to the last content chunk instead.
+			if resp.Usage != nil {
+				lastUsage = resp.Usage
+				config.DebugLog("[CHUNK#%d] usage prompt=%d completion=%d total=%d",
+					chunkNum, resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens)
 			}
 
 			if len(resp.Choices) == 0 {

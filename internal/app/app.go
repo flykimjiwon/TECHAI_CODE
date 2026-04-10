@@ -27,6 +27,7 @@ type streamChunkMsg struct {
 	done      bool
 	err       error
 	toolCalls []llm.ToolCallInfo
+	usage     *openai.Usage
 }
 
 type toolResultMsg struct {
@@ -325,6 +326,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.done {
 			m.streamCh = nil
+
+			// Prefer real token count from provider usage; keep the
+			// chunk-count fallback when the provider omits it.
+			if msg.usage != nil {
+				if n := msg.usage.TotalTokens; n > 0 {
+					m.tokenCount = n
+				} else if n := msg.usage.PromptTokens + msg.usage.CompletionTokens; n > 0 {
+					m.tokenCount = n
+				}
+			}
 
 			// Check if AI wants to call tools
 			if len(msg.toolCalls) > 0 {
@@ -722,6 +733,7 @@ func (m *Model) waitForNextChunk() tea.Cmd {
 			done:      chunk.Done,
 			err:       chunk.Err,
 			toolCalls: chunk.ToolCalls,
+			usage:     chunk.Usage,
 		}
 	}
 }
