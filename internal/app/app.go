@@ -560,7 +560,8 @@ func (m Model) View() tea.View {
 		if m.streaming {
 			elapsed = time.Since(m.streamStart)
 		}
-		statusBar := ui.RenderStatusBar(displayModel, m.tokenCount, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), len(tools.ToolsForMode(m.activeTab)))
+		ctxWindow := llm.GetCapability(modelID).ContextWindow
+		statusBar := ui.RenderStatusBar(displayModel, m.tokenCount, ctxWindow, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), len(tools.ToolsForMode(m.activeTab)))
 
 		content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
 	}
@@ -659,9 +660,23 @@ func (m *Model) startStream() tea.Cmd {
 	model := m.currentModel()
 
 	// Compact the in-memory history before copying so snipped/truncated
-	// content persists across tool iterations (Phase 1-1). Stages 1+2 only
-	// — stage 3 LLM summary requires a separate call and is deferred.
+	// content persists across tool iterations (Phase 1-1). Stages 1+2
+	// always run; stage 3 (LLM summary) only kicks in when the real token
+	// count exceeds 90% of the model's context window (Phase 1.5).
 	m.history = llm.Compact(m.history)
+
+	ctxWindow := llm.GetCapability(model).ContextWindow
+	if ui.ShouldAutoCompact(ui.ContextPercent(m.tokenCount, ctxWindow)) {
+		// Target 50% of the window after summarization so we have room
+		// for the next exchange without immediately re-triggering.
+		target := ctxWindow / 2
+		config.DebugLog("[APP-STREAM] auto-compact | tokens=%d window=%d target=%d",
+			m.tokenCount, ctxWindow, target)
+		m.history = llm.CompactWithLLM(ctx, m.client, model, m.history, target)
+		// tokenCount will be refreshed by the provider Usage on the next
+		// Done chunk; we leave it unchanged here so the HUD still shows
+		// the pre-compact value until the real number arrives.
+	}
 
 	history := make([]openai.ChatCompletionMessage, len(m.history))
 	copy(history, m.history)

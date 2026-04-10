@@ -72,7 +72,7 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, cwd string, width int, debug bool, toolCount int) string {
+func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.Duration, mode int, cwd string, width int, debug bool, toolCount int) string {
 	modeStyle := lipgloss.NewStyle().
 		Foreground(ModeColor(mode)).
 		Bold(true)
@@ -102,6 +102,20 @@ func RenderStatusBar(model string, tokens int, elapsed time.Duration, mode int, 
 
 	if tokens > 0 {
 		left += Subtle.Render(fmt.Sprintf("  %dtok", tokens))
+	}
+	// Context window usage: ctx:XX% colored by severity so the user can
+	// see how close they are to the model's limit at a glance.
+	if pct := ContextPercent(tokens, contextWindow); pct > 0 {
+		var ctxStyle lipgloss.Style
+		switch ContextLevel(pct) {
+		case ContextCritical:
+			ctxStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+		case ContextWarn:
+			ctxStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24")).Bold(true)
+		default:
+			ctxStyle = Subtle
+		}
+		left += ctxStyle.Render(fmt.Sprintf("  ctx:%d%%", pct))
 	}
 	if elapsed > 0 {
 		left += Subtle.Render(fmt.Sprintf("  %.1fs", elapsed.Seconds()))
