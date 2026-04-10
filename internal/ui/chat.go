@@ -104,8 +104,12 @@ func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.D
 		left += Subtle.Render(fmt.Sprintf("  %dtok", tokens))
 	}
 	// Context window usage: ctx:XX% colored by severity so the user can
-	// see how close they are to the model's limit at a glance.
-	if pct := ContextPercent(tokens, contextWindow); pct > 0 {
+	// see how close they are to the model's limit at a glance. Shown
+	// whenever both tokens and a known window are available, even under
+	// 1% — otherwise large-window models (e.g. 128K) would hide the
+	// indicator for the whole early session.
+	if tokens > 0 && contextWindow > 0 {
+		pct := ContextPercent(tokens, contextWindow)
 		var ctxStyle lipgloss.Style
 		switch ContextLevel(pct) {
 		case ContextCritical:
@@ -115,7 +119,13 @@ func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.D
 		default:
 			ctxStyle = Subtle
 		}
-		left += ctxStyle.Render(fmt.Sprintf("  ctx:%d%%", pct))
+		var label string
+		if pct == 0 {
+			label = "  ctx:<1%"
+		} else {
+			label = fmt.Sprintf("  ctx:%d%%", pct)
+		}
+		left += ctxStyle.Render(label)
 	}
 	if elapsed > 0 {
 		left += Subtle.Render(fmt.Sprintf("  %.1fs", elapsed.Seconds()))
