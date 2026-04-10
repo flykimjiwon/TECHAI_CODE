@@ -18,6 +18,7 @@ import (
 	"github.com/kimjiwon/tgc/internal/config"
 	"github.com/kimjiwon/tgc/internal/knowledge"
 	"github.com/kimjiwon/tgc/internal/llm"
+	"github.com/kimjiwon/tgc/internal/session"
 	"github.com/kimjiwon/tgc/internal/tools"
 	"github.com/kimjiwon/tgc/internal/ui"
 )
@@ -71,6 +72,11 @@ type Model struct {
 	setupInput textarea.Model
 	setupCfg   config.Config
 
+	// Session persistence (nil-safe; a nil store means "do not persist").
+	store            *session.Store
+	currentSessionID int64
+	titleSet         bool // true once the first user message renamed the session
+
 	width  int
 	height int
 	ready  bool
@@ -121,6 +127,23 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		config.DebugLog("[KNOWLEDGE] failed to load: %v", err)
 	}
 
+	// Open persistent session store. Failures degrade to in-memory only
+	// (nil store); we surface the error as a system message so the user
+	// knows history will not survive a restart.
+	var sessionStore *session.Store
+	var sessionOpenErr error
+	if home, herr := os.UserHomeDir(); herr == nil {
+		dbPath := filepath.Join(home, ".tgc", "sessions.db")
+		store, err := session.Open(dbPath)
+		if err == nil {
+			sessionStore = store
+			config.DebugLog("[SESSION] opened store: %s", dbPath)
+		} else {
+			sessionOpenErr = err
+			config.DebugLog("[SESSION] open failed: %v", err)
+		}
+	}
+
 	m := Model{
 		cfg:          cfg,
 		activeTab:    initialMode,
@@ -132,6 +155,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		inSetup:      needsSetup,
 		setupCfg:     config.DefaultConfig(),
 		setupInput:   setupTa,
+		store:        sessionStore,
 	}
 
 	if needsSetup {
@@ -155,6 +179,28 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		m.msgs = append(m.msgs, ui.Message{
 			Role:      ui.RoleSystem,
 			Content:   fmt.Sprintf("[DEBUG MODE] 로그 파일: %s", config.DebugLogPath()),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Create the first session row so subsequent AppendMessage calls
+	// have a valid parent. Fall back to in-memory only on failure.
+	if m.store != nil {
+		id, err := m.store.CreateSession("untitled", initialMode, m.currentModel())
+		if err == nil {
+			m.currentSessionID = id
+			// Persist the system prompt so restored sessions start with
+			// the exact same context we are working with right now.
+			_ = m.store.AppendMessage(id, m.history[0])
+			config.DebugLog("[SESSION] created id=%d", id)
+		} else {
+			config.DebugLog("[SESSION] create failed: %v", err)
+		}
+	}
+	if sessionOpenErr != nil {
+		m.msgs = append(m.msgs, ui.Message{
+			Role:      ui.RoleSystem,
+			Content:   fmt.Sprintf("[SESSION] 저장소 열기 실패, 이번 세션은 메모리에만 보존됩니다: %v", sessionOpenErr),
 			Timestamp: time.Now(),
 		})
 	}
@@ -363,6 +409,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				assistantMsg.ToolCalls = oaiToolCalls
 				m.history = append(m.history, assistantMsg)
+				m.persistMessage(assistantMsg)
 
 				for _, tc := range msg.toolCalls {
 					status := fmt.Sprintf(">> %s(%s)", tc.Name, truncateArgs(tc.Arguments, 60))
@@ -396,9 +443,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.msgs = append(m.msgs, ui.Message{
 					Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),
 				})
-				m.history = append(m.history, openai.ChatCompletionMessage{
+				assistantMsg := openai.ChatCompletionMessage{
 					Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
-				})
+				}
+				m.history = append(m.history, assistantMsg)
+				m.persistMessage(assistantMsg)
 			}
 			m.streamBuf = ""
 			m.updateViewport()
@@ -421,11 +470,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		config.DebugLog("[APP-TOOL] received %d tool results | toolIter=%d/20", len(msg.results), m.toolIter+1)
 		for _, r := range msg.results {
 			config.DebugLog("[APP-TOOL] %s | resultLen=%d", r.name, len(r.output))
-			m.history = append(m.history, openai.ChatCompletionMessage{
+			toolMsg := openai.ChatCompletionMessage{
 				Role:       openai.ChatMessageRoleTool,
 				Content:    r.output,
 				ToolCallID: r.callID,
-			})
+			}
+			m.history = append(m.history, toolMsg)
+			m.persistMessage(toolMsg)
 			preview := truncateArgs(r.output, 100)
 			m.msgs = append(m.msgs, ui.Message{
 				Role: ui.RoleTool, Content: fmt.Sprintf("<< %s: %s", r.name, preview), Timestamp: time.Now(),
@@ -494,7 +545,16 @@ func (m Model) updateSetup(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
-	switch input {
+	// Split "command arg..." so /session <id> works. input is already
+	// trimmed by the caller.
+	cmd := input
+	arg := ""
+	if idx := strings.IndexByte(input, ' '); idx >= 0 {
+		cmd = input[:idx]
+		arg = strings.TrimSpace(input[idx+1:])
+	}
+
+	switch cmd {
 	case "/setup":
 		m.inSetup = true
 		m.setupCfg = m.cfg
@@ -516,8 +576,142 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.updateViewport()
 		return true, nil
 
+	case "/new":
+		// Start a fresh persisted session (current one stays in the DB).
+		m.history = m.history[:1]
+		m.msgs = m.msgs[:0]
+		m.msgs = append(m.msgs,
+			ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
+			ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab, m.currentModel()), Timestamp: time.Now(), Tag: "modebox"},
+		)
+		m.streamBuf = ""
+		m.tokenCount = 0
+		m.lastElapsed = 0
+		m.titleSet = false
+		if m.store != nil {
+			id, err := m.store.CreateSession("untitled", m.activeTab, m.currentModel())
+			if err == nil {
+				m.currentSessionID = id
+				_ = m.store.AppendMessage(id, m.history[0])
+				m.msgs = append(m.msgs, ui.Message{
+					Role: ui.RoleSystem, Content: fmt.Sprintf("[SESSION] new id=%d", id), Timestamp: time.Now(),
+				})
+			}
+		}
+		m.updateViewport()
+		return true, nil
+
+	case "/sessions":
+		if m.store == nil {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[SESSION] 저장소가 열려 있지 않습니다.", Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		list, err := m.store.ListSessions(10)
+		if err != nil {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("[SESSION] 목록 조회 실패: %v", err), Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		if len(list) == 0 {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[SESSION] 저장된 세션이 없습니다.", Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		var sb strings.Builder
+		sb.WriteString("  최근 세션 (/session <id> 로 불러오기)\n")
+		for _, s := range list {
+			marker := "  "
+			if s.ID == m.currentSessionID {
+				marker = "* "
+			}
+			sb.WriteString(fmt.Sprintf("%s#%d  %s  [%s]  %s\n",
+				marker, s.ID, truncate(s.Title, 40), s.Model,
+				s.UpdatedAt.Format("01-02 15:04")))
+		}
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: sb.String(), Timestamp: time.Now(),
+		})
+		m.updateViewport()
+		return true, nil
+
+	case "/session":
+		if m.store == nil {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[SESSION] 저장소가 열려 있지 않습니다.", Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		if arg == "" {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[SESSION] 사용법: /session <id> (먼저 /sessions 로 목록 확인)", Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		var id int64
+		if _, err := fmt.Sscanf(arg, "%d", &id); err != nil || id <= 0 {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("[SESSION] 잘못된 id: %q", arg), Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		meta, loaded, err := m.store.LoadSession(id)
+		if err != nil {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("[SESSION] 로드 실패: %v", err), Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		// Restore history and rebuild the visible message stream from
+		// the persisted record.
+		m.history = loaded
+		m.currentSessionID = meta.ID
+		m.titleSet = meta.Title != "untitled"
+		m.activeTab = meta.Mode
+		m.msgs = m.msgs[:0]
+		m.msgs = append(m.msgs,
+			ui.Message{Role: ui.RoleSystem, Content: ui.RenderLogo(), Timestamp: time.Now()},
+			ui.Message{Role: ui.RoleSystem, Content: ui.ModeInfoBox(m.activeTab, m.currentModel()), Timestamp: time.Now(), Tag: "modebox"},
+			ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("[SESSION] #%d '%s' 복원됨 (%d 메시지)", meta.ID, meta.Title, len(loaded)), Timestamp: time.Now()},
+		)
+		// Skip the system prompt at index 0 when rebuilding the UI view.
+		for _, h := range loaded {
+			switch h.Role {
+			case openai.ChatMessageRoleUser:
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleUser, Content: h.Content, Timestamp: time.Now()})
+			case openai.ChatMessageRoleAssistant:
+				if h.Content != "" {
+					m.msgs = append(m.msgs, ui.Message{Role: ui.RoleAssistant, Content: h.Content, Timestamp: time.Now()})
+				}
+				for _, tc := range h.ToolCalls {
+					status := fmt.Sprintf(">> %s(%s)", tc.Function.Name, truncateArgs(tc.Function.Arguments, 60))
+					m.msgs = append(m.msgs, ui.Message{Role: ui.RoleTool, Content: status, Timestamp: time.Now()})
+				}
+			case openai.ChatMessageRoleTool:
+				preview := truncateArgs(h.Content, 100)
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleTool, Content: "<< " + preview, Timestamp: time.Now()})
+			}
+		}
+		m.streamBuf = ""
+		m.tokenCount = 0
+		m.lastElapsed = 0
+		m.updateViewport()
+		return true, nil
+
 	case "/help":
-		help := `  Enter — 전송    Shift+Enter — 줄바꿈    /clear — 대화삭제    Ctrl+C — 종료`
+		help := `  Enter — 전송    Shift+Enter — 줄바꿈    Tab — 모드 전환
+  /new — 새 세션    /sessions — 목록    /session <id> — 복원
+  /clear — 화면 정리    /setup — API 키    Ctrl+C — 종료`
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
@@ -713,9 +907,18 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 		}
 	}
 
-	m.history = append(m.history, openai.ChatCompletionMessage{
+	userMsg := openai.ChatCompletionMessage{
 		Role: openai.ChatMessageRoleUser, Content: input,
-	})
+	}
+	m.history = append(m.history, userMsg)
+	m.persistMessage(userMsg)
+	// First user message becomes the session title (truncated) so the
+	// /sessions list shows something meaningful instead of "untitled".
+	if !m.titleSet && m.store != nil && m.currentSessionID > 0 {
+		if err := m.store.UpdateSessionTitle(m.currentSessionID, truncate(input, 60)); err == nil {
+			m.titleSet = true
+		}
+	}
 	m.streaming = true
 	m.streamBuf = ""
 	m.tokenCount = 0
@@ -725,6 +928,18 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.updateViewport()
 
 	return m.startStream()
+}
+
+// persistMessage writes a single chat message to the session store, if
+// one is open. It is deliberately silent on failure — persistence is a
+// best-effort side-channel, never a blocker for the live conversation.
+func (m *Model) persistMessage(msg openai.ChatCompletionMessage) {
+	if m.store == nil || m.currentSessionID == 0 {
+		return
+	}
+	if err := m.store.AppendMessage(m.currentSessionID, msg); err != nil {
+		config.DebugLog("[SESSION] append failed: %v", err)
+	}
 }
 
 // continueAfterTools starts a new stream after tool results are added to history.
