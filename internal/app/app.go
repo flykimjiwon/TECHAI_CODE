@@ -16,6 +16,7 @@ import (
 
 	tgc "github.com/kimjiwon/tgc"
 	"github.com/kimjiwon/tgc/internal/config"
+	"github.com/kimjiwon/tgc/internal/gitinfo"
 	"github.com/kimjiwon/tgc/internal/knowledge"
 	"github.com/kimjiwon/tgc/internal/llm"
 	"github.com/kimjiwon/tgc/internal/session"
@@ -76,6 +77,10 @@ type Model struct {
 	store            *session.Store
 	currentSessionID int64
 	titleSet         bool // true once the first user message renamed the session
+
+	// Git info cache: refreshed on startup, before each stream, and
+	// after tool results (since edits may have changed the working tree).
+	gitInfo gitinfo.Info
 
 	width  int
 	height int
@@ -204,6 +209,11 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 			Timestamp: time.Now(),
 		})
 	}
+
+	// Snapshot the git working tree so the HUD can render branch/dirty
+	// state on the very first frame. This is silent when the cwd is not
+	// a git repository.
+	m.gitInfo = gitinfo.Fetch(".")
 
 	return m
 }
@@ -484,6 +494,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.streamBuf = ""
 		m.toolIter++
+		// File-editing tools likely changed the working tree — refresh
+		// the git snapshot so the HUD dirty indicator stays accurate.
+		m.gitInfo = gitinfo.Fetch(".")
 		m.updateViewport()
 
 		if m.toolIter >= 20 {
@@ -708,10 +721,20 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.updateViewport()
 		return true, nil
 
+	case "/git":
+		// Force a fresh fetch so the user sees current state, not the
+		// cached snapshot from the previous turn.
+		m.gitInfo = gitinfo.Fetch(".")
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: m.gitInfo.Summary(), Timestamp: time.Now(),
+		})
+		m.updateViewport()
+		return true, nil
+
 	case "/help":
 		help := `  Enter — 전송    Shift+Enter — 줄바꿈    Tab — 모드 전환
   /new — 새 세션    /sessions — 목록    /session <id> — 복원
-  /clear — 화면 정리    /setup — API 키    Ctrl+C — 종료`
+  /git — 저장소 상태    /clear — 화면 정리    /setup — API 키    Ctrl+C — 종료`
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
@@ -755,7 +778,7 @@ func (m Model) View() tea.View {
 			elapsed = time.Since(m.streamStart)
 		}
 		ctxWindow := llm.GetCapability(modelID).ContextWindow
-		statusBar := ui.RenderStatusBar(displayModel, m.tokenCount, ctxWindow, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), len(tools.ToolsForMode(m.activeTab)))
+		statusBar := ui.RenderStatusBar(displayModel, m.tokenCount, ctxWindow, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), len(tools.ToolsForMode(m.activeTab)), m.gitInfo.Label())
 
 		content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
 	}
@@ -852,6 +875,11 @@ func (m *Model) startStream() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.streamCancel = cancel
 	model := m.currentModel()
+
+	// Refresh git snapshot before each stream so the HUD reflects any
+	// changes the user (or the previous tool iteration) made between
+	// turns. Fetch is bounded to 500ms and degrades silently.
+	m.gitInfo = gitinfo.Fetch(".")
 
 	// Compact the in-memory history before copying so snipped/truncated
 	// content persists across tool iterations (Phase 1-1). Stages 1+2

@@ -72,7 +72,7 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.Duration, mode int, cwd string, width int, debug bool, toolCount int) string {
+func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.Duration, mode int, cwd string, width int, debug bool, toolCount int, gitLabel string) string {
 	modeStyle := lipgloss.NewStyle().
 		Foreground(ModeColor(mode)).
 		Bold(true)
@@ -86,6 +86,18 @@ func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.D
 	left := modeStyle.Render("  "+modeName) +
 		Subtle.Render("  "+shortModel) +
 		Subtle.Render("  ./"+cwd)
+
+	// Git branch + dirty indicator. gitLabel is empty when the cwd is
+	// not a git repo, and ends with "*" when the working tree is dirty.
+	if gitLabel != "" {
+		var gitStyle lipgloss.Style
+		if strings.HasSuffix(gitLabel, "*") {
+			gitStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24")).Bold(true)
+		} else {
+			gitStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true)
+		}
+		left += gitStyle.Render("  \u2387 " + gitLabel)
+	}
 
 	if debug {
 		debugStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
