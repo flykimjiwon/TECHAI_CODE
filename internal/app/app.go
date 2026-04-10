@@ -15,7 +15,6 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 
 	tgc "github.com/kimjiwon/tgc"
-	"github.com/kimjiwon/tgc/internal/agents"
 	"github.com/kimjiwon/tgc/internal/config"
 	"github.com/kimjiwon/tgc/internal/knowledge"
 	"github.com/kimjiwon/tgc/internal/llm"
@@ -66,12 +65,6 @@ type Model struct {
 	tokenCount   int
 	toolIter     int // tool loop iteration counter (max 20)
 	pendingQueue []string // messages queued while streaming
-
-	// Auto mode — set by /auto <task>. While active the system prompt
-	// carries agents.AutoPromptSuffix and the stream handler watches
-	// m.streamBuf for [AUTO_COMPLETE] / [AUTO_PAUSE] markers.
-	autoMode bool
-	autoTask string
 	knowledgeInj *knowledge.Injector
 
 	inSetup    bool
@@ -407,33 +400,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
 				})
 			}
-
-			// If auto mode is active, check for control markers and exit
-			// cleanly on completion or pause. Marker scanning runs before
-			// the stream buffer is cleared.
-			if m.autoMode {
-				complete, pause := agents.CheckAutoMarkers(m.streamBuf)
-				if complete || pause {
-					m.autoMode = false
-					m.autoTask = ""
-					// Restore the plain system prompt so the next user
-					// turn does not keep acting in autonomous mode.
-					mode := llm.Mode(m.activeTab)
-					if len(m.history) > 0 {
-						m.history[0] = openai.ChatCompletionMessage{
-							Role: openai.ChatMessageRoleSystem, Content: llm.SystemPrompt(mode) + m.projectCtx,
-						}
-					}
-					reason := "작업 완료"
-					if pause && !complete {
-						reason = "일시정지 — 사용자 입력 필요"
-					}
-					m.msgs = append(m.msgs, ui.Message{
-						Role: ui.RoleSystem, Content: fmt.Sprintf("  [AUTO MODE] %s", reason), Timestamp: time.Now(),
-					})
-				}
-			}
-
 			m.streamBuf = ""
 			m.updateViewport()
 
@@ -528,16 +494,7 @@ func (m Model) updateSetup(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
-	// Split into command + optional argument so prefix-style commands
-	// like "/auto <task>" work alongside the bare ones.
-	cmd := input
-	arg := ""
-	if idx := strings.IndexByte(input, ' '); idx >= 0 {
-		cmd = input[:idx]
-		arg = strings.TrimSpace(input[idx+1:])
-	}
-
-	switch cmd {
+	switch input {
 	case "/setup":
 		m.inSetup = true
 		m.setupCfg = m.cfg
@@ -560,42 +517,12 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		return true, nil
 
 	case "/help":
-		help := `  Enter — 전송    Shift+Enter — 줄바꿈    /clear — 대화삭제    Ctrl+C — 종료
-  /auto <task> — 자율 모드 (최대 20회 반복)    /setup — API 키 재설정`
+		help := `  Enter — 전송    Shift+Enter — 줄바꿈    /clear — 대화삭제    Ctrl+C — 종료`
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
 		m.updateViewport()
 		return true, nil
-
-	case "/auto":
-		if arg == "" {
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "  사용법: /auto <task description>", Timestamp: time.Now(),
-			})
-			m.updateViewport()
-			return true, nil
-		}
-		// Flip auto mode on and inject the suffix into the system
-		// prompt so the model knows about [AUTO_COMPLETE] / [AUTO_PAUSE].
-		m.autoMode = true
-		m.autoTask = arg
-		mode := llm.Mode(m.activeTab)
-		sysPrompt := llm.SystemPrompt(mode) + m.projectCtx + agents.AutoPromptSuffix
-		if len(m.history) == 0 {
-			m.history = append(m.history, openai.ChatCompletionMessage{
-				Role: openai.ChatMessageRoleSystem, Content: sysPrompt,
-			})
-		} else {
-			m.history[0] = openai.ChatCompletionMessage{
-				Role: openai.ChatMessageRoleSystem, Content: sysPrompt,
-			}
-		}
-		m.msgs = append(m.msgs, ui.Message{
-			Role: ui.RoleSystem, Content: fmt.Sprintf("  [AUTO MODE] 자율 모드 시작: %s", arg), Timestamp: time.Now(),
-		})
-		m.updateViewport()
-		return true, m.sendMessage(arg)
 	}
 	return false, nil
 }
