@@ -4,7 +4,8 @@
 > **현재 버전**: v0.5.0 (Embedded Knowledge Store 완성)
 > **분석 대상**: OpenCode (Go 터미널 코딩 에이전트), gstack (Garry Tan의 Claude Code 스킬셋)
 > **목적**: 폐쇄망 환경에서 택갈이코드에 이식할 수 있는 기능 식별 + 브라우저 컴패니언 설계
-> **다음 구현 시 반드시 이 문서를 참조할 것**
+> **자매 문서**: [`hanimo-porting-guide.md`](2026-04-09-hanimo-porting-guide.md) — hanimo에서 직접 포팅할 소스 매핑
+> **다음 구현 시 반드시 이 문서 + 포팅 가이드를 함께 참조할 것**
 
 ---
 
@@ -590,6 +591,10 @@ v1.1.0 — Phase 6 (1-2주)
 ```
 
 **총 예상 기간**: 14-22주 (전체), 첫 3개 Phase가 핵심 (~8주)
+
+> **참고**: hanimo 프로젝트에 Phase 1-3의 대부분 기능이 이미 구현되어 있음.
+> 처음부터 작성하는 대신 hanimo 소스를 복사+적응하면 **~4주(30시간)**로 단축 가능.
+> 상세 포팅 전략은 [`hanimo-porting-guide.md`](2026-04-09-hanimo-porting-guide.md) 참조.
 
 ---
 
