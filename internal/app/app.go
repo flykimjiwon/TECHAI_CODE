@@ -646,6 +646,12 @@ func (m *Model) startStream() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.streamCancel = cancel
 	model := m.currentModel()
+
+	// Compact the in-memory history before copying so snipped/truncated
+	// content persists across tool iterations (Phase 1-1). Stages 1+2 only
+	// — stage 3 LLM summary requires a separate call and is deferred.
+	m.history = llm.Compact(m.history)
+
 	history := make([]openai.ChatCompletionMessage, len(m.history))
 	copy(history, m.history)
 	toolDefs := tools.ToolsForMode(m.activeTab)
