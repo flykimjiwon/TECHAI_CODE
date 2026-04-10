@@ -47,8 +47,9 @@ func FileEdit(path, oldStr, newStr string) (int, error) {
 	if count == 0 {
 		// Show a snippet of the file for context
 		preview := content
-		if len(preview) > 500 {
-			preview = preview[:500] + "..."
+		previewRunes := []rune(preview)
+		if len(previewRunes) > 500 {
+			preview = string(previewRunes[:500]) + "..."
 		}
 		return 0, fmt.Errorf("old_string not found in %s. File preview:\n%s", path, preview)
 	}
