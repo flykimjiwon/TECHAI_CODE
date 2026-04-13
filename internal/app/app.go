@@ -522,6 +522,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, taCmd
 
+	case tea.PasteMsg:
+		// Bracketed paste: insert pasted text into textarea.
+		text := msg.Content
+		if text == "" {
+			return m, nil
+		}
+		m.textarea.InsertString(text)
+		// Auto-grow textarea for multi-line pastes
+		lines := strings.Count(m.textarea.Value(), "\n") + 1
+		if lines > m.textarea.Height() && lines <= 10 {
+			m.textarea.SetHeight(lines)
+			m.recalcLayout()
+		}
+		lineCount := strings.Count(text, "\n") + 1
+		if lineCount > 10 {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("[붙여넣기 %d줄]", lineCount), Timestamp: time.Now(),
+			})
+			m.updateViewport()
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
