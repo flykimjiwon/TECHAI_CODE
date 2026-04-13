@@ -61,6 +61,7 @@ func FileEdit(path, oldStr, newStr string) (int, error) {
 }
 
 // ListFiles lists files in a directory, optionally recursive.
+// No artificial file count limit — output truncation in registry.go handles size.
 func ListFiles(dir string, recursive bool) ([]string, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -82,7 +83,7 @@ func ListFiles(dir string, recursive bool) ([]string, error) {
 			}
 			// Skip hidden dirs and common noise
 			name := d.Name()
-			if d.IsDir() && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "dist" || name == "__pycache__") {
+			if d.IsDir() && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "dist" || name == "__pycache__" || name == "vendor" || name == ".git") {
 				return filepath.SkipDir
 			}
 			rel, _ := filepath.Rel(absDir, path)
@@ -90,9 +91,6 @@ func ListFiles(dir string, recursive bool) ([]string, error) {
 				files = append(files, rel+"/")
 			} else {
 				files = append(files, rel)
-			}
-			if len(files) > 500 {
-				return fmt.Errorf("too many files, showing first 500")
 			}
 			return nil
 		})
@@ -109,6 +107,12 @@ func ListFiles(dir string, recursive bool) ([]string, error) {
 			}
 		}
 	}
+
+	// Append total count so LLM knows the full picture even if output gets truncated
+	if recursive && len(files) > 500 {
+		files = append(files, fmt.Sprintf("\n[총 %d개 항목]", len(files)))
+	}
+
 	return files, err
 }
 

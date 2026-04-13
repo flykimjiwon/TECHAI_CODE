@@ -37,7 +37,7 @@ var binaryExts = map[string]bool{
 const (
 	maxGrepMatches = 100
 	maxGrepBytes   = 30000
-	maxGlobFiles   = 500
+	maxGlobFiles   = 2000
 )
 
 // GrepSearch searches file contents by regex pattern.

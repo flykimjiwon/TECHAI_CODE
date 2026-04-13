@@ -27,9 +27,15 @@ type ModelsConfig struct {
 	Dev   string `yaml:"dev"`
 }
 
+type MultiConfig struct {
+	Enabled  bool   `yaml:"enabled"`  // multi-agent on/off
+	Strategy string `yaml:"strategy"` // "auto", "review", "consensus", "scan"
+}
+
 type Config struct {
 	API    APIConfig    `yaml:"api"`
 	Models ModelsConfig `yaml:"models"`
+	Multi  MultiConfig  `yaml:"multi"`
 }
 
 // Build-time overridable defaults (set via -ldflags)
@@ -120,6 +126,10 @@ func DefaultConfig() Config {
 			Super: DefaultModel,
 			Dev:   DefaultDevModel,
 		},
+		Multi: MultiConfig{
+			Enabled:  true,
+			Strategy: "auto",
+		},
 	}
 }
 
@@ -153,6 +163,18 @@ func Load() (Config, error) {
 	}
 	if v := os.Getenv("TGC_MODEL_DEV"); v != "" {
 		cfg.Models.Dev = v
+	}
+	if v := os.Getenv("TGC_MULTI"); v != "" {
+		switch strings.ToLower(v) {
+		case "on", "true", "1":
+			cfg.Multi.Enabled = true
+		case "off", "false", "0":
+			cfg.Multi.Enabled = false
+		default:
+			// Treat as strategy name: "review", "consensus", "scan"
+			cfg.Multi.Enabled = true
+			cfg.Multi.Strategy = strings.ToLower(v)
+		}
 	}
 
 	return cfg, nil

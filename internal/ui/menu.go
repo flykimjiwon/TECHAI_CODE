@@ -13,6 +13,7 @@ import (
 var MainMenuItems = []string{
 	"세션 목록",
 	"새 세션",
+	"멀티 에이전트",
 	"Git 상태",
 	"설정 초기화",
 	"화면 정리",
@@ -21,7 +22,7 @@ var MainMenuItems = []string{
 
 // MenuActionFromIndex returns the slash command for a given menu item index.
 func MenuActionFromIndex(idx int) string {
-	actions := []string{"/sessions", "/new", "/git", "/setup", "/clear", "/help"}
+	actions := []string{"/sessions", "/new", "/multi", "/git", "/setup", "/clear", "/help"}
 	if idx >= 0 && idx < len(actions) {
 		return actions[idx]
 	}

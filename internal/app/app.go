@@ -20,6 +20,7 @@ import (
 	"github.com/kimjiwon/tgc/internal/gitinfo"
 	"github.com/kimjiwon/tgc/internal/knowledge"
 	"github.com/kimjiwon/tgc/internal/llm"
+	"github.com/kimjiwon/tgc/internal/multi"
 	"github.com/kimjiwon/tgc/internal/session"
 	"github.com/kimjiwon/tgc/internal/tools"
 	"github.com/kimjiwon/tgc/internal/ui"
@@ -41,6 +42,16 @@ type toolResult struct {
 	callID string
 	name   string
 	output string
+}
+
+// multiProgressMsg carries real-time progress from the multi-agent orchestrator.
+type multiProgressMsg struct {
+	progress multi.AgentProgress
+}
+
+// multiResultMsg carries the final merged result from the multi-agent pipeline.
+type multiResultMsg struct {
+	result multi.MergedResult
 }
 
 type Model struct {
@@ -86,6 +97,16 @@ type Model struct {
 	// Auto mode: AI completes tasks autonomously without user input.
 	autoMode bool
 	autoIter int
+
+	// Multi-agent state
+	multiEnabled    bool                       // global on/off
+	multiStrategy   multi.Strategy             // current strategy
+	multiAuto       bool                       // auto-detect mode
+	multiRunning    bool                       // true while orchestrator is active
+	multiProgress   []multi.AgentProgress      // latest progress from each agent
+	multiCancel     context.CancelFunc         // cancel the orchestrator
+	multiProgressCh <-chan multi.AgentProgress  // progress channel from orchestrator
+	multiResultCh   <-chan multi.MergedResult   // result channel from orchestrator
 
 	// Command palette (Ctrl+K): fuzzy-search slash commands.
 	showPalette     bool
@@ -200,6 +221,20 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		setupCfg:     config.DefaultConfig(),
 		setupInput:   setupTa,
 		store:        sessionStore,
+	}
+
+	// Initialize multi-agent config from loaded settings
+	m.multiEnabled = cfg.Multi.Enabled
+	m.multiAuto = cfg.Multi.Strategy == "auto"
+	switch cfg.Multi.Strategy {
+	case "review":
+		m.multiStrategy = multi.StrategyReview
+	case "consensus":
+		m.multiStrategy = multi.StrategyConsensus
+	case "scan":
+		m.multiStrategy = multi.StrategyScan
+	default:
+		m.multiStrategy = multi.StrategyReview
 	}
 
 	if needsSetup {
@@ -383,7 +418,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.streaming {
 			switch msg.String() {
 			case "ctrl+c", "esc":
-				m.cancelStream()
+				if m.multiRunning {
+					m.cancelMulti()
+				} else {
+					m.cancelStream()
+				}
 				return m, nil
 			case "enter":
 				// Queue message while streaming
@@ -742,6 +781,57 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, m.continueAfterTools()
 
+	case multiProgressMsg:
+		p := msg.progress
+		// Update or append progress entry
+		found := false
+		for i, existing := range m.multiProgress {
+			if existing.Agent == p.Agent {
+				m.multiProgress[i] = p
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.multiProgress = append(m.multiProgress, p)
+		}
+		m.updateViewport()
+		// Continue waiting for more progress
+		return m, m.waitForNextMulti()
+
+	case multiResultMsg:
+		m.multiRunning = false
+		m.multiCancel = nil
+		m.multiProgress = nil
+		m.lastElapsed = time.Since(m.streamStart)
+		m.streaming = false
+
+		result := msg.result
+		config.DebugLog("[APP-MULTI] result strategy=%s elapsed=%v tokens=%d",
+			result.Strategy, result.Elapsed, result.TotalTokens)
+
+		if result.FinalOutput != "" {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleAssistant, Content: result.FinalOutput, Timestamp: time.Now(),
+			})
+			assistantMsg := openai.ChatCompletionMessage{
+				Role: openai.ChatMessageRoleAssistant, Content: result.FinalOutput,
+			}
+			m.history = append(m.history, assistantMsg)
+			m.persistMessage(assistantMsg)
+		}
+
+		// Show summary
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem,
+			Content: fmt.Sprintf("  [Multi 완료] %s | %dtok | %.1fs",
+				result.Strategy, result.TotalTokens, result.Elapsed.Seconds()),
+			Timestamp: time.Now(),
+		})
+		m.tokenCount = result.TotalTokens
+		m.updateViewport()
+		return m, nil
+
 	// Forward mouse wheel events to viewport for touchpad scroll
 	case tea.MouseWheelMsg:
 		var vpCmd tea.Cmd
@@ -980,13 +1070,78 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.updateViewport()
 		return true, nil
 
+	case "/multi":
+		if arg == "" {
+			// Toggle on/off
+			m.multiEnabled = !m.multiEnabled
+			label := "OFF"
+			if m.multiEnabled {
+				label = "ON"
+			}
+			stratLabel := m.multiStrategy.String()
+			if m.multiAuto {
+				stratLabel = "Auto"
+			}
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("[MULTI] 멀티 에이전트 %s (전략: %s)", label, stratLabel), Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		switch strings.ToLower(arg) {
+		case "on":
+			m.multiEnabled = true
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[MULTI] 멀티 에이전트 ON", Timestamp: time.Now(),
+			})
+		case "off":
+			m.multiEnabled = false
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[MULTI] 멀티 에이전트 OFF", Timestamp: time.Now(),
+			})
+		case "review":
+			m.multiEnabled = true
+			m.multiAuto = false
+			m.multiStrategy = multi.StrategyReview
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[MULTI] 전략: Review (Agent1 생성 → Agent2 검토)", Timestamp: time.Now(),
+			})
+		case "consensus":
+			m.multiEnabled = true
+			m.multiAuto = false
+			m.multiStrategy = multi.StrategyConsensus
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[MULTI] 전략: Consensus (두 모델 병렬 비교)", Timestamp: time.Now(),
+			})
+		case "scan":
+			m.multiEnabled = true
+			m.multiAuto = false
+			m.multiStrategy = multi.StrategyScan
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[MULTI] 전략: Scan (병렬 파일 탐색)", Timestamp: time.Now(),
+			})
+		case "auto":
+			m.multiEnabled = true
+			m.multiAuto = true
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[MULTI] 전략: Auto (자동 감지)", Timestamp: time.Now(),
+			})
+		default:
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[MULTI] 사용법: /multi [on|off|review|consensus|scan|auto]", Timestamp: time.Now(),
+			})
+		}
+		m.updateViewport()
+		return true, nil
+
 	case "/help":
 		help := fmt.Sprintf(`  택가이코드 %s
   Enter — 전송    Shift+Enter — 줄바꿈    Tab — 모드 전환
   Ctrl+K — 커맨드 팔레트    Esc — 메뉴    Ctrl+C — 종료
   /new — 새 세션    /sessions — 목록    /session <id> — 복원
   /auto — 자율 모드    /diagnostics — 코드 진단    /git — 저장소 상태
-  /version — 버전    /clear — 화면 정리    /setup — 설정 초기화`, config.AppVersion)
+  /multi — 멀티 에이전트    /version — 버전    /clear — 화면 정리
+  /setup — 설정 초기화`, config.AppVersion)
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
@@ -1030,7 +1185,7 @@ func (m Model) View() tea.View {
 			elapsed = time.Since(m.streamStart)
 		}
 		ctxWindow := llm.GetCapability(modelID).ContextWindow
-		statusBar := ui.RenderStatusBar(displayModel, m.tokenCount, ctxWindow, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), len(tools.ToolsForMode(m.activeTab)), m.gitInfo.Label())
+		statusBar := ui.RenderStatusBar(displayModel, m.tokenCount, ctxWindow, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), len(tools.ToolsForMode(m.activeTab)), m.gitInfo.Label(), m.multiEnabled)
 
 		// Overlay palette or menu on top of the viewport when active.
 		if m.showSessionPicker {
@@ -1094,6 +1249,35 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 func (m *Model) streamStatus() string {
 	elapsed := time.Since(m.streamStart)
 	frame := spinnerFrames[int(elapsed.Milliseconds()/150)%len(spinnerFrames)]
+
+	// Multi-agent progress display
+	if m.multiRunning && len(m.multiProgress) > 0 {
+		var lines []string
+		for _, p := range m.multiProgress {
+			icon := "●"
+			if p.Status == "done" {
+				icon = "✓"
+			} else if p.Status == "waiting" {
+				icon = "○"
+			} else if p.Status == "error" {
+				icon = "✗"
+			} else if p.Status == "synthesizing" {
+				icon = "⚡"
+			}
+			detail := p.Status
+			if p.Detail != "" {
+				detail = p.Detail
+			}
+			line := fmt.Sprintf("  %s %s  %s  %dtok  (%.1fs)",
+				icon, p.Agent, detail, p.Tokens, p.Elapsed.Seconds())
+			lines = append(lines, line)
+		}
+		return fmt.Sprintf("%s Multi 실행중 (%.1fs)\n%s", frame, elapsed.Seconds(), strings.Join(lines, "\n"))
+	}
+
+	if m.multiRunning {
+		return fmt.Sprintf("%s Multi 시작중... (%.1fs)", frame, elapsed.Seconds())
+	}
 
 	if m.lastChunkAt.IsZero() {
 		// No chunks received yet
@@ -1225,6 +1409,11 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.lastChunkAt = time.Time{}
 	m.updateViewport()
 
+	// Check if multi-agent should handle this request
+	if m.shouldUseMulti(input) {
+		return m.startMultiStream(input)
+	}
+
 	return m.startStream()
 }
 
@@ -1266,6 +1455,23 @@ func (m *Model) waitForNextChunk() tea.Cmd {
 	}
 }
 
+func (m *Model) cancelMulti() {
+	if m.multiCancel != nil {
+		m.multiCancel()
+		m.multiCancel = nil
+	}
+	m.multiRunning = false
+	m.multiProgress = nil
+	m.multiProgressCh = nil
+	m.multiResultCh = nil
+	m.streaming = false
+	m.lastElapsed = time.Since(m.streamStart)
+	m.msgs = append(m.msgs, ui.Message{
+		Role: ui.RoleSystem, Content: "[Multi] 중단됨", Timestamp: time.Now(),
+	})
+	m.updateViewport()
+}
+
 func (m *Model) cancelStream() {
 	if m.streamCancel != nil {
 		m.streamCancel()
@@ -1284,6 +1490,105 @@ func (m *Model) cancelStream() {
 	}
 	m.streamBuf = ""
 	m.updateViewport()
+}
+
+// waitForNextMulti returns a tea.Cmd that polls for the next multi event
+// from the stored progress/result channels on the Model.
+func (m *Model) waitForNextMulti() tea.Cmd {
+	if !m.multiRunning {
+		return nil
+	}
+	progressCh := m.multiProgressCh
+	resultCh := m.multiResultCh
+	return func() tea.Msg {
+		select {
+		case p, ok := <-progressCh:
+			if !ok {
+				// Progress closed, wait for final result
+				result := <-resultCh
+				return multiResultMsg{result: result}
+			}
+			return multiProgressMsg{progress: p}
+		case result := <-resultCh:
+			return multiResultMsg{result: result}
+		}
+	}
+}
+
+// shouldUseMulti decides whether to activate multi-agent for this input.
+// Hybrid approach: keyword matching (instant) → LLM fallback (5s timeout).
+func (m *Model) shouldUseMulti(input string) bool {
+	if !m.multiEnabled {
+		return false
+	}
+	// If auto mode, use hybrid detection
+	if m.multiAuto {
+		ctxWindow := llm.GetCapability(m.currentModel()).ContextWindow
+		// 1st: keyword + heuristic (instant, 0ms)
+		if multi.AutoDetect(input, m.history, m.tokenCount, ctxWindow) {
+			return true
+		}
+		// 2nd: LLM classification fallback (max 5s)
+		return multi.AutoDetectWithLLM(m.client, m.cfg.Models.Dev, input)
+	}
+	// Non-auto: always use multi when enabled
+	return true
+}
+
+// startMultiStream launches the multi-agent orchestrator in a background goroutine.
+func (m *Model) startMultiStream(input string) tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	m.multiCancel = cancel
+	m.multiRunning = true
+	m.multiProgress = nil
+	m.streamStart = time.Now()
+
+	// Determine strategy
+	strategy := m.multiStrategy
+	if m.multiAuto {
+		strategy = multi.AutoDetectStrategy(input)
+	}
+
+	config.DebugLog("[APP-MULTI] start strategy=%s model1=%s model2=%s",
+		strategy, m.cfg.Models.Super, m.cfg.Models.Dev)
+
+	// Show activation message
+	m.msgs = append(m.msgs, ui.Message{
+		Role: ui.RoleSystem,
+		Content: fmt.Sprintf("  [Multi:%s] %s + %s",
+			strategy, shortModel(m.cfg.Models.Super), shortModel(m.cfg.Models.Dev)),
+		Timestamp: time.Now(),
+	})
+	m.updateViewport()
+
+	workDir, _ := os.Getwd()
+	orch := multi.NewOrchestrator(m.client, m.cfg.Models.Super, m.cfg.Models.Dev, workDir)
+
+	// Store channels on Model so waitForNextMulti can access them
+	m.multiProgressCh = orch.Progress()
+
+	// Copy history for the orchestrator
+	history := make([]openai.ChatCompletionMessage, len(m.history))
+	copy(history, m.history)
+
+	mode := m.activeTab
+
+	// Launch orchestrator in background, pipe result through a channel
+	resultCh := make(chan multi.MergedResult, 1)
+	m.multiResultCh = resultCh
+	go func() {
+		resultCh <- orch.Run(ctx, strategy, history, mode)
+	}()
+
+	// Return the first wait command
+	return m.waitForNextMulti()
+}
+
+func shortModel(model string) string {
+	if idx := strings.LastIndex(model, "/"); idx >= 0 {
+		return model[idx+1:]
+	}
+	return model
 }
 
 func truncate(s string, n int) string {

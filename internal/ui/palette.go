@@ -19,6 +19,7 @@ var PaletteItems = []PaletteItem{
 	{Label: "새 세션", Description: "새 대화 세션 시작", Action: "/new"},
 	{Label: "세션 목록", Description: "최근 세션 보기", Action: "/sessions"},
 	{Label: "자율 모드", Description: "AI 자율 작업 수행", Action: "/auto"},
+	{Label: "멀티 에이전트", Description: "두 모델 병렬 실행", Action: "/multi"},
 	{Label: "진단", Description: "프로젝트 코드 진단", Action: "/diagnostics"},
 	{Label: "Git 상태", Description: "저장소 상태 확인", Action: "/git"},
 	{Label: "화면 정리", Description: "대화 초기화", Action: "/clear"},

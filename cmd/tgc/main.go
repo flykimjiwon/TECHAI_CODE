@@ -29,6 +29,7 @@ var version = "dev"
 
 func main() {
 	modeFlag := flag.String("mode", "super", "시작 모드: super, dev, plan")
+	multiFlag := flag.String("multi", "", "멀티 에이전트: on, off, review, consensus, scan, auto")
 	versionFlag := flag.Bool("version", false, "버전 출력")
 	setupFlag := flag.Bool("setup", false, "설정 재실행 (API URL/키 재입력)")
 	resetFlag := flag.Bool("reset", false, "설정 초기화 (config 삭제 후 재설정)")
@@ -63,6 +64,20 @@ func main() {
 		printDebugBanner(cfg)
 		config.DebugLog("Config: baseURL=%s", cfg.API.BaseURL)
 		config.DebugLog("Config: model=%s, configDir=%s", cfg.Models.Super, config.ConfigDir())
+	}
+
+	// Apply --multi flag override
+	if *multiFlag != "" {
+		switch *multiFlag {
+		case "on", "true":
+			cfg.Multi.Enabled = true
+		case "off", "false":
+			cfg.Multi.Enabled = false
+		default:
+			// Treat as strategy name
+			cfg.Multi.Enabled = true
+			cfg.Multi.Strategy = *multiFlag
+		}
 	}
 
 	// Check if setup is needed (no API key) or forced via --setup

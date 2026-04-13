@@ -118,7 +118,7 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.Duration, mode int, cwd string, width int, debug bool, toolCount int, gitLabel string) string {
+func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.Duration, mode int, cwd string, width int, debug bool, toolCount int, gitLabel string, multiOn ...bool) string {
 	modeStyle := lipgloss.NewStyle().
 		Foreground(ModeColor(mode)).
 		Bold(true)
@@ -156,6 +156,12 @@ func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.D
 	} else {
 		toolOffStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
 		left += toolOffStyle.Render("  Tool:OFF")
+	}
+
+	// Multi-agent indicator
+	if len(multiOn) > 0 && multiOn[0] {
+		multiStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#A78BFA")).Bold(true)
+		left += multiStyle.Render("  Multi:ON")
 	}
 
 	if tokens > 0 {
