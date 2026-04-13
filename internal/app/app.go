@@ -15,6 +15,7 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 
 	tgc "github.com/kimjiwon/tgc"
+	"github.com/kimjiwon/tgc/internal/agents"
 	"github.com/kimjiwon/tgc/internal/config"
 	"github.com/kimjiwon/tgc/internal/gitinfo"
 	"github.com/kimjiwon/tgc/internal/knowledge"
@@ -81,6 +82,20 @@ type Model struct {
 	// Git info cache: refreshed on startup, before each stream, and
 	// after tool results (since edits may have changed the working tree).
 	gitInfo gitinfo.Info
+
+	// Auto mode: AI completes tasks autonomously without user input.
+	autoMode bool
+	autoIter int
+
+	// Command palette (Ctrl+K): fuzzy-search slash commands.
+	showPalette     bool
+	paletteQuery    string
+	paletteSelected int
+	paletteFiltered []ui.PaletteItem
+
+	// Menu overlay (Esc when not streaming): quick-access actions.
+	showMenu     bool
+	menuSelected int
 
 	width  int
 	height int
@@ -229,6 +244,80 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
+		// Command palette (Ctrl+K overlay) — captures all keys while open.
+		if m.showPalette {
+			switch msg.String() {
+			case "esc":
+				m.showPalette = false
+				m.paletteQuery = ""
+				m.updateViewport()
+				return m, nil
+			case "enter":
+				if len(m.paletteFiltered) > 0 && m.paletteSelected < len(m.paletteFiltered) {
+					action := m.paletteFiltered[m.paletteSelected].Action
+					m.showPalette = false
+					m.paletteQuery = ""
+					if handled, cmd := m.handleSlashCommand(action); handled {
+						return m, cmd
+					}
+				}
+				return m, nil
+			case "up":
+				if m.paletteSelected > 0 {
+					m.paletteSelected--
+				}
+				return m, nil
+			case "down":
+				if m.paletteSelected < len(m.paletteFiltered)-1 {
+					m.paletteSelected++
+				}
+				return m, nil
+			case "backspace":
+				if len(m.paletteQuery) > 0 {
+					m.paletteQuery = m.paletteQuery[:len(m.paletteQuery)-1]
+					m.paletteFiltered = ui.FuzzyFilter(m.paletteQuery, ui.PaletteItems)
+					m.paletteSelected = 0
+				}
+				return m, nil
+			default:
+				if len(msg.String()) == 1 {
+					m.paletteQuery += msg.String()
+					m.paletteFiltered = ui.FuzzyFilter(m.paletteQuery, ui.PaletteItems)
+					m.paletteSelected = 0
+				}
+				return m, nil
+			}
+		}
+
+		// Menu overlay (Esc overlay) — captures all keys while open.
+		if m.showMenu {
+			switch msg.String() {
+			case "esc":
+				m.showMenu = false
+				return m, nil
+			case "enter":
+				action := ui.MenuActionFromIndex(m.menuSelected)
+				m.showMenu = false
+				if action != "" {
+					if handled, cmd := m.handleSlashCommand(action); handled {
+						return m, cmd
+					}
+				}
+				return m, nil
+			case "up":
+				if m.menuSelected > 0 {
+					m.menuSelected--
+				}
+				return m, nil
+			case "down":
+				if m.menuSelected < len(ui.MainMenuItems)-1 {
+					m.menuSelected++
+				}
+				return m, nil
+			}
+			return m, nil
+		}
+
 		if m.streaming {
 			switch msg.String() {
 			case "ctrl+c", "esc":
@@ -269,6 +358,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
+
+		case "esc":
+			m.showMenu = true
+			m.menuSelected = 0
+			return m, nil
+
+		case "ctrl+k":
+			m.showPalette = true
+			m.paletteQuery = ""
+			m.paletteSelected = 0
+			m.paletteFiltered = ui.FuzzyFilter("", ui.PaletteItems)
+			return m, nil
 
 		case "ctrl+l":
 			// Keep system prompt, clear conversation
@@ -461,6 +562,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.streamBuf = ""
 			m.updateViewport()
+
+			// Auto mode: check markers and decide whether to continue
+			if m.autoMode && m.streamBuf == "" {
+				complete, pause := agents.CheckAutoMarkers(m.msgs[len(m.msgs)-1].Content)
+				if complete {
+					m.autoMode = false
+					m.autoIter = 0
+					m.msgs = append(m.msgs, ui.Message{
+						Role: ui.RoleSystem, Content: "[AUTO] 작업 완료", Timestamp: time.Now(),
+					})
+					m.updateViewport()
+					return m, nil
+				}
+				if pause {
+					m.msgs = append(m.msgs, ui.Message{
+						Role: ui.RoleSystem, Content: "[AUTO] 일시정지 — 입력을 기다립니다", Timestamp: time.Now(),
+					})
+					m.updateViewport()
+					return m, nil
+				}
+				m.autoIter++
+				if m.autoIter < agents.MaxAutoIterations {
+					return m, m.sendMessage("continue")
+				}
+				m.autoMode = false
+				m.autoIter = 0
+				m.msgs = append(m.msgs, ui.Message{
+					Role: ui.RoleSystem, Content: fmt.Sprintf("[AUTO] 최대 반복 도달 (%d회)", agents.MaxAutoIterations), Timestamp: time.Now(),
+				})
+				m.updateViewport()
+				return m, nil
+			}
 
 			// Auto-send next queued message
 			if len(m.pendingQueue) > 0 {
@@ -721,6 +854,30 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.updateViewport()
 		return true, nil
 
+	case "/auto":
+		m.autoMode = !m.autoMode
+		label := "OFF"
+		if m.autoMode {
+			label = "ON"
+		}
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: fmt.Sprintf("[AUTO] 자율 모드 %s (최대 %d회)", label, agents.MaxAutoIterations), Timestamp: time.Now(),
+		})
+		m.updateViewport()
+		return true, nil
+
+	case "/diagnostics":
+		cwd, _ := os.Getwd()
+		result, err := tools.RunDiagnostics(cwd, arg)
+		if err != nil {
+			result = fmt.Sprintf("Error: %v", err)
+		}
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: result, Timestamp: time.Now(),
+		})
+		m.updateViewport()
+		return true, nil
+
 	case "/git":
 		// Force a fresh fetch so the user sees current state, not the
 		// cached snapshot from the previous turn.
@@ -733,8 +890,10 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 
 	case "/help":
 		help := `  Enter — 전송    Shift+Enter — 줄바꿈    Tab — 모드 전환
+  Ctrl+K — 커맨드 팔레트    Esc — 메뉴    Ctrl+C — 종료
   /new — 새 세션    /sessions — 목록    /session <id> — 복원
-  /git — 저장소 상태    /clear — 화면 정리    /setup — API 키    Ctrl+C — 종료`
+  /auto — 자율 모드    /diagnostics — 코드 진단    /git — 저장소 상태
+  /clear — 화면 정리    /setup — API 키`
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
@@ -779,6 +938,15 @@ func (m Model) View() tea.View {
 		}
 		ctxWindow := llm.GetCapability(modelID).ContextWindow
 		statusBar := ui.RenderStatusBar(displayModel, m.tokenCount, ctxWindow, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), len(tools.ToolsForMode(m.activeTab)), m.gitInfo.Label())
+
+		// Overlay palette or menu on top of the viewport when active.
+		if m.showPalette {
+			overlay := ui.RenderPalette(m.paletteFiltered, m.paletteSelected, m.paletteQuery, m.width)
+			vpContent = lipgloss.Place(m.width, m.viewport.Height(), lipgloss.Center, lipgloss.Center, overlay)
+		} else if m.showMenu {
+			overlay := ui.RenderMenu(ui.MainMenuItems, m.menuSelected, m.width)
+			vpContent = lipgloss.Place(m.width, m.viewport.Height(), lipgloss.Center, lipgloss.Center, overlay)
+		}
 
 		content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
 	}
@@ -902,6 +1070,14 @@ func (m *Model) startStream() tea.Cmd {
 
 	history := make([]openai.ChatCompletionMessage, len(m.history))
 	copy(history, m.history)
+
+	// When auto mode is active, append the autonomous-agent suffix to
+	// the system prompt copy (not the original) so it only affects this
+	// request and is removed when auto mode is toggled off.
+	if m.autoMode && len(history) > 0 {
+		history[0].Content += agents.AutoPromptSuffix
+	}
+
 	toolDefs := tools.ToolsForMode(m.activeTab)
 
 	modeName := "super"

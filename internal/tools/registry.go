@@ -133,6 +133,96 @@ func AllTools() []openai.Tool {
 				},
 			},
 		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "hashline_read",
+				Description: "Read a file with hash-anchored line numbers (e.g. '1#a3f1| code'). Each line gets a 4-char MD5 hash. Use with hashline_edit for safe edits.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"path": {Type: "string", Description: "File path to read"},
+					},
+					Required: []string{"path"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "hashline_edit",
+				Description: "Edit a file using hash anchors for stale-edit protection. Anchors are 'N#hash' format from hashline_read. Verifies hash before replacing.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"path":          {Type: "string", Description: "File path to edit"},
+						"start_anchor":  {Type: "string", Description: "Start anchor (e.g. '3#e4d9')"},
+						"end_anchor":    {Type: "string", Description: "End anchor (e.g. '5#b2c1')"},
+						"new_content":   {Type: "string", Description: "Replacement content for the line range"},
+					},
+					Required: []string{"path", "start_anchor", "end_anchor", "new_content"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "git_status",
+				Description: "Show git status (short format) for the working directory.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"path": {Type: "string", Description: "Directory path (default: current directory)"},
+					},
+					Required: []string{},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "git_diff",
+				Description: "Show git diff. Set staged='true' for staged changes only.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"path":   {Type: "string", Description: "Directory path (default: current directory)"},
+						"staged": {Type: "string", Description: "Set to 'true' for staged diff"},
+					},
+					Required: []string{},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "git_log",
+				Description: "Show recent git commits in oneline format.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"path": {Type: "string", Description: "Directory path (default: current directory)"},
+						"n":    {Type: "string", Description: "Number of commits to show (default: 10)"},
+					},
+					Required: []string{},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "diagnostics",
+				Description: "Auto-detect project type (Go/TS/JS/Python) and run linters. Returns structured diagnostic output with file, line, severity.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"path": {Type: "string", Description: "Project directory (default: current directory)"},
+						"file": {Type: "string", Description: "Filter results to a specific file (optional)"},
+					},
+					Required: []string{},
+				},
+			},
+		},
 	}
 }
 
@@ -212,6 +302,63 @@ func ReadOnlyTools() []openai.Tool {
 						"path":    {Type: "string", Description: "Base directory (default: current directory)"},
 					},
 					Required: []string{"pattern"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "git_status",
+				Description: "Show git status (short format).",
+				Parameters: paramSchema{
+					Type:       "object",
+					Properties: map[string]propertySchema{"path": {Type: "string", Description: "Directory path"}},
+					Required:   []string{},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "git_diff",
+				Description: "Show git diff.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"path":   {Type: "string", Description: "Directory path"},
+						"staged": {Type: "string", Description: "Set to 'true' for staged diff"},
+					},
+					Required: []string{},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "git_log",
+				Description: "Show recent git commits.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"path": {Type: "string", Description: "Directory path"},
+						"n":    {Type: "string", Description: "Number of commits (default: 10)"},
+					},
+					Required: []string{},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "diagnostics",
+				Description: "Auto-detect project type and run linters.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"path": {Type: "string", Description: "Project directory"},
+						"file": {Type: "string", Description: "Filter to specific file"},
+					},
+					Required: []string{},
 				},
 			},
 		},
@@ -360,6 +507,99 @@ func executeInner(name string, argsJSON string) string {
 		}
 		searchPath, _ := args["path"].(string)
 		result, err := GlobSearch(pattern, searchPath)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return result
+
+	case "hashline_read":
+		path, _ := args["path"].(string)
+		if path == "" {
+			return "Error: path is required"
+		}
+		content, err := HashlineRead(path)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		if len(content) > 50000 {
+			return content[:50000] + "\n\n... [truncated]"
+		}
+		return content
+
+	case "hashline_edit":
+		path, _ := args["path"].(string)
+		start, _ := args["start_anchor"].(string)
+		end, _ := args["end_anchor"].(string)
+		newContent, _ := args["new_content"].(string)
+		if path == "" || start == "" || end == "" {
+			return "Error: path, start_anchor, and end_anchor are required"
+		}
+		result, err := HashlineEdit(path, start, end, newContent)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return result
+
+	case "git_status":
+		path, _ := args["path"].(string)
+		if path == "" {
+			path = "."
+		}
+		result, err := GitStatus(path)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		if result == "" {
+			return "clean working tree"
+		}
+		return result
+
+	case "git_diff":
+		path, _ := args["path"].(string)
+		if path == "" {
+			path = "."
+		}
+		staged := false
+		if s, ok := args["staged"].(string); ok && s == "true" {
+			staged = true
+		}
+		result, err := GitDiff(path, staged)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		if result == "" {
+			return "no changes"
+		}
+		if len(result) > 30000 {
+			return result[:30000] + "\n\n... [truncated]"
+		}
+		return result
+
+	case "git_log":
+		path, _ := args["path"].(string)
+		if path == "" {
+			path = "."
+		}
+		n := 10
+		if ns, ok := args["n"].(string); ok {
+			fmt.Sscanf(ns, "%d", &n)
+		}
+		if nf, ok := args["n"].(float64); ok {
+			n = int(nf)
+		}
+		result, err := GitLog(path, n)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return result
+
+	case "diagnostics":
+		path, _ := args["path"].(string)
+		if path == "" {
+			path = "."
+		}
+		file, _ := args["file"].(string)
+		result, err := RunDiagnostics(path, file)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
