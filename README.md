@@ -175,11 +175,140 @@ techai --version      # 버전 출력
 
 ## 모드별 차이
 
-| 모드 | 설명 | 도구 |
+| 모드 | 설명 | 특징 |
 |------|------|------|
-| **슈퍼택가이** | 만능 모드. 코드 CRUD, 분석, 대화 자동 감지 | file_read, file_write, file_edit, list_files, shell_exec |
-| **개발** | 코딩 특화. 파일 생성/읽기/수정/삭제 | file_read, file_write, file_edit, list_files, shell_exec |
-| **플랜** | 분석/계획. 읽기 전용, 구조 파악, 리뷰 | file_read, list_files, shell_exec (읽기 전용) |
+| **Super** (슈퍼택가이) | 만능 모드. 코드, 분석, 대화 자동 감지 | 14개 전체 도구 사용 |
+| **Deep Agent** | 자율 코딩. 최대 100회 반복, 자동 검증 | 자율 실행, `[TASK_COMPLETE]` 마커 |
+| **Plan** | 계획 우선. 단계별 계획 → 승인 후 실행 | 전체 도구 (쓰기 포함) |
+
+## 사용자 지식 문서 (User Knowledge Docs)
+
+`.tgc/knowledge/` 폴더에 `.md` 또는 `.txt` 파일을 넣으면, AI가 자동으로 인덱싱하고 질문에 관련된 문서를 검색해서 참고합니다.
+
+사내 개발 가이드, API 문서, 코딩 규칙, 온보딩 자료 등을 넣어두면 AI가 프로젝트 맥락을 이해하고 더 정확한 답변을 줍니다.
+
+### 공통
+
+**지원 파일 형식**: `.md` (마크다운), `.txt` (텍스트)
+
+**폴더 우선순위**: 프로젝트 로컬 > 글로벌 (둘 다 있으면 로컬 우선)
+
+**동작 방식**:
+1. `techai` 시작 시 knowledge 폴더를 자동 스캔 (~1ms)
+2. 파일별 제목, 헤더, 첫 단락을 인덱싱
+3. 시스템 프롬프트에 문서 목차 자동 주입
+4. AI가 질문과 관련된 문서를 `knowledge_search` 도구로 자동 검색
+
+**예시 파일 구조**:
+```
+.tgc/knowledge/
+├── deploy-guide.md        # 배포 가이드
+├── coding-rules.txt       # 코딩 규칙
+├── api-reference.md       # API 레퍼런스
+└── onboarding.md          # 신규 입사자 온보딩
+```
+
+**검색 방식**: 키워드 AND 매칭. "배포 가이드"를 검색하면 "배포"와 "가이드" 모두 포함된 문서만 반환.
+
+---
+
+### macOS
+
+**프로젝트 로컬** (해당 프로젝트에서만 참조):
+```bash
+# 프로젝트 루트에서
+mkdir -p .tgc/knowledge
+cp ~/Documents/my-guide.md .tgc/knowledge/
+```
+
+**글로벌** (모든 프로젝트에서 참조):
+```bash
+mkdir -p ~/.tgc/knowledge
+cp ~/Documents/company-rules.md ~/.tgc/knowledge/
+```
+
+**확인**:
+```bash
+# 파일 목록 확인
+ls -la .tgc/knowledge/
+ls -la ~/.tgc/knowledge/
+
+# techai 실행 후 디버그 로그에서 인덱싱 확인
+# [USERDOCS] indexed 3 user documents from /path/to/.tgc/knowledge
+```
+
+> `.tgc/` 폴더를 `.gitignore`에 추가하면 개인 문서가 커밋되지 않습니다.
+
+---
+
+### Windows
+
+**프로젝트 로컬** (해당 프로젝트에서만 참조):
+
+```powershell
+# 프로젝트 루트에서 (PowerShell)
+New-Item -ItemType Directory -Force -Path .tgc\knowledge
+
+# 파일 복사
+Copy-Item C:\Users\사용자\Documents\my-guide.md .tgc\knowledge\
+```
+
+또는 파일 탐색기에서:
+1. 프로젝트 폴더 열기
+2. `.tgc` 폴더 생성 (숨김 폴더이므로 보기 → 숨긴 항목 체크)
+3. `.tgc` 안에 `knowledge` 폴더 생성
+4. `.md` / `.txt` 파일 복사
+
+**글로벌** (모든 프로젝트에서 참조):
+
+```powershell
+# PowerShell
+New-Item -ItemType Directory -Force -Path $HOME\.tgc\knowledge
+
+# 파일 복사
+Copy-Item C:\Users\사용자\Documents\company-rules.md $HOME\.tgc\knowledge\
+```
+
+또는 파일 탐색기에서:
+1. `Win + R` → `%USERPROFILE%` → Enter
+2. `.tgc` 폴더 생성 → 안에 `knowledge` 폴더 생성
+3. 파일 복사
+
+**확인**:
+```powershell
+# 파일 확인
+Get-ChildItem .tgc\knowledge\
+Get-ChildItem $HOME\.tgc\knowledge\
+```
+
+> **CMD 사용 시**: `mkdir .tgc\knowledge` 그리고 `copy 파일.md .tgc\knowledge\`
+
+---
+
+### Linux
+
+**프로젝트 로컬** (해당 프로젝트에서만 참조):
+```bash
+# 프로젝트 루트에서
+mkdir -p .tgc/knowledge
+cp ~/docs/my-guide.md .tgc/knowledge/
+```
+
+**글로벌** (모든 프로젝트에서 참조):
+```bash
+mkdir -p ~/.tgc/knowledge
+cp ~/docs/company-rules.md ~/.tgc/knowledge/
+```
+
+**확인**:
+```bash
+ls -la .tgc/knowledge/
+ls -la ~/.tgc/knowledge/
+```
+
+> 서버 환경에서는 글로벌(`~/.tgc/knowledge/`)에 공통 문서를 넣어두면 어느 디렉토리에서 실행해도 참조됩니다.
+
+---
 
 ## 온프레미스 (On-Premise) 버전
 

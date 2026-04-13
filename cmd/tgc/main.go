@@ -34,6 +34,9 @@ func main() {
 	resetFlag := flag.Bool("reset", false, "설정 초기화 (config 삭제 후 재설정)")
 	flag.Parse()
 
+	// Expose version to all packages so the TUI can display it.
+	config.AppVersion = version
+
 	if *versionFlag {
 		fmt.Printf("택가이코드 (techai) %s\n", version)
 		os.Exit(0)
@@ -84,11 +87,11 @@ func main() {
 
 func parseMode(mode string) int {
 	switch mode {
-	case "super", "슈퍼택가이":
+	case "super":
 		return int(llm.ModeSuper)
-	case "dev", "개발":
+	case "dev", "deep":
 		return int(llm.ModeDev)
-	case "plan", "플랜":
+	case "plan":
 		return int(llm.ModePlan)
 	default:
 		return int(llm.ModeSuper)

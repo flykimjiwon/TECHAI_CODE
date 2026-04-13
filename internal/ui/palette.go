@@ -22,7 +22,7 @@ var PaletteItems = []PaletteItem{
 	{Label: "진단", Description: "프로젝트 코드 진단", Action: "/diagnostics"},
 	{Label: "Git 상태", Description: "저장소 상태 확인", Action: "/git"},
 	{Label: "화면 정리", Description: "대화 초기화", Action: "/clear"},
-	{Label: "API 설정", Description: "API 키 재설정", Action: "/setup"},
+	{Label: "설정 초기화", Description: "API 키 재설정", Action: "/setup"},
 	{Label: "도움말", Description: "키보드 단축키 안내", Action: "/help"},
 }
 

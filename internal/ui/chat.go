@@ -25,6 +25,51 @@ type Message struct {
 	Tag       string // optional tag for filtering (e.g. "modebox")
 }
 
+// Q/A accent styling (ported from hanimo). User messages get a subtle
+// tinted block; assistant replies get only a left accent bar (no
+// background) so long answers don't become a giant colored wall.
+var userBlockBg = lipgloss.Color("#0D1520") // very subtle blue tint on dark navy
+
+// renderUserBlock wraps a user message in a left-bar accented block:
+// blue bar + subtle background.
+func renderUserBlock(content string, width int) string {
+	barStyle := lipgloss.NewStyle().
+		Foreground(ColorPrimary).
+		Background(userBlockBg).
+		Bold(true)
+	textStyle := lipgloss.NewStyle().
+		Foreground(ColorText).
+		Background(userBlockBg)
+	blockWidth := width - 2
+	if blockWidth < 20 {
+		blockWidth = 20
+	}
+	wrapped := wrapText(content, blockWidth-4)
+	var out []string
+	for _, line := range strings.Split(wrapped, "\n") {
+		bar := "  ▌ "
+		padded := line
+		displayW := lipgloss.Width(line)
+		if displayW < blockWidth-4 {
+			padded = line + strings.Repeat(" ", blockWidth-4-displayW)
+		}
+		out = append(out, barStyle.Render(bar)+textStyle.Render(padded))
+	}
+	return strings.Join(out, "\n")
+}
+
+// renderAssistantBlock prefixes markdown-rendered assistant content
+// with a muted left accent bar — no background fill, so long answers
+// stay readable.
+func renderAssistantBlock(rendered string) string {
+	barStyle := lipgloss.NewStyle().Foreground(ColorSuccess)
+	var out []string
+	for _, line := range strings.Split(rendered, "\n") {
+		out = append(out, barStyle.Render("  ▎ ")+line)
+	}
+	return strings.Join(out, "\n")
+}
+
 func RenderMessages(messages []Message, streaming string, width int) string {
 	var lines []string
 	contentWidth := width - 6
@@ -32,20 +77,17 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 	for _, msg := range messages {
 		switch msg.Role {
 		case RoleUser:
-			prefix := UserMsg.Render("  > ")
-			content := wrapText(msg.Content, contentWidth-4)
-			lines = append(lines, prefix+content)
+			block := renderUserBlock(msg.Content, contentWidth)
+			lines = append(lines, block)
 		case RoleAssistant:
-			rendered := renderMarkdown(msg.Content, contentWidth)
+			rendered := renderMarkdown(msg.Content, contentWidth-4)
 			msgLines := strings.Split(rendered, "\n")
 			// Show line count for long messages
 			if len(msgLines) > 20 {
 				countStyle := lipgloss.NewStyle().Foreground(ColorMuted)
 				lines = append(lines, countStyle.Render(fmt.Sprintf("  [%d lines]", len(msgLines))))
 			}
-			for _, line := range msgLines {
-				lines = append(lines, "  "+line)
-			}
+			lines = append(lines, renderAssistantBlock(rendered))
 			lines = append(lines, "")
 			continue
 		case RoleSystem:
@@ -57,8 +99,12 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 			continue
 		case RoleTool:
 			toolStyle := lipgloss.NewStyle().Foreground(ColorAccent)
-			wrapped := wrapText(msg.Content, contentWidth-2)
-			lines = append(lines, toolStyle.Render("  "+wrapped))
+			for _, rawLine := range strings.Split(msg.Content, "\n") {
+				wrapped := wrapText(rawLine, contentWidth-2)
+				for _, l := range strings.Split(wrapped, "\n") {
+					lines = append(lines, toolStyle.Render("  "+l))
+				}
+			}
 		}
 		lines = append(lines, "")
 	}
@@ -156,13 +202,159 @@ func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.D
 		Render(left + strings.Repeat(" ", gap) + right)
 }
 
-// renderMarkdown renders markdown content using glamour (dark theme).
+// customDarkStyle is a modified glamour "dark" theme that replaces raw
+// markdown heading prefixes (##, ###) with clean visual indicators so
+// headings don't look like unprocessed markdown in the TUI.
+var customDarkStyle = []byte(`{
+  "document": {
+    "block_prefix": "\n",
+    "block_suffix": "\n",
+    "color": "252",
+    "margin": 2
+  },
+  "block_quote": {
+    "indent": 1,
+    "indent_token": "│ "
+  },
+  "paragraph": {},
+  "list": {
+    "level_indent": 2
+  },
+  "heading": {
+    "block_suffix": "\n",
+    "color": "39",
+    "bold": true
+  },
+  "h1": {
+    "prefix": " ",
+    "suffix": " ",
+    "color": "228",
+    "background_color": "63",
+    "bold": true
+  },
+  "h2": {
+    "prefix": "▌ ",
+    "color": "39",
+    "bold": true
+  },
+  "h3": {
+    "prefix": "▎ ",
+    "color": "39",
+    "bold": true
+  },
+  "h4": {
+    "prefix": "▪ ",
+    "color": "39",
+    "bold": true
+  },
+  "h5": {
+    "prefix": "· "
+  },
+  "h6": {
+    "prefix": "· ",
+    "color": "35",
+    "bold": false
+  },
+  "text": {},
+  "strikethrough": {
+    "crossed_out": true
+  },
+  "emph": {
+    "italic": true
+  },
+  "strong": {
+    "bold": true
+  },
+  "hr": {
+    "color": "240",
+    "format": "\n--------\n"
+  },
+  "item": {
+    "block_prefix": "• "
+  },
+  "enumeration": {
+    "block_prefix": ". "
+  },
+  "task": {
+    "ticked": "[✓] ",
+    "unticked": "[ ] "
+  },
+  "link": {
+    "color": "30",
+    "underline": true
+  },
+  "link_text": {
+    "color": "35",
+    "bold": true
+  },
+  "image": {
+    "color": "212",
+    "underline": true
+  },
+  "image_text": {
+    "color": "243",
+    "format": "Image: {{.text}} →"
+  },
+  "code": {
+    "prefix": " ",
+    "suffix": " ",
+    "color": "203",
+    "background_color": "236"
+  },
+  "code_block": {
+    "color": "244",
+    "margin": 2,
+    "chroma": {
+      "text": { "color": "#C4C4C4" },
+      "error": { "color": "#F1F1F1", "background_color": "#F05B5B" },
+      "comment": { "color": "#676767" },
+      "comment_preproc": { "color": "#FF875F" },
+      "keyword": { "color": "#00AAFF" },
+      "keyword_reserved": { "color": "#FF5FD2" },
+      "keyword_namespace": { "color": "#FF5F87" },
+      "keyword_type": { "color": "#6E6ED8" },
+      "operator": { "color": "#EF8080" },
+      "punctuation": { "color": "#E8E8A8" },
+      "name": { "color": "#C4C4C4" },
+      "name_builtin": { "color": "#FF8EC7" },
+      "name_tag": { "color": "#B083EA" },
+      "name_attribute": { "color": "#7A7AE6" },
+      "name_class": { "color": "#F1F1F1", "underline": true, "bold": true },
+      "name_constant": {},
+      "name_decorator": { "color": "#FFFF87" },
+      "name_exception": {},
+      "name_function": { "color": "#00D787" },
+      "name_other": {},
+      "literal": {},
+      "literal_number": { "color": "#6EEFC0" },
+      "literal_date": {},
+      "literal_string": { "color": "#C69669" },
+      "literal_string_escape": { "color": "#AFFFD7" },
+      "generic_deleted": { "color": "#FD5B5B" },
+      "generic_emph": { "italic": true },
+      "generic_inserted": { "color": "#00D787" },
+      "generic_strong": { "bold": true },
+      "generic_subheading": { "color": "#777777" },
+      "background": { "background_color": "#373737" }
+    }
+  },
+  "table": {},
+  "definition_list": {},
+  "definition_term": {},
+  "definition_description": {
+    "block_prefix": "\n🠶 "
+  },
+  "html_block": {},
+  "html_span": {}
+}`)
+
+// renderMarkdown renders markdown content using glamour (custom dark theme).
 func renderMarkdown(content string, width int) string {
 	if width < 20 {
 		width = 20
 	}
 	r, err := glamour.NewTermRenderer(
-		glamour.WithStylePath("dark"),
+		glamour.WithStylesFromJSONBytes(customDarkStyle),
 		glamour.WithWordWrap(width),
 	)
 	if err != nil {

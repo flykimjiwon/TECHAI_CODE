@@ -13,6 +13,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// AppVersion is set by main.go from the build-time ldflags version string.
+// UI components read this to display the current version.
+var AppVersion = "dev"
+
 type APIConfig struct {
 	BaseURL string `yaml:"base_url"`
 	APIKey  string `yaml:"api_key"`

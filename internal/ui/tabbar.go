@@ -11,9 +11,9 @@ type TabItem struct {
 }
 
 var Tabs = []TabItem{
-	{Name: "슈퍼택가이"},
-	{Name: "개발"},
-	{Name: "플랜"},
+	{Name: "Super"},
+	{Name: "Deep Agent"},
+	{Name: "Plan"},
 }
 
 func RenderTabBar(activeIdx int, width int) string {

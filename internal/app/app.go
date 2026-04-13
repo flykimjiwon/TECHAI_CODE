@@ -97,6 +97,11 @@ type Model struct {
 	showMenu     bool
 	menuSelected int
 
+	// Session picker overlay (from menu or /sessions).
+	showSessionPicker     bool
+	sessionPickerItems    []session.SessionMeta
+	sessionPickerSelected int
+
 	width  int
 	height int
 	ready  bool
@@ -306,6 +311,44 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+		}
+
+		// Session picker overlay — captures all keys while open.
+		if m.showSessionPicker {
+			switch msg.String() {
+			case "esc":
+				m.showSessionPicker = false
+				m.updateViewport()
+				return m, nil
+			case "enter":
+				if len(m.sessionPickerItems) > 0 && m.sessionPickerSelected < len(m.sessionPickerItems) {
+					picked := m.sessionPickerItems[m.sessionPickerSelected]
+					m.showSessionPicker = false
+					if picked.ID == m.currentSessionID {
+						m.msgs = append(m.msgs, ui.Message{
+							Role: ui.RoleSystem, Content: fmt.Sprintf("[SESSION] 이미 현재 세션입니다 (#%d)", picked.ID), Timestamp: time.Now(),
+						})
+						m.updateViewport()
+						return m, nil
+					}
+					// Load the selected session
+					if handled, cmd := m.handleSlashCommand(fmt.Sprintf("/session %d", picked.ID)); handled {
+						return m, cmd
+					}
+				}
+				return m, nil
+			case "up":
+				if m.sessionPickerSelected > 0 {
+					m.sessionPickerSelected--
+				}
+				return m, nil
+			case "down":
+				if m.sessionPickerSelected < len(m.sessionPickerItems)-1 {
+					m.sessionPickerSelected++
+				}
+				return m, nil
+			}
+			return m, nil
 		}
 
 		// Menu overlay (Esc overlay) — captures all keys while open.
@@ -787,7 +830,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			m.updateViewport()
 			return true, nil
 		}
-		list, err := m.store.ListSessions(10)
+		list, err := m.store.ListSessions(20)
 		if err != nil {
 			m.msgs = append(m.msgs, ui.Message{
 				Role: ui.RoleSystem, Content: fmt.Sprintf("[SESSION] 목록 조회 실패: %v", err), Timestamp: time.Now(),
@@ -802,21 +845,9 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			m.updateViewport()
 			return true, nil
 		}
-		var sb strings.Builder
-		sb.WriteString("  최근 세션 (/session <id> 로 불러오기)\n")
-		for _, s := range list {
-			marker := "  "
-			if s.ID == m.currentSessionID {
-				marker = "* "
-			}
-			sb.WriteString(fmt.Sprintf("%s#%d  %s  [%s]  %s\n",
-				marker, s.ID, truncate(s.Title, 40), s.Model,
-				s.UpdatedAt.Format("01-02 15:04")))
-		}
-		m.msgs = append(m.msgs, ui.Message{
-			Role: ui.RoleSystem, Content: sb.String(), Timestamp: time.Now(),
-		})
-		m.updateViewport()
+		m.sessionPickerItems = list
+		m.sessionPickerSelected = 0
+		m.showSessionPicker = true
 		return true, nil
 
 	case "/session":
@@ -920,12 +951,20 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.updateViewport()
 		return true, nil
 
+	case "/version":
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: fmt.Sprintf("택가이코드 (techai) %s", config.AppVersion), Timestamp: time.Now(),
+		})
+		m.updateViewport()
+		return true, nil
+
 	case "/help":
-		help := `  Enter — 전송    Shift+Enter — 줄바꿈    Tab — 모드 전환
+		help := fmt.Sprintf(`  택가이코드 %s
+  Enter — 전송    Shift+Enter — 줄바꿈    Tab — 모드 전환
   Ctrl+K — 커맨드 팔레트    Esc — 메뉴    Ctrl+C — 종료
   /new — 새 세션    /sessions — 목록    /session <id> — 복원
   /auto — 자율 모드    /diagnostics — 코드 진단    /git — 저장소 상태
-  /clear — 화면 정리    /setup — API 키`
+  /version — 버전    /clear — 화면 정리    /setup — 설정 초기화`, config.AppVersion)
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
@@ -972,7 +1011,10 @@ func (m Model) View() tea.View {
 		statusBar := ui.RenderStatusBar(displayModel, m.tokenCount, ctxWindow, elapsed, m.activeTab, m.cwd, m.width, config.IsDebug(), len(tools.ToolsForMode(m.activeTab)), m.gitInfo.Label())
 
 		// Overlay palette or menu on top of the viewport when active.
-		if m.showPalette {
+		if m.showSessionPicker {
+			overlay := ui.RenderSessionPicker(m.sessionPickerItems, m.sessionPickerSelected, m.currentSessionID, m.width)
+			vpContent = lipgloss.Place(m.width, m.viewport.Height(), lipgloss.Center, lipgloss.Center, overlay)
+		} else if m.showPalette {
 			overlay := ui.RenderPalette(m.paletteFiltered, m.paletteSelected, m.paletteQuery, m.width)
 			vpContent = lipgloss.Place(m.width, m.viewport.Height(), lipgloss.Center, lipgloss.Center, overlay)
 		} else if m.showMenu {

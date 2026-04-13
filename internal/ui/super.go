@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/kimjiwon/tgc/internal/config"
 )
 
 var logoLines = []string{
@@ -24,13 +26,14 @@ var logoLines = []string{
 }
 
 func RenderLogo() string {
-	bright := lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA")).Bold(true) // blue-400
-	mid := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6"))              // blue-500
-	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#1D4ED8"))              // blue-700
-	separator := lipgloss.NewStyle().Foreground(lipgloss.Color("#475569"))        // slate-600
-	codeBright := lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD")).Bold(true) // blue-300
-	codeMid := lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA"))          // blue-400
-	codeDim := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6"))          // blue-500
+	bright := lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA")).Bold(true)      // blue-400
+	mid := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6"))                    // blue-500
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#1D4ED8"))                    // blue-700
+	separator := lipgloss.NewStyle().Foreground(lipgloss.Color("#475569"))              // slate-600
+	codeBright := lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD")).Bold(true)  // blue-300
+	codeMid := lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA"))                // blue-400
+	codeDim := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6"))                // blue-500
+	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))           // slate-400
 
 	var b strings.Builder
 
@@ -55,6 +58,15 @@ func RenderLogo() string {
 			b.WriteString("\n")
 		}
 	}
+
+	// Version line below logo — show only vX.Y.Z (strip git describe suffix)
+	ver := config.AppVersion
+	if i := strings.Index(ver, "-"); i > 0 {
+		ver = ver[:i]
+	}
+	b.WriteString("\n")
+	b.WriteString(versionStyle.Render(fmt.Sprintf("   %s", ver)))
+
 	return b.String()
 }
 
@@ -94,18 +106,18 @@ func modeInfoBoxInner(mode int, modelID string) string {
 	switch mode {
 	case 0:
 		tips = fmt.Sprintf("%s\n%s",
-			modeName.Render(fmt.Sprintf("슈퍼택가이 — %s", shortModel)),
-			desc.Render("만능 모드. 코드 CRUD, 분석, 대화 자동 감지"),
+			modeName.Render(fmt.Sprintf("Super — %s", shortModel)),
+			desc.Render("만능 모드. 코드, 분석, 대화 자동 감지"),
 		)
 	case 1:
 		tips = fmt.Sprintf("%s\n%s",
-			modeName.Render(fmt.Sprintf("개발 — %s", shortModel)),
-			desc.Render("코딩 특화. 파일 생성/읽기/수정/삭제"),
+			modeName.Render(fmt.Sprintf("Deep Agent — %s", shortModel)),
+			desc.Render("자율 코딩. 최대 100회 반복, 자동 검증"),
 		)
 	case 2:
 		tips = fmt.Sprintf("%s\n%s",
-			modeName.Render(fmt.Sprintf("플랜 — %s", shortModel)),
-			desc.Render("분석/계획. 읽기 전용, 구조 파악, 리뷰"),
+			modeName.Render(fmt.Sprintf("Plan — %s", shortModel)),
+			desc.Render("계획 우선. 단계별 계획 → 승인 후 실행"),
 		)
 	}
 	return tipStyle.Render(tips)
