@@ -1,10 +1,13 @@
 package llm
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 )
 
 // probe defines a tool to check: binary name + version flag.
@@ -99,34 +102,65 @@ type ProbeResult struct {
 var EnvProbeResults []ProbeResult
 
 // ProbeEnvironment checks which tools are installed and caches results.
-// Call once at startup. Takes ~200ms on a typical system.
+// All probes run concurrently with a 2s per-probe timeout, so total
+// wall time is ~max(single probe) instead of sum(all probes).
+// This is critical on Windows where CreateProcess is much slower.
 func ProbeEnvironment() []ProbeResult {
-	results := make([]ProbeResult, 0, len(allProbes))
-	seen := map[string]bool{}
+	type indexed struct {
+		idx    int
+		result ProbeResult
+	}
 
-	for _, p := range allProbes {
-		// Skip duplicates (python3 vs python — keep whichever found first)
-		if p.Name == "python" && seen["python3"] {
+	var wg sync.WaitGroup
+	ch := make(chan indexed, len(allProbes))
+
+	for i, p := range allProbes {
+		wg.Add(1)
+		go func(idx int, p probe) {
+			defer wg.Done()
+			path, err := exec.LookPath(p.Bin)
+			if err != nil || path == "" {
+				ch <- indexed{idx, ProbeResult{Name: p.Name, Available: false}}
+				return
+			}
+			ver := getVersion(p.Bin, p.Version)
+			ch <- indexed{idx, ProbeResult{Name: p.Name, Available: true, Version: ver}}
+		}(i, p)
+	}
+
+	go func() { wg.Wait(); close(ch) }()
+
+	// Collect results preserving original order
+	tmp := make([]ProbeResult, len(allProbes))
+	for r := range ch {
+		tmp[r.idx] = r.result
+	}
+
+	// Deduplicate: python3 vs python — keep whichever was found first
+	seen := map[string]bool{}
+	results := make([]ProbeResult, 0, len(allProbes))
+	for _, r := range tmp {
+		if r.Name == "python" && seen["python3"] {
 			continue
 		}
-		path, err := exec.LookPath(p.Bin)
-		if err != nil || path == "" {
-			results = append(results, ProbeResult{Name: p.Name, Available: false})
-			continue
+		if r.Available {
+			seen[r.Name] = true
 		}
-		seen[p.Name] = true
-		ver := getVersion(p.Bin, p.Version)
-		results = append(results, ProbeResult{Name: p.Name, Available: true, Version: ver})
+		results = append(results, r)
 	}
 
 	EnvProbeResults = results
 	return results
 }
 
-// getVersion runs "bin flag" and extracts a short version string.
+// getVersion runs "bin flag" with a 2s timeout and extracts a short
+// version string. The timeout prevents slow tools (gradle, flutter)
+// from blocking startup.
 func getVersion(bin, flag string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	args := strings.Fields(flag)
-	cmd := exec.Command(bin, args...)
+	cmd := exec.CommandContext(ctx, bin, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return ""
