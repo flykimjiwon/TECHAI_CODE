@@ -10,6 +10,7 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 
 	"github.com/kimjiwon/tgc/internal/config"
+	"github.com/kimjiwon/tgc/internal/knowledge"
 )
 
 type paramSchema struct {
@@ -223,6 +224,21 @@ func AllTools() []openai.Tool {
 				},
 			},
 		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        "knowledge_search",
+				Description: "Search user knowledge docs (.tgc/knowledge/ or ~/.tgc/knowledge/). Returns matching documents with excerpts. Use when the user's question touches project-specific or framework-specific topics listed in the User Knowledge section of the system prompt.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"query":       {Type: "string", Description: "Search query (keywords, AND match)"},
+						"max_results": {Type: "string", Description: "Max results to return (default: 3)"},
+					},
+					Required: []string{"query"},
+				},
+			},
+		},
 	}
 }
 
@@ -366,13 +382,11 @@ func ReadOnlyTools() []openai.Tool {
 }
 
 // ToolsForMode returns the appropriate tool definitions based on mode.
+// All three modes (Super, Deep Agent, Plan) now share the full tool set,
+// matching hanimo's design where Plan mode has write access for execution
+// after the user approves the plan.
 func ToolsForMode(mode int) []openai.Tool {
-	switch mode {
-	case 2: // Plan — read-only
-		return ReadOnlyTools()
-	default: // Super, Dev — full access
-		return AllTools()
-	}
+	return AllTools()
 }
 
 // Execute runs a tool by name with the given JSON arguments and returns the result.
@@ -605,8 +619,32 @@ func executeInner(name string, argsJSON string) string {
 		}
 		return result
 
+	case "knowledge_search":
+		query, _ := args["query"].(string)
+		if query == "" {
+			return "Error: query is required"
+		}
+		maxResults := 3
+		if ms, ok := args["max_results"].(string); ok {
+			fmt.Sscanf(ms, "%d", &maxResults)
+		}
+		if mf, ok := args["max_results"].(float64); ok {
+			maxResults = int(mf)
+		}
+		return ExecuteKnowledgeSearch(query, maxResults)
+
 	default:
 		config.DebugLog("[TOOL-ERR] unknown tool '%s'", name)
 		return fmt.Sprintf("Error: unknown tool '%s'", name)
 	}
+}
+
+// ExecuteKnowledgeSearch searches the user's knowledge docs index.
+func ExecuteKnowledgeSearch(query string, maxResults int) string {
+	idx := knowledge.GlobalIndex
+	if idx == nil || idx.Count() == 0 {
+		return "User knowledge 폴더가 없습니다. .tgc/knowledge/ 또는 ~/.tgc/knowledge/ 에 .md/.txt 파일을 넣으세요."
+	}
+	docs := idx.Search(query, maxResults)
+	return knowledge.FormatSearchResults(docs, query)
 }

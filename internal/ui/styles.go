@@ -102,10 +102,11 @@ var (
 			Foreground(ColorSuccess).
 			Bold(true)
 
-	// Mode-specific accent colors
-	SuperColor = ColorPrimary // teal — 만능
-	DevColor   = ColorSuccess // emerald — 개발
-	PlanColor  = ColorOrange  // orange — 플랜
+	// Mode-specific accent colors (ported from hanimo)
+	SuperColor = ColorPrimary // blue — Super
+	DeepColor  = ColorSuccess // emerald — Deep Agent
+	DevColor   = DeepColor   // backwards-compat alias
+	PlanColor  = ColorOrange  // orange — Plan
 )
 
 func ModeColor(mode int) color.Color {

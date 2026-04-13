@@ -137,14 +137,33 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		projectCtx = "\n\n## Project Context (.techai.md)\n" + string(data)
 	}
 	projectCtx += llm.GatherSystemContext()
+	// envCtx and userDocsTOC are appended after env probe runs (below)
 
-	// Initialize knowledge store
+	// Initialize knowledge store (built-in embedded docs)
 	var knowledgeInj *knowledge.Injector
 	if knowledgeStore, err := knowledge.NewStore(tgc.KnowledgeFS); err == nil {
 		knowledgeInj = knowledge.NewInjector(knowledgeStore, 8192)
-		config.DebugLog("[KNOWLEDGE] loaded %d documents", knowledgeStore.DocCount())
+		config.DebugLog("[KNOWLEDGE] loaded %d embedded documents", knowledgeStore.DocCount())
 	} else {
 		config.DebugLog("[KNOWLEDGE] failed to load: %v", err)
+	}
+
+	// Scan user knowledge docs (.tgc/knowledge/ or ~/.tgc/knowledge/)
+	userDocs := knowledge.ScanUserDocs()
+	knowledge.GlobalIndex = userDocs
+	if userDocs.Count() > 0 {
+		config.DebugLog("[USERDOCS] indexed %d user documents from %s", userDocs.Count(), userDocs.Root())
+	}
+
+	// Probe environment: detect installed tools (node, python, go, etc.)
+	envResults := llm.ProbeEnvironment()
+	envCtx := llm.FormatEnvironmentContext(envResults)
+	config.DebugLog("[ENV] probed %d tools", len(envResults))
+
+	// Append environment + user docs context to projectCtx
+	projectCtx += envCtx
+	if userDocs.Count() > 0 {
+		projectCtx += userDocs.TableOfContents()
 	}
 
 	// Open persistent session store. Failures degrade to in-memory only
@@ -563,14 +582,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.streamBuf = ""
 			m.updateViewport()
 
-			// Auto mode: check markers and decide whether to continue
-			if m.autoMode && m.streamBuf == "" {
-				complete, pause := agents.CheckAutoMarkers(m.msgs[len(m.msgs)-1].Content)
+			// Auto mode OR Deep Agent mode: check markers and continue
+			isAuto := m.autoMode || m.activeTab == 1 // Deep Agent is always autonomous
+			if isAuto {
+				lastContent := ""
+				if len(m.msgs) > 0 {
+					lastContent = m.msgs[len(m.msgs)-1].Content
+				}
+				complete, pause := agents.CheckAutoMarkers(lastContent)
 				if complete {
 					m.autoMode = false
 					m.autoIter = 0
+					label := "[AUTO]"
+					if m.activeTab == 1 {
+						label = "[DEEP]"
+					}
 					m.msgs = append(m.msgs, ui.Message{
-						Role: ui.RoleSystem, Content: "[AUTO] 작업 완료", Timestamp: time.Now(),
+						Role: ui.RoleSystem, Content: label + " 작업 완료", Timestamp: time.Now(),
 					})
 					m.updateViewport()
 					return m, nil
@@ -583,13 +611,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.autoIter++
-				if m.autoIter < agents.MaxAutoIterations {
+				maxIter := agents.MaxAutoIterations
+				if m.activeTab == 1 {
+					maxIter = agents.MaxDeepIterations // Deep Agent: 100 iterations
+				}
+				if m.autoIter < maxIter {
 					return m, m.sendMessage("continue")
 				}
 				m.autoMode = false
 				m.autoIter = 0
 				m.msgs = append(m.msgs, ui.Message{
-					Role: ui.RoleSystem, Content: fmt.Sprintf("[AUTO] 최대 반복 도달 (%d회)", agents.MaxAutoIterations), Timestamp: time.Now(),
+					Role: ui.RoleSystem, Content: fmt.Sprintf("[AUTO] 최대 반복 도달 (%d회)", maxIter), Timestamp: time.Now(),
 				})
 				m.updateViewport()
 				return m, nil
@@ -1030,12 +1062,10 @@ func (m *Model) updateViewport() {
 }
 
 func (m Model) currentModel() string {
-	switch m.activeTab {
-	case 1: // Dev mode → qwen3-coder-30b
-		return m.cfg.Models.Dev
-	default: // Super, Plan → gpt-oss-120b
-		return m.cfg.Models.Super
-	}
+	// All modes use the super model by default (matching hanimo).
+	// The dev model (qwen3-coder-30b) is available via TGC_MODEL_DEV
+	// or config.yaml override if needed.
+	return m.cfg.Models.Super
 }
 
 // startStream creates a new streaming request with tool definitions.
@@ -1071,10 +1101,10 @@ func (m *Model) startStream() tea.Cmd {
 	history := make([]openai.ChatCompletionMessage, len(m.history))
 	copy(history, m.history)
 
-	// When auto mode is active, append the autonomous-agent suffix to
-	// the system prompt copy (not the original) so it only affects this
-	// request and is removed when auto mode is toggled off.
-	if m.autoMode && len(history) > 0 {
+	// When auto mode or Deep Agent mode is active, append the
+	// autonomous-agent suffix to the system prompt copy (not the
+	// original) so it only affects this request.
+	if (m.autoMode || m.activeTab == 1) && len(history) > 0 {
 		history[0].Content += agents.AutoPromptSuffix
 	}
 
