@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	tgc "github.com/kimjiwon/tgc"
 	"github.com/kimjiwon/tgc/internal/agents"
+	"github.com/kimjiwon/tgc/internal/companion"
 	"github.com/kimjiwon/tgc/internal/config"
 	"github.com/kimjiwon/tgc/internal/gitinfo"
 	"github.com/kimjiwon/tgc/internal/knowledge"
@@ -126,6 +128,11 @@ type Model struct {
 	width  int
 	height int
 	ready  bool
+
+	// Companion: browser-based real-time dashboard.
+	companionHub    *companion.Hub
+	companionServer *companion.Server
+	companionPort   int
 }
 
 func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
@@ -507,6 +514,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Timestamp: time.Now(),
 				Tag:       "modebox",
 			})
+			if m.companionHub != nil {
+				m.companionHub.Emit("mode_change", map[string]interface{}{"mode": m.activeTab, "model": m.currentModel()})
+			}
 			m.updateViewport()
 			return m, nil
 
@@ -651,6 +661,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Role: ui.RoleTool, Content: status, Timestamp: time.Now(),
 					})
 				}
+				if m.companionHub != nil {
+					for _, tc := range msg.toolCalls {
+						m.companionHub.Emit("tool_call_start", map[string]interface{}{"id": tc.ID, "name": tc.Name, "args": truncateArgs(tc.Arguments, 200)})
+					}
+				}
 				m.streamBuf = ""
 				m.updateViewport()
 
@@ -672,6 +687,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Normal completion (no tool calls)
 			m.streaming = false
 			m.lastElapsed = time.Since(m.streamStart)
+			if m.companionHub != nil {
+				m.companionHub.Emit("stream_done", map[string]interface{}{"content": m.streamBuf, "tokens": m.tokenCount, "elapsed": m.lastElapsed.Seconds()})
+			}
 			config.DebugLog("[APP-STREAM] done reason=normal | elapsed=%v | tokens=%d | bufLen=%d", m.lastElapsed, m.tokenCount, len(m.streamBuf))
 			if m.streamBuf != "" {
 				m.msgs = append(m.msgs, ui.Message{
@@ -740,6 +758,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.streamBuf += msg.content
+		if m.companionHub != nil {
+			m.companionHub.Emit("stream_chunk", map[string]interface{}{"content": msg.content, "total": len(m.streamBuf)})
+		}
 		m.tokenCount++
 		m.lastChunkAt = time.Now()
 		m.updateViewport()
@@ -760,6 +781,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.msgs = append(m.msgs, ui.Message{
 				Role: ui.RoleTool, Content: fmt.Sprintf("<< %s: %s", r.name, preview), Timestamp: time.Now(),
 			})
+		}
+		if m.companionHub != nil {
+			for _, r := range msg.results {
+				m.companionHub.Emit("tool_result", map[string]interface{}{"name": r.name, "output": truncateArgs(r.output, 500)})
+			}
 		}
 		m.streamBuf = ""
 		m.toolIter++
@@ -795,6 +821,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !found {
 			m.multiProgress = append(m.multiProgress, p)
 		}
+		if m.companionHub != nil {
+			m.companionHub.Emit("multi_progress", map[string]interface{}{"agent": p.Agent.String(), "status": p.Status, "detail": p.Detail, "tokens": p.Tokens})
+		}
 		m.updateViewport()
 		// Continue waiting for more progress
 		return m, m.waitForNextMulti()
@@ -829,6 +858,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Timestamp: time.Now(),
 		})
 		m.tokenCount = result.TotalTokens
+		if m.companionHub != nil {
+			m.companionHub.Emit("multi_result", map[string]interface{}{"strategy": result.Strategy.String(), "tokens": result.TotalTokens, "elapsed": result.Elapsed.Seconds(), "output": truncateArgs(result.FinalOutput, 500)})
+		}
 		m.updateViewport()
 		return m, nil
 
@@ -932,6 +964,9 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			}
 		}
 		m.updateViewport()
+		if m.companionHub != nil {
+			m.companionHub.Emit("session_create", map[string]interface{}{"id": m.currentSessionID})
+		}
 		return true, nil
 
 	case "/sessions":
@@ -1027,6 +1062,9 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.tokenCount = 0
 		m.lastElapsed = 0
 		m.updateViewport()
+		if m.companionHub != nil {
+			m.companionHub.Emit("session_load", map[string]interface{}{"id": meta.ID, "title": meta.Title, "messages": len(loaded)})
+		}
 		return true, nil
 
 	case "/auto":
@@ -1038,6 +1076,9 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: fmt.Sprintf("[AUTO] 자율 모드 %s (최대 %d회)", label, agents.MaxAutoIterations), Timestamp: time.Now(),
 		})
+		if m.companionHub != nil {
+			m.companionHub.Emit("auto_toggle", map[string]interface{}{"enabled": m.autoMode})
+		}
 		m.updateViewport()
 		return true, nil
 
@@ -1134,6 +1175,41 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.updateViewport()
 		return true, nil
 
+	case "/companion":
+		if m.companionHub == nil {
+			m.companionHub = companion.NewHub()
+		}
+		if m.companionServer == nil {
+			port := 8787
+			if m.companionPort > 0 {
+				port = m.companionPort
+			}
+			webFS, _ := fs.Sub(tgc.CompanionFS, "web")
+			m.companionServer = companion.NewServer(m.companionHub, webFS, port)
+			m.companionServer.Start()
+			m.companionPort = port
+			_ = companion.OpenBrowser(fmt.Sprintf("http://localhost:%d", port))
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("[COMPANION] 브라우저 대시보드 시작 http://localhost:%d", port), Timestamp: time.Now(),
+			})
+			m.companionHub.Emit("state_snapshot", map[string]interface{}{
+				"mode":      m.activeTab,
+				"model":     m.currentModel(),
+				"streaming": m.streaming,
+				"autoMode":  m.autoMode,
+				"sessionID": m.currentSessionID,
+				"messages":  len(m.msgs),
+			})
+		} else {
+			_ = companion.OpenBrowser(fmt.Sprintf("http://localhost:%d", m.companionPort))
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("[COMPANION] 이미 실행 중 http://localhost:%d", m.companionPort), Timestamp: time.Now(),
+			})
+		}
+		m.updateViewport()
+		return true, nil
+
+
 	case "/help":
 		help := fmt.Sprintf(`  택가이코드 %s
   Enter — 전송    Shift+Enter — 줄바꿈    Tab — 모드 전환
@@ -1141,7 +1217,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
   /new — 새 세션    /sessions — 목록    /session <id> — 복원
   /auto — 자율 모드    /diagnostics — 코드 진단    /git — 저장소 상태
   /multi — 멀티 에이전트    /version — 버전    /clear — 화면 정리
-  /setup — 설정 초기화`, config.AppVersion)
+  /companion — 브라우저 대시보드    /setup — 설정 초기화`, config.AppVersion)
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
@@ -1374,6 +1450,9 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.msgs = append(m.msgs, ui.Message{
 		Role: ui.RoleUser, Content: input, Timestamp: time.Now(),
 	})
+	if m.companionHub != nil {
+		m.companionHub.Emit("user_message", map[string]interface{}{"content": input})
+	}
 
 	// Inject knowledge context into system prompt
 	if m.knowledgeInj != nil {
@@ -1408,6 +1487,9 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.streamStart = time.Now()
 	m.lastChunkAt = time.Time{}
 	m.updateViewport()
+	if m.companionHub != nil {
+		m.companionHub.Emit("stream_start", map[string]interface{}{"model": m.currentModel(), "mode": m.activeTab})
+	}
 
 	// Check if multi-agent should handle this request
 	if m.shouldUseMulti(input) {

@@ -457,7 +457,7 @@ dist/
 ## 프로젝트 구조
 
 ```
-택갈이코드/
+택가이코드/
 ├── cmd/tgc/main.go              # 엔트리포인트
 ├── internal/
 │   ├── app/app.go               # 메인 TUI 앱 (Model/Update/View)

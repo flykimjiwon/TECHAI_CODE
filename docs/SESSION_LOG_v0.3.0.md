@@ -1,4 +1,4 @@
-# 택갈이코드 v0.3.0 세션 로그
+# 택가이코드 v0.3.0 세션 로그
 
 > 2026-04-08 작업 기록 — v0.2.0 → v0.3.0 변경사항 및 논의 전체 정리
 
@@ -131,7 +131,7 @@ onprem 빌드의 `base_url`(`https://techai-web-prod.shinhan.com/v1`)은 위 API
 - E4B: 총 8B, 유효 4.5B / E2B: 총 5.1B, 유효 2.3B
 - **오디오 입력** (USM 인코더, 최대 30초) — E2B/E4B만 지원
 - 128K 컨텍스트
-- **택갈이코드에는 너무 작음** — 에이전트 용도 부적합
+- **택가이코드에는 너무 작음** — 에이전트 용도 부적합
 
 #### 26B A4B — MoE (Mixture of Experts) 가성비 최강
 - 128개 experts 중 토큰당 8개 + 공유 1개만 활성화
@@ -178,7 +178,7 @@ onprem 빌드의 `base_url`(`https://techai-web-prod.shinhan.com/v1`)은 위 API
 3. **256K 컨텍스트** — 큰 파일 분석에 유리
 4. **벤치마크 압도적** — AIME 89.2%, LCB 80.0%는 30B급 최상위
 
-### 택갈이코드 추가 작업 필요
+### 택가이코드 추가 작업 필요
 - [ ] vLLM Gemma 4 tool call parser 확인 (인프라팀)
 - [ ] Thinking 모드 지원 — `<|think|>` / `<|channel>thought` 토큰 파싱, UI에서 접기/숨기기
 - [ ] 모델 설정에 Gemma 4 31B / 26B 추가
@@ -191,9 +191,9 @@ onprem 빌드의 `base_url`(`https://techai-web-prod.shinhan.com/v1`)은 위 API
 ### 흐름
 ```
 사용자: "파일 만들어줘"
-  → 택갈이코드: tools 파라미터와 함께 /chat/completions 호출
+  → 택가이코드: tools 파라미터와 함께 /chat/completions 호출
     → LLM: finish_reason="tool_calls" + tool_calls 배열 반환
-      → 택갈이코드: tool 실행 (file_write, shell_exec 등)
+      → 택가이코드: tool 실행 (file_write, shell_exec 등)
         → 결과를 history에 추가 → LLM에 재전송
 ```
 

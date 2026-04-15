@@ -1,7 +1,7 @@
-# hanimo → 택갈이코드 포팅 가이드
+# hanimo → 택가이코드 포팅 가이드
 
 > **작성일**: 2026-04-09
-> **목적**: hanimo(오픈소스)에서 택갈이코드(폐쇄망 전용)로 이식할 기능 식별 및 구현 전략
+> **목적**: hanimo(오픈소스)에서 택가이코드(폐쇄망 전용)로 이식할 기능 식별 및 구현 전략
 > **추가 참고**: PageIndex (VectifyAI) — 계층형 트리 인덱스 기반 Vectorless RAG
 > **핵심 원칙**: 외부 인터넷 없이 동작하는 기능만 포팅. 단일 바이너리 유지.
 > **다음 구현 시 반드시 이 문서를 참조할 것**
@@ -10,7 +10,7 @@
 
 ## 프로젝트 관계
 
-| 구분 | hanimo | 택갈이코드 |
+| 구분 | hanimo | 택가이코드 |
 |------|--------|-----------|
 | **용도** | 세상에 공개할 오픈소스 | 회사 내부 폐쇄망 전용 |
 | **네트워크** | 클라우드 API (OpenAI, Anthropic, Google 등) | 사내 LLM 서버만 (외부 인터넷 없음) |
@@ -18,7 +18,7 @@
 | **스택** | Go + Bubble Tea v2 + go-openai | 동일 |
 | **프로바이더** | 14+ (OpenAI, Anthropic, Google, Ollama 등) | Ollama + OpenAI-compatible 엔드포인트만 |
 
-**핵심**: hanimo에 이미 구현된 기능 중 **오프라인 호환** 가능한 것만 택갈이코드로 이식.
+**핵심**: hanimo에 이미 구현된 기능 중 **오프라인 호환** 가능한 것만 택가이코드로 이식.
 
 ---
 
@@ -80,7 +80,7 @@
 
 ### 1-1. 컨텍스트 압축 (`internal/llm/compaction.go`, 137줄)
 
-**현재 문제**: 택갈이코드는 tool loop 20회 하드캡만 있음. 긴 대화에서 컨텍스트 윈도우 초과 시 API 에러.
+**현재 문제**: 택가이코드는 tool loop 20회 하드캡만 있음. 긴 대화에서 컨텍스트 윈도우 초과 시 API 에러.
 
 **hanimo 구현**: 3단계 압축
 
@@ -99,7 +99,7 @@ Stage 3 (LLM): 여전히 maxTokens 초과 시
 
 **토큰 추정**: `estimateTokens()` = `총문자수 / 4` (외부 토크나이저 불필요)
 
-**포팅 방법**: `compaction.go`를 `택갈이코드/internal/llm/`에 복사 후 `openai.ChatCompletionMessage` 타입을 택갈이코드의 메시지 타입에 맞춤. `app.go`의 `sendMessage()`에서 전송 전 `Compact()` 호출 추가.
+**포팅 방법**: `compaction.go`를 `택가이코드/internal/llm/`에 복사 후 `openai.ChatCompletionMessage` 타입을 택가이코드의 메시지 타입에 맞춤. `app.go`의 `sendMessage()`에서 전송 전 `Compact()` 호출 추가.
 
 **상태바 통합**: `RenderStatusBar()`에 토큰 퍼센트 바 추가
 
@@ -133,7 +133,7 @@ GitBranch(path) string  // git rev-parse --abbrev-ref HEAD
 ```
 
 **포팅 방법**:
-1. `git.go` 복사 → `택갈이코드/internal/tools/`
+1. `git.go` 복사 → `택가이코드/internal/tools/`
 2. `registry.go`에 `git_status`, `git_diff`, `git_log` 도구 3개 등록 (읽기 전용, 안전)
 3. `GatherFullContext()`에 Git 상태 자동 주입:
 
@@ -170,7 +170,7 @@ HashlineEdit(path, "2#e4d9", "2#e4d9", "  return 99")
 **왜 중요한가**: 폐쇄망 모델(7B-30B급)은 정확한 문자열 복사 능력이 약함. 해시 앵커는 "줄 번호 + 무결성 검증"을 결합하여 **스테일 에디트(stale edit) 방지**.
 
 **포팅 방법**:
-1. `hashline.go` 복사 → `택갈이코드/internal/tools/`
+1. `hashline.go` 복사 → `택가이코드/internal/tools/`
 2. 새 도구 등록: `hashline_read`, `hashline_edit`
 3. 기존 `file_edit`은 유지 (대형 모델용), `hashline_edit`은 소형 모델 자동 선택
 
@@ -198,7 +198,7 @@ type Diagnostic struct {
 ```
 
 **포팅 방법**:
-1. `diagnostics.go` 복사 → `택갈이코드/internal/tools/`
+1. `diagnostics.go` 복사 → `택가이코드/internal/tools/`
 2. 새 도구: `diagnostics` (프로젝트 루트 자동 감지)
 3. 폐쇄망 적응: `npx` 대신 전역 설치된 린터 경로 사용 가능하도록 config 옵션
 
@@ -223,7 +223,7 @@ const (
 LLM이 `[AUTO_COMPLETE]` 출력하면 자동 종료, `[AUTO_PAUSE]` 출력하면 사용자 입력 요청.
 
 **포팅 방법**:
-1. `auto.go` 복사 → `택갈이코드/internal/agents/`
+1. `auto.go` 복사 → `택가이코드/internal/agents/`
 2. `/auto` 슬래시 명령 추가 (handleSlashCommand)
 3. `sendMessage()` 루프에 마커 감지 로직 삽입
 4. 상태바에 `[AUTO]` 표시
@@ -275,7 +275,7 @@ var knownModels = map[string]ModelCapability{
 2. 각 노드에 요약(summary) 부여
 3. 검색 시 LLM이 트리를 탐색하여 **관련 섹션만** 반환
 
-**택갈이코드 적응**: PageIndex는 Python + 런타임 LLM 호출이지만, 택갈이코드는 **빌드 타임에 트리 + 요약을 미리 생성**하여 JSON으로 임베딩.
+**택가이코드 적응**: PageIndex는 Python + 런타임 LLM 호출이지만, 택가이코드는 **빌드 타임에 트리 + 요약을 미리 생성**하여 JSON으로 임베딩.
 
 **트리 노드 구조**:
 ```go
@@ -416,7 +416,7 @@ related: [[bxm-service]], [[bxm-select]]
 
 **퍼지 필터**: 라벨/설명/액션 substring 매칭
 
-**포팅 방법**: `palette.go` 복사 + `app.go`에 `Ctrl+K` 키바인딩 추가. 팔레트 아이템을 택갈이코드의 슬래시 명령에 매핑.
+**포팅 방법**: `palette.go` 복사 + `app.go`에 `Ctrl+K` 키바인딩 추가. 팔레트 아이템을 택가이코드의 슬래시 명령에 매핑.
 
 ---
 
@@ -469,7 +469,7 @@ func T() *Strings { /* 현재 언어 반환 */ }
 
 **서브메뉴**: "모델 전환" 선택 시 → 사용 가능 모델 목록 표시
 
-**포팅 방법**: `menu.go` 복사 + `app.go`에 `Esc` 키 핸들링 추가. 서브메뉴 아이템을 택갈이코드의 모드/모델에 매핑.
+**포팅 방법**: `menu.go` 복사 + `app.go`에 `Esc` 키 핸들링 추가. 서브메뉴 아이템을 택가이코드의 모드/모델에 매핑.
 
 ---
 
@@ -491,7 +491,7 @@ func T() *Strings { /* 현재 언어 반환 */ }
 func ApplyTheme(name string) bool  // 전역 컬러 변수 업데이트
 ```
 
-**포팅 방법**: 택갈이코드의 `styles.go` 컬러 상수를 변수로 변환 + `ApplyTheme()` 함수 추가. `config.yaml`에 `theme: "ocean"` 저장.
+**포팅 방법**: 택가이코드의 `styles.go` 컬러 상수를 변수로 변환 + `ApplyTheme()` 함수 추가. `config.yaml`에 `theme: "ocean"` 저장.
 
 ---
 
@@ -663,7 +663,7 @@ CREATE TABLE memories (
 hanimo의 프로바이더 레지스트리에서 **Ollama + OpenAI-compatible**만 유지:
 
 ```go
-// 택갈이코드용 프로바이더 (폐쇄망)
+// 택가이코드용 프로바이더 (폐쇄망)
 func init() {
     Register("ollama", NewOllama)        // 로컬 Ollama 서버
     Register("openai-compat", NewOpenAICompat)  // 사내 vLLM/TGI 서버

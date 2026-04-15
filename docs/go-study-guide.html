@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Go 핵심 학습자료 - Next.js 풀스택 개발자용</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root {
+    --black: #1a1a1a;
+    --dark: #2d2d2d;
+    --gray: #6b7280;
+    --light: #f3f4f6;
+    --white: #ffffff;
+    --accent: #2563eb;
+    --accent-light: #dbeafe;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --green: #059669;
+    --green-light: #ecfdf5;
+    --orange: #d97706;
+    --orange-light: #fffbeb;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans KR', -apple-system, sans-serif;
+    color: var(--black);
+    background: var(--white);
+    line-height: 1.7;
+    font-size: 14px;
+    max-width: 850px;
+    margin: 0 auto;
+    padding: 40px 50px;
+  }
+
+  @media print {
+    body { padding: 20px 30px; font-size: 12px; }
+    .page-break { page-break-before: always; }
+    .no-break { page-break-inside: avoid; }
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 40px 0 30px;
+    border-bottom: 3px solid var(--black);
+    margin-bottom: 30px;
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .header .subtitle {
+    font-size: 15px;
+    color: var(--gray);
+    font-weight: 400;
+  }
+  .header .badge {
+    display: inline-block;
+    background: var(--black);
+    color: var(--white);
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 12px;
+  }
+
+  /* TOC */
+  .toc {
+    background: var(--light);
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 24px 30px;
+    margin-bottom: 36px;
+  }
+  .toc h2 {
+    font-size: 16px;
+    margin-bottom: 12px;
+    color: var(--black);
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 30px;
+  }
+  .toc a {
+    color: var(--dark);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 2px 0;
+    display: block;
+  }
+  .toc a:hover { color: var(--accent); }
+  .toc .num { color: var(--accent); font-weight: 700; margin-right: 6px; }
+
+  /* Section */
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--black);
+    border-bottom: 2px solid var(--black);
+    padding-bottom: 8px;
+    margin: 36px 0 16px;
+  }
+  h2 .section-num {
+    display: inline-block;
+    background: var(--black);
+    color: var(--white);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 28px;
+    font-size: 14px;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--dark);
+    margin: 20px 0 10px;
+  }
+
+  p { margin: 8px 0; }
+
+  /* Comparison Table */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 13px;
+  }
+  .compare-table th {
+    background: var(--black);
+    color: var(--white);
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 500;
+  }
+  .compare-table td {
+    padding: 8px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+  }
+  .compare-table tr:nth-child(even) td { background: var(--light); }
+  .compare-table .arrow { color: var(--accent); font-weight: 700; text-align: center; }
+
+  /* Code */
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 10px 0 16px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--light);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12.5px;
+    color: var(--dark);
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+
+  /* Syntax colors in code */
+  .kw { color: #569cd6; }      /* keyword */
+  .fn { color: #dcdcaa; }      /* function */
+  .str { color: #ce9178; }     /* string */
+  .cm { color: #6a9955; }      /* comment */
+  .tp { color: #4ec9b0; }      /* type */
+  .num { color: #b5cea8; }     /* number */
+
+  /* Callout boxes */
+  .callout {
+    border-left: 4px solid;
+    padding: 12px 16px;
+    margin: 14px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+  }
+  .callout-key {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+  .callout-warn {
+    border-color: var(--orange);
+    background: var(--orange-light);
+  }
+  .callout-good {
+    border-color: var(--green);
+    background: var(--green-light);
+  }
+  .callout-bad {
+    border-color: var(--red);
+    background: var(--red-light);
+  }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  /* Highlight */
+  mark {
+    background: #fef08a;
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+  .accent { color: var(--accent); font-weight: 700; }
+
+  /* Side by side */
+  .side-by-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 10px 0;
+  }
+  .side-by-side .label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gray);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  /* Checklist */
+  .checklist {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0;
+  }
+  .checklist li {
+    padding: 6px 0 6px 28px;
+    position: relative;
+    font-size: 13px;
+  }
+  .checklist li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 8px;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--dark);
+    border-radius: 3px;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 2px solid var(--black);
+    text-align: center;
+    color: var(--gray);
+    font-size: 12px;
+  }
+
+  ul, ol { padding-left: 24px; margin: 8px 0; }
+  li { margin: 4px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>Go 핵심 학습자료</h1>
+  <div class="subtitle">Next.js 풀스택 개발자가 Go를 빠르게 익히기 위한 가이드</div>
+  <div class="badge">택가이코드(tgc) + hanimo 실제 코드 기반</div>
+</div>
+
+<!-- TOC -->
+<div class="toc no-break">
+  <h2>목차</h2>
+  <div class="toc-grid">
+    <a href="#s0"><span class="num">0</span> JS/TS vs Go 생태계 전체 그림</a>
+    <a href="#s1"><span class="num">1</span> 프로젝트 구조 비교</a>
+    <a href="#s2"><span class="num">2</span> 변수 & 타입</a>
+    <a href="#s3"><span class="num">3</span> 함수 & 에러 핸들링</a>
+    <a href="#s4"><span class="num">4</span> 구조체 메서드 (class 대신)</a>
+    <a href="#s5"><span class="num">5</span> 인터페이스 (암시적 충족)</a>
+    <a href="#s6"><span class="num">6</span> 고루틴 & 채널 (async/await)</a>
+    <a href="#s7"><span class="num">7</span> Context (타임아웃 & 취소)</a>
+    <a href="#s8"><span class="num">8</span> defer (정리 보장)</a>
+    <a href="#s9"><span class="num">9</span> 패키지 & import</a>
+    <a href="#s10"><span class="num">10</span> 빌드 & 배포</a>
+    <a href="#s11"><span class="num">11</span> Embed (파일 내장)</a>
+    <a href="#s12"><span class="num">12</span> Bubble Tea (Go판 React)</a>
+    <a href="#s13"><span class="num">13</span> 표준 라이브러리 & 명령어</a>
+    <a href="#s14"><span class="num">14</span> 흔한 실수 & 팁</a>
+    <a href="#s15"><span class="num">15</span> 전환 체크리스트</a>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SECTION 0 -->
+<!-- ============================================ -->
+<h2 id="s0"><span class="section-num">0</span> JS/TS vs Go 생태계 — 전체 그림</h2>
+
+<h3>언어 & 런타임</h3>
+<table class="compare-table no-break">
+  <tr><th style="width:45%">JS/TS 세계</th><th class="arrow" style="width:10%"></th><th style="width:45%">Go 세계</th></tr>
+  <tr><td>JavaScript (브라우저 태생)</td><td class="arrow">&rarr;</td><td>Go (서버/시스템 태생)</td></tr>
+  <tr><td>TypeScript (JS + 타입)</td><td class="arrow">&rarr;</td><td>Go는 <mark>처음부터 정적 타입</mark></td></tr>
+  <tr><td>Node.js (JS를 서버에서 실행)</td><td class="arrow">&rarr;</td><td>Go는 자체 런타임 내장 (별도 설치 불필요)</td></tr>
+  <tr><td>V8 엔진 (JIT 컴파일)</td><td class="arrow">&rarr;</td><td>Go 컴파일러 (AOT &rarr; 네이티브 바이너리)</td></tr>
+</table>
+
+<h3>웹 프레임워크 여정</h3>
+<table class="compare-table no-break">
+  <tr><th>JS/TS 여정</th><th class="arrow"></th><th>Go 대응</th></tr>
+  <tr><td>HTML/CSS/JS (순수 프론트)</td><td class="arrow">&rarr;</td><td>Go는 프론트엔드 없음 (서버/CLI 전문)</td></tr>
+  <tr><td>React (컴포넌트 UI)</td><td class="arrow">&rarr;</td><td><mark>Bubble Tea</mark> (터미널 TUI) &larr; 택가이코드</td></tr>
+  <tr><td>Express.js (백엔드 첫 입문)</td><td class="arrow">&rarr;</td><td><code>net/http</code> (표준 라이브러리) 또는 Gin, Echo, Fiber</td></tr>
+  <tr><td>Next.js (풀스택 = React+API)</td><td class="arrow">&rarr;</td><td>Go는 프론트/백 분리가 기본. 백엔드만 Go, 프론트는 Next.js</td></tr>
+</table>
+
+<div class="callout callout-key no-break">
+  <strong>핵심 차이</strong>
+  JS는 "프론트 &rarr; 백엔드로 확장"하는 여정이지만, Go는 처음부터 <strong>서버/CLI/인프라</strong> 전문. 프론트엔드는 안 한다.
+</div>
+
+<h3>개발 도구</h3>
+<table class="compare-table no-break">
+  <tr><th>JS/TS 도구</th><th class="arrow"></th><th>Go 대응</th></tr>
+  <tr><td>VS Code</td><td class="arrow">&rarr;</td><td><mark>VS Code (동일!)</mark> + Go 확장 설치. 또는 GoLand</td></tr>
+  <tr><td>ESLint</td><td class="arrow">&rarr;</td><td><code>go vet</code> (내장), golangci-lint (외부)</td></tr>
+  <tr><td>Prettier</td><td class="arrow">&rarr;</td><td><code>gofmt</code> (내장! 설정 불필요. 모든 Go 코드 동일 포맷)</td></tr>
+  <tr><td>Jest / Vitest</td><td class="arrow">&rarr;</td><td><code>go test</code> (내장! 외부 설치 불필요)</td></tr>
+  <tr><td>npm run build</td><td class="arrow">&rarr;</td><td><code>go build</code> (결과: 단일 바이너리)</td></tr>
+  <tr><td>npm run dev (핫리로드)</td><td class="arrow">&rarr;</td><td><code>air</code> (외부 도구, 파일 감시+재빌드)</td></tr>
+  <tr><td>Webpack / Vite</td><td class="arrow">&rarr;</td><td>불필요! 컴파일러가 알아서 함</td></tr>
+</table>
+
+<h3>패키지 관리</h3>
+<table class="compare-table no-break">
+  <tr><th>JS/TS</th><th class="arrow"></th><th>Go</th></tr>
+  <tr><td>npm / yarn / pnpm</td><td class="arrow">&rarr;</td><td><code>go mod</code> (내장)</td></tr>
+  <tr><td>package.json</td><td class="arrow">&rarr;</td><td><code>go.mod</code></td></tr>
+  <tr><td>package-lock.json</td><td class="arrow">&rarr;</td><td><code>go.sum</code></td></tr>
+  <tr><td>node_modules/ (수백MB)</td><td class="arrow">&rarr;</td><td><code>$GOPATH/pkg/mod/</code> (전역 캐시, 프로젝트별 복사 없음)</td></tr>
+  <tr><td>npm install</td><td class="arrow">&rarr;</td><td><code>go mod tidy</code></td></tr>
+  <tr><td>npmjs.com</td><td class="arrow">&rarr;</td><td>pkg.go.dev + GitHub (Git이 패키지 저장소)</td></tr>
+</table>
+
+<h3>배포 & 실행</h3>
+<table class="compare-table no-break">
+  <tr><th>JS/TS</th><th class="arrow"></th><th>Go</th></tr>
+  <tr><td>Node.js 설치 필요</td><td class="arrow">&rarr;</td><td><mark>아무것도 불필요</mark> (바이너리만 복사)</td></tr>
+  <tr><td>Docker (Node 이미지 ~1GB)</td><td class="arrow">&rarr;</td><td>Docker (scratch 이미지 ~20MB) 또는 바이너리만</td></tr>
+  <tr><td>PM2 (프로세스 관리)</td><td class="arrow">&rarr;</td><td>systemd, 또는 그냥 실행 (Go는 안 죽음)</td></tr>
+  <tr><td>.env / dotenv</td><td class="arrow">&rarr;</td><td>환경변수 직접 + YAML 설정</td></tr>
+</table>
+
+<h3>VS Code에서 Go 시작하기</h3>
+<pre><span class="cm"># 1. Go 설치</span>
+brew install go                    <span class="cm"># Mac</span>
+
+<span class="cm"># 2. VS Code 확장 설치</span>
+<span class="cm"># Extensions → "Go" 검색 → Go Team at Google 설치</span>
+
+<span class="cm"># 3. Go 도구 설치</span>
+<span class="cm"># Cmd+Shift+P → "Go: Install/Update Tools" → 전체 선택</span>
+
+<span class="cm"># 4. 프로젝트 시작</span>
+mkdir myproject && cd myproject
+go mod init myproject              <span class="cm"># npm init</span>
+code .                             <span class="cm"># VS Code 열기</span></pre>
+
+<div class="callout callout-good no-break">
+  <strong>VS Code Go 확장이 해주는 것</strong>
+  자동완성 (TS 수준) &middot; F12 정의 이동 &middot; 에러 실시간 표시 &middot; 저장 시 자동 포맷 + import 정리 &middot; F5 디버거 &middot; 함수 위 "run test" 버튼
+</div>
+
+<h3>왜 Go를 쓰나?</h3>
+<table class="compare-table no-break">
+  <tr><th>JS/TS의 불편함</th><th>Go에서 해결</th></tr>
+  <tr><td>node_modules 지옥</td><td>의존성 최소, 표준 라이브러리 풍부</td></tr>
+  <tr><td>"works on my machine"</td><td>단일 바이너리, 어디서든 실행</td></tr>
+  <tr><td>콜백/Promise 지옥</td><td>goroutine으로 동시성 쉽게</td></tr>
+  <tr><td>런타임 타입 에러</td><td>컴파일 타임에 다 잡힘</td></tr>
+  <tr><td>빌드 도구 설정 지옥</td><td><code>go build</code> 하나면 끝</td></tr>
+  <tr><td>서버 메모리 1GB+</td><td>Go 서버 50MB로 동일 트래픽</td></tr>
+</table>
+
+<div class="callout callout-warn no-break">
+  <strong>Go가 약한 것</strong>
+  프론트엔드 (React/Next.js 압도적) &middot; 빠른 프로토타이핑 (JS가 빠름) &middot; 제네릭 (TS만큼 유연하지 않음) &middot; 에러 핸들링 반복 (<code>if err != nil</code> 지옥)
+</div>
+
+<!-- ============================================ -->
+<div class="page-break"></div>
+<h2 id="s1"><span class="section-num">1</span> 프로젝트 구조 비교</h2>
+
+<div class="side-by-side no-break">
+  <div>
+    <div class="label">Next.js (익숙한 것)</div>
+    <pre>app/
+  layout.tsx          <span class="cm">&larr; 전역 레이아웃</span>
+  page.tsx            <span class="cm">&larr; 메인 페이지</span>
+  api/analyze/route.ts <span class="cm">&larr; API Route</span>
+components/
+  Header.tsx
+lib/
+  utils.ts</pre>
+  </div>
+  <div>
+    <div class="label">Go (택가이코드)</div>
+    <pre>cmd/tgc/main.go      <span class="cm">&larr; 진입점</span>
+internal/
+  app/app.go         <span class="cm">&larr; 앱 상태머신</span>
+  ui/                <span class="cm">&larr; 컴포넌트들</span>
+    chat.go styles.go super.go
+  llm/               <span class="cm">&larr; API 클라이언트</span>
+    client.go models.go prompt.go
+  config/config.go   <span class="cm">&larr; 설정</span>
+  tools/             <span class="cm">&larr; 도구 실행</span></pre>
+  </div>
+</div>
+
+<div class="callout callout-key no-break">
+  <strong>internal/ 폴더</strong>
+  Go 컨벤션: 외부 패키지에서 import 불가. 내부 전용 코드를 강제하는 Go만의 접근 제어 방법.
+</div>
+
+<!-- ============================================ -->
+<h2 id="s2"><span class="section-num">2</span> 변수 & 타입</h2>
+
+<div class="side-by-side no-break">
+  <div>
+    <div class="label">TypeScript</div>
+    <pre><span class="kw">const</span> name: <span class="tp">string</span> = <span class="str">"techai"</span>
+<span class="kw">let</span> count: <span class="tp">number</span> = <span class="num">0</span>
+<span class="kw">const</span> user: <span class="tp">User</span> = { name: <span class="str">"kim"</span> }
+<span class="kw">type</span> <span class="tp">Role</span> = <span class="str">"user"</span> | <span class="str">"assistant"</span></pre>
+  </div>
+  <div>
+    <div class="label">Go</div>
+    <pre>name := <span class="str">"techai"</span>       <span class="cm">// 타입 자동 추론</span>
+count := <span class="num">0</span>              <span class="cm">// int</span>
+<span class="kw">var</span> count <span class="tp">int</span>            <span class="cm">// 0으로 초기화</span>
+user := <span class="tp">User</span>{Name: <span class="str">"kim"</span>}</pre>
+  </div>
+</div>
+
+<h3>구조체 = TypeScript의 interface/type</h3>
+<pre><span class="kw">type</span> <span class="tp">User</span> <span class="kw">struct</span> {
+    Name <span class="tp">string</span>   <span class="cm">// 대문자 = export (public)</span>
+    age  <span class="tp">int</span>      <span class="cm">// 소문자 = unexported (private)</span>
+}</pre>
+
+<h3>enum = iota 패턴 <span style="font-weight:normal; font-size:12px; color:var(--gray)">(택가이코드 ui/chat.go)</span></h3>
+<pre><span class="kw">type</span> <span class="tp">Role</span> <span class="tp">int</span>
+<span class="kw">const</span> (
+    <span class="tp">RoleUser</span>      <span class="tp">Role</span> = <span class="kw">iota</span>  <span class="cm">// 0</span>
+    <span class="tp">RoleAssistant</span>              <span class="cm">// 1 (자동 증가)</span>
+    <span class="tp">RoleSystem</span>                 <span class="cm">// 2</span>
+    <span class="tp">RoleTool</span>                   <span class="cm">// 3</span>
+)</pre>
+
+<div class="callout callout-key no-break">
+  <strong>대문자/소문자 = export 규칙 (가장 중요!)</strong>
+  <code>PublicFunc()</code> &rarr; 외부 접근 가능 &nbsp;&nbsp; <code>privateFunc()</code> &rarr; 같은 패키지만
+</div>
+
+<!-- ============================================ -->
+<h2 id="s3"><span class="section-num">3</span> 함수 & 에러 핸들링</h2>
+
+<div class="side-by-side no-break">
+  <div>
+    <div class="label">TypeScript (try/catch)</div>
+    <pre><span class="kw">function</span> <span class="fn">divide</span>(a, b) {
+  <span class="kw">if</span> (b === <span class="num">0</span>)
+    <span class="kw">throw new</span> <span class="tp">Error</span>(<span class="str">"zero"</span>)
+  <span class="kw">return</span> a / b
+}
+<span class="kw">try</span> {
+  <span class="kw">const</span> r = <span class="fn">divide</span>(<span class="num">10</span>, <span class="num">0</span>)
+} <span class="kw">catch</span>(e) {
+  console.<span class="fn">error</span>(e)
+}</pre>
+  </div>
+  <div>
+    <div class="label">Go (에러를 리턴값으로!)</div>
+    <pre><span class="kw">func</span> <span class="fn">divide</span>(a, b <span class="tp">int</span>) (<span class="tp">int</span>, <span class="tp">error</span>) {
+    <span class="kw">if</span> b == <span class="num">0</span> {
+        <span class="kw">return</span> <span class="num">0</span>, fmt.<span class="fn">Errorf</span>(<span class="str">"zero"</span>)
+    }
+    <span class="kw">return</span> a / b, <span class="kw">nil</span>
+}
+
+result, err := <span class="fn">divide</span>(<span class="num">10</span>, <span class="num">0</span>)
+<span class="kw">if</span> err != <span class="kw">nil</span> {
+    log.<span class="fn">Fatal</span>(err)
+}</pre>
+  </div>
+</div>
+
+<div class="callout callout-warn no-break">
+  <strong>Go의 철학: try/catch 없음!</strong>
+  에러는 항상 리턴값으로 전달. 매번 <code>if err != nil</code>로 체크. 번거롭지만 에러를 절대 무시할 수 없게 강제한다.
+</div>
+
+<h3>택가이코드 실제 예시 (config.go)</h3>
+<pre><span class="kw">func</span> <span class="fn">Load</span>() (<span class="tp">Config</span>, <span class="tp">error</span>) {
+    cfg := <span class="fn">DefaultConfig</span>()
+    data, err := os.<span class="fn">ReadFile</span>(<span class="fn">ConfigPath</span>())
+    <span class="kw">if</span> err == <span class="kw">nil</span> {
+        <span class="kw">if</span> err := yaml.<span class="fn">Unmarshal</span>(data, &cfg); err != <span class="kw">nil</span> {
+            <span class="kw">return</span> cfg, fmt.<span class="fn">Errorf</span>(<span class="str">"parse error: %w"</span>, err) <span class="cm">// %w = 에러 래핑</span>
+        }
+    }
+    <span class="kw">return</span> cfg, <span class="kw">nil</span>
+}</pre>
+
+<!-- ============================================ -->
+<div class="page-break"></div>
+<h2 id="s4"><span class="section-num">4</span> 구조체 메서드 — class 대신</h2>
+
+<div class="side-by-side no-break">
+  <div>
+    <div class="label">TypeScript (class)</div>
+    <pre><span class="kw">class</span> <span class="tp">Client</span> {
+  <span class="kw">private</span> baseURL: <span class="tp">string</span>
+  <span class="kw">constructor</span>(url) {
+    <span class="kw">this</span>.baseURL = url
+  }
+  <span class="kw">async</span> <span class="fn">chat</span>(msg) { ... }
+}</pre>
+  </div>
+  <div>
+    <div class="label">Go (struct + 메서드)</div>
+    <pre><span class="kw">type</span> <span class="tp">Client</span> <span class="kw">struct</span> {
+    baseURL <span class="tp">string</span>
+    apiKey  <span class="tp">string</span>
+}
+<span class="cm">// 생성자 (New 접두사 관례)</span>
+<span class="kw">func</span> <span class="fn">NewClient</span>(url, key <span class="tp">string</span>) *<span class="tp">Client</span> {
+    <span class="kw">return</span> &<span class="tp">Client</span>{url, key}
+}</pre>
+  </div>
+</div>
+
+<pre><span class="cm">// 메서드 = 함수 앞에 리시버 붙임</span>
+<span class="kw">func</span> (c *<span class="tp">Client</span>) <span class="fn">StreamChat</span>(ctx <span class="tp">context.Context</span>, model <span class="tp">string</span>) <-<span class="kw">chan</span> <span class="tp">StreamChunk</span> {
+    <span class="cm">// c.baseURL, c.apiKey 접근 가능</span>
+}</pre>
+
+<div class="callout callout-key no-break">
+  <strong>포인터 리시버 vs 값 리시버</strong>
+  <code>func (m *Model) update()</code> &rarr; 원본 수정 가능 (레퍼런스)<br>
+  <code>func (m Model) View()</code> &rarr; 복사본에서 동작 (이뮤터블)
+</div>
+
+<!-- ============================================ -->
+<h2 id="s5"><span class="section-num">5</span> 인터페이스 — 암시적 충족</h2>
+
+<div class="side-by-side no-break">
+  <div>
+    <div class="label">TypeScript (명시적)</div>
+    <pre><span class="kw">interface</span> <span class="tp">Animal</span> {
+  <span class="fn">speak</span>(): <span class="tp">string</span>
+}
+<span class="kw">class</span> <span class="tp">Dog</span> <mark><span class="kw">implements</span> <span class="tp">Animal</span></mark> {
+  <span class="fn">speak</span>() { <span class="kw">return</span> <span class="str">"멍멍"</span> }
+}</pre>
+  </div>
+  <div>
+    <div class="label">Go (Duck Typing)</div>
+    <pre><span class="kw">type</span> <span class="tp">Animal</span> <span class="kw">interface</span> {
+    <span class="fn">Speak</span>() <span class="tp">string</span>
+}
+<span class="kw">type</span> <span class="tp">Dog</span> <span class="kw">struct</span>{}
+<span class="kw">func</span> (d <span class="tp">Dog</span>) <span class="fn">Speak</span>() <span class="tp">string</span> {
+    <span class="kw">return</span> <span class="str">"멍멍"</span>
+}
+<span class="cm">// implements 없이 자동 충족!</span></pre>
+  </div>
+</div>
+
+<div class="callout callout-key no-break">
+  <strong>Bubble Tea 인터페이스 (택가이코드 핵심)</strong>
+  <code>Init()</code>, <code>Update()</code>, <code>View()</code> 3개 메서드만 구현하면 <code>tea.Model</code> 자동 충족. implements 키워드 없음.
+</div>
+
+<!-- ============================================ -->
+<h2 id="s6"><span class="section-num">6</span> 고루틴 & 채널 — async/await 대신</h2>
+
+<table class="compare-table no-break">
+  <tr><th>TypeScript</th><th class="arrow"></th><th>Go</th></tr>
+  <tr><td><code>Promise</code></td><td class="arrow">&rarr;</td><td><code>channel</code></td></tr>
+  <tr><td><code>await promise</code></td><td class="arrow">&rarr;</td><td><code>&lt;-channel</code> (채널에서 값 꺼내기)</td></tr>
+  <tr><td><code>async function</code></td><td class="arrow">&rarr;</td><td><code>go func() { }</code></td></tr>
+  <tr><td><code>Promise.all()</code></td><td class="arrow">&rarr;</td><td><code>sync.WaitGroup</code></td></tr>
+</table>
+
+<h3>택가이코드 실제 패턴: LLM 스트리밍</h3>
+<pre><span class="kw">func</span> (c *<span class="tp">Client</span>) <span class="fn">StreamChat</span>(ctx <span class="tp">context.Context</span>, ...) <span class="kw"><-chan</span> <span class="tp">StreamChunk</span> {
+    ch := <span class="fn">make</span>(<span class="kw">chan</span> <span class="tp">StreamChunk</span>)  <span class="cm">// 채널 생성 (파이프)</span>
+    <span class="kw">go func</span>() {                   <span class="cm">// 별도 goroutine에서 실행</span>
+        <span class="kw">defer</span> <span class="fn">close</span>(ch)             <span class="cm">// 함수 끝날 때 채널 닫기</span>
+        <span class="kw">for</span> {
+            resp, err := stream.<span class="fn">Recv</span>()
+            <span class="kw">if</span> errors.<span class="fn">Is</span>(err, io.EOF) {
+                ch <- <span class="tp">StreamChunk</span>{Done: <span class="kw">true</span>}
+                <span class="kw">return</span>
+            }
+            ch <- <span class="tp">StreamChunk</span>{Content: delta}  <span class="cm">// 실시간 전송</span>
+        }
+    }()
+    <span class="kw">return</span> ch
+}
+
+<span class="cm">// 사용 측 (app.go)</span>
+chunk := <-m.streamCh  <span class="cm">// &larr; 이게 await 같은 것</span></pre>
+
+<!-- ============================================ -->
+<h2 id="s7"><span class="section-num">7</span> Context — 타임아웃 & 취소</h2>
+
+<pre><span class="cm">// 30초 타임아웃으로 쉘 명령 실행 (tools/shell.go)</span>
+ctx, cancel := context.<span class="fn">WithTimeout</span>(context.<span class="fn">Background</span>(), <span class="num">30</span>*time.Second)
+<span class="kw">defer</span> <span class="fn">cancel</span>()  <span class="cm">// 반드시 취소 (리소스 정리)</span>
+
+result, err := exec.<span class="fn">CommandContext</span>(ctx, <span class="str">"sh"</span>, <span class="str">"-c"</span>, command).<span class="fn">Output</span>()
+
+<span class="cm">// 스트리밍 취소 (사용자가 Ctrl+C 누를 때)</span>
+ctx, cancel := context.<span class="fn">WithCancel</span>(context.<span class="fn">Background</span>())
+m.streamCancel = cancel     <span class="cm">// 저장</span>
+m.<span class="fn">streamCancel</span>()            <span class="cm">// 호출하면 goroutine 즉시 중단</span></pre>
+
+<div class="callout callout-key no-break">
+  <strong>비유</strong> fetch의 <code>AbortController</code> 같은 것. 근데 Go에서는 <strong>모든 곳</strong>에서 사용한다.
+</div>
+
+<!-- ============================================ -->
+<h2 id="s8"><span class="section-num">8</span> defer — 정리 코드 보장</h2>
+
+<pre><span class="kw">func</span> <span class="fn">processFile</span>(path <span class="tp">string</span>) <span class="tp">error</span> {
+    f, err := os.<span class="fn">Open</span>(path)
+    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }
+    <span class="kw">defer</span> f.<span class="fn">Close</span>()  <span class="cm">// &larr; 이 함수가 어떻게 끝나든 Close() 실행됨!</span>
+    data, err := io.<span class="fn">ReadAll</span>(f)
+    <span class="cm">// ...</span>
+}
+
+<span class="cm">// 택가이코드: 뮤텍스 잠금/해제</span>
+debugMu.<span class="fn">Lock</span>()
+<span class="kw">defer</span> debugMu.<span class="fn">Unlock</span>()  <span class="cm">// Lock &rarr; 작업 &rarr; 자동 Unlock</span></pre>
+
+<div class="callout callout-good no-break">
+  <strong>TypeScript의 finally를 자동화한 것.</strong> 파일 닫기, 뮤텍스 해제, 커넥션 반환 등 정리 코드를 "열 때" 바로 등록.
+</div>
+
+<!-- ============================================ -->
+<div class="page-break"></div>
+<h2 id="s9"><span class="section-num">9</span> 패키지 & import</h2>
+
+<pre><span class="cm">// go.mod (= package.json)</span>
+<span class="kw">module</span> github.com/kimjiwon/tgc
+<span class="kw">go</span> <span class="num">1.23</span>
+<span class="kw">require</span> (
+    charm.land/bubbletea/v2 v2.0.0
+    github.com/sashabaranov/go-openai v1.38.1
+)
+
+<span class="cm">// import 패턴</span>
+<span class="kw">import</span> (
+    <span class="str">"fmt"</span>              <span class="cm">// 표준 라이브러리</span>
+    <span class="str">"os"</span>               <span class="cm">// 표준 라이브러리</span>
+
+    <span class="str">"gopkg.in/yaml.v3"</span> <span class="cm">// 외부 패키지</span>
+
+    <span class="str">"github.com/kimjiwon/tgc/internal/config"</span> <span class="cm">// 내부 패키지</span>
+)</pre>
+
+<!-- ============================================ -->
+<h2 id="s10"><span class="section-num">10</span> 빌드 & 배포 — 가장 큰 장점</h2>
+
+<pre><span class="cm"># 16MB 단일 실행파일. 끝. 런타임 불필요!</span>
+go build -o techai ./cmd/tgc
+
+<span class="cm"># 크로스 컴파일 (GOOS/GOARCH만 바꾸면 됨)</span>
+GOOS=windows GOARCH=amd64 go build -o techai.exe ./cmd/tgc
+GOOS=linux   GOARCH=arm64 go build -o techai-linux ./cmd/tgc
+GOOS=darwin  GOARCH=arm64 go build -o techai-mac ./cmd/tgc</pre>
+
+<h3>ldflags — 빌드 시 변수 주입</h3>
+<pre><span class="cm"># .env 없이 바이너리에 설정을 구움</span>
+go build -ldflags <span class="str">"-X 'config.DefaultModel=google/gemma-4-31b-it'"</span> -o techai ./cmd/tgc</pre>
+
+<!-- ============================================ -->
+<h2 id="s11"><span class="section-num">11</span> Embed — 파일을 바이너리에 내장</h2>
+
+<pre><span class="cm">//go:embed knowledge/**/*.md knowledge/index.json</span>
+<span class="kw">var</span> KnowledgeFS embed.<span class="tp">FS</span>
+
+<span class="cm">// 사용: 파일시스템처럼 접근</span>
+data, err := KnowledgeFS.<span class="fn">ReadFile</span>(<span class="str">"knowledge/index.json"</span>)</pre>
+
+<div class="callout callout-good no-break">
+  <strong>Next.js의 public/ 폴더와 비슷하지만, 파일이 바이너리 안에 들어간다.</strong>
+  techai 바이너리 하나만 배포하면 docs까지 전부 포함.
+</div>
+
+<!-- ============================================ -->
+<h2 id="s12"><span class="section-num">12</span> Bubble Tea — Go판 React</h2>
+
+<table class="compare-table no-break">
+  <tr><th>React</th><th class="arrow"></th><th>Bubble Tea</th></tr>
+  <tr><td><code>useState / useReducer</code></td><td class="arrow">&rarr;</td><td><code>Model struct</code></td></tr>
+  <tr><td><code>dispatch(action)</code></td><td class="arrow">&rarr;</td><td><code>Update(msg) &rarr; (Model, Cmd)</code></td></tr>
+  <tr><td><code>return &lt;JSX /&gt;</code></td><td class="arrow">&rarr;</td><td><code>View() &rarr; string</code></td></tr>
+  <tr><td><code>useEffect</code></td><td class="arrow">&rarr;</td><td><code>Cmd</code> (사이드 이펙트)</td></tr>
+  <tr><td><code>props</code></td><td class="arrow">&rarr;</td><td><code>Msg</code> (메시지)</td></tr>
+</table>
+
+<pre><span class="cm">// 1. 상태 (React의 state)</span>
+<span class="kw">type</span> <span class="tp">Model</span> <span class="kw">struct</span> {
+    msgs      []ui.<span class="tp">Message</span>
+    streaming <span class="tp">bool</span>
+    activeTab <span class="tp">int</span>
+}
+
+<span class="cm">// 2. 업데이트 (React의 reducer)</span>
+<span class="kw">func</span> (m <span class="tp">Model</span>) <span class="fn">Update</span>(msg tea.<span class="tp">Msg</span>) (tea.<span class="tp">Model</span>, tea.<span class="tp">Cmd</span>) {
+    <span class="kw">switch</span> msg := msg.(<span class="kw">type</span>) {
+    <span class="kw">case</span> tea.<span class="tp">KeyPressMsg</span>:
+        <span class="kw">switch</span> msg.<span class="fn">String</span>() {
+        <span class="kw">case</span> <span class="str">"enter"</span>:    <span class="cm">// 메시지 전송</span>
+        <span class="kw">case</span> <span class="str">"tab"</span>:      m.activeTab = (m.activeTab + <span class="num">1</span>) % <span class="num">3</span>
+        <span class="kw">case</span> <span class="str">"ctrl+c"</span>:   <span class="kw">return</span> m, tea.Quit
+        }
+    <span class="kw">case</span> <span class="tp">streamChunkMsg</span>:  <span class="cm">// 커스텀 메시지 (LLM 스트림)</span>
+        m.streamBuf += msg.content
+    }
+    <span class="kw">return</span> m, <span class="kw">nil</span>
+}
+
+<span class="cm">// 3. 렌더링 (React의 render)</span>
+<span class="kw">func</span> (m <span class="tp">Model</span>) <span class="fn">View</span>() tea.<span class="tp">View</span> { <span class="cm">/* 문자열로 UI 구성 */</span> }</pre>
+
+<!-- ============================================ -->
+<div class="page-break"></div>
+<h2 id="s13"><span class="section-num">13</span> 표준 라이브러리 & 명령어</h2>
+
+<table class="compare-table no-break">
+  <tr><th>Go 패키지</th><th>용도</th><th>Next.js 대응</th></tr>
+  <tr><td><code>fmt</code></td><td>포맷 출력</td><td><code>console.log</code></td></tr>
+  <tr><td><code>os</code></td><td>파일/환경변수</td><td><code>fs</code>, <code>process.env</code></td></tr>
+  <tr><td><code>strings</code></td><td>문자열 조작</td><td><code>String.prototype</code></td></tr>
+  <tr><td><code>encoding/json</code></td><td>JSON 파싱</td><td><code>JSON.parse/stringify</code></td></tr>
+  <tr><td><code>net/http</code></td><td>HTTP 서버/클라</td><td><code>fetch</code>, Express</td></tr>
+  <tr><td><code>context</code></td><td>취소/타임아웃</td><td><code>AbortController</code></td></tr>
+  <tr><td><code>sync</code></td><td>동시성</td><td>없음 (싱글스레드)</td></tr>
+  <tr><td><code>embed</code></td><td>파일 내장</td><td><code>public/</code> 폴더</td></tr>
+</table>
+
+<h3>매일 쓰는 명령어</h3>
+<pre><span class="cm"># 프로젝트</span>
+go mod init myproject     <span class="cm"># npm init</span>
+go mod tidy               <span class="cm"># 미사용 의존성 정리</span>
+go get pkg@v1.2.3         <span class="cm"># npm install package</span>
+
+<span class="cm"># 빌드 & 실행</span>
+go build ./cmd/tgc        <span class="cm"># npm run build</span>
+go run ./cmd/tgc          <span class="cm"># npm run dev</span>
+go install ./cmd/tgc      <span class="cm"># npm install -g</span>
+
+<span class="cm"># 테스트</span>
+go test ./...             <span class="cm"># npm test (전체)</span>
+go test -v -run TestName  <span class="cm"># 특정 테스트만</span>
+
+<span class="cm"># 코드 품질</span>
+go vet ./...              <span class="cm"># eslint</span>
+go fmt ./...              <span class="cm"># prettier</span></pre>
+
+<!-- ============================================ -->
+<h2 id="s14"><span class="section-num">14</span> 흔한 실수 & 팁</h2>
+
+<div class="callout callout-bad no-break">
+  <strong>1. 중괄호 위치 고정 (줄 바꿈 불가!)</strong>
+  <pre style="background:transparent;color:var(--red);padding:4px 0;margin:4px 0">// 컴파일 에러!
+if true
+{
+}</pre>
+  <pre style="background:transparent;color:var(--green);padding:4px 0;margin:4px 0">// 올바름
+if true {
+}</pre>
+</div>
+
+<div class="callout callout-bad no-break">
+  <strong>2. 미사용 변수/import = 컴파일 에러</strong>
+  <code>import "fmt"</code> 해놓고 안 쓰면 에러! &nbsp; <code>_ = x</code>로 의도적 무시.
+</div>
+
+<div class="no-break">
+<h3>슬라이스 (배열)</h3>
+<pre>arr := []<span class="tp">string</span>{<span class="str">"a"</span>, <span class="str">"b"</span>, <span class="str">"c"</span>}   <span class="cm">// 생성</span>
+arr = <span class="fn">append</span>(arr, <span class="str">"d"</span>)             <span class="cm">// push</span>
+<span class="fn">len</span>(arr)                            <span class="cm">// .length</span>
+arr[<span class="num">1</span>:<span class="num">3</span>]                             <span class="cm">// .slice(1, 3)</span>
+
+<span class="kw">for</span> i, item := <span class="kw">range</span> arr {          <span class="cm">// forEach with index</span>
+    fmt.<span class="fn">Println</span>(i, item)
+}</pre>
+</div>
+
+<div class="no-break">
+<h3>map (객체)</h3>
+<pre>m := <span class="kw">map</span>[<span class="tp">string</span>]<span class="tp">int</span>{}              <span class="cm">// Record&lt;string, number&gt;</span>
+m[<span class="str">"key"</span>] = <span class="num">42</span>                      <span class="cm">// 값 설정</span>
+val, ok := m[<span class="str">"key"</span>]                <span class="cm">// 값 읽기 (ok = 존재 여부)</span>
+<span class="fn">delete</span>(m, <span class="str">"key"</span>)                   <span class="cm">// 삭제</span></pre>
+</div>
+
+<!-- ============================================ -->
+<h2 id="s15"><span class="section-num">15</span> 전환 체크리스트</h2>
+
+<ul class="checklist">
+  <li><strong>에러 = 리턴값</strong> &mdash; try/catch 없음, <code>if err != nil</code> 반복</li>
+  <li><strong>대문자 = public</strong> &mdash; export 키워드 없음</li>
+  <li><strong>goroutine + channel</strong> = async/await</li>
+  <li><strong>context</strong> = 취소/타임아웃 전파</li>
+  <li><strong>defer</strong> = finally 자동화</li>
+  <li><strong>interface</strong> = 암시적 충족 (implements 없음)</li>
+  <li><strong>단일 바이너리</strong> 배포 (런타임 불필요)</li>
+  <li><strong><code>go build</code>로 크로스 컴파일</strong> (GOOS/GOARCH)</li>
+  <li><strong>미사용 = 컴파일 에러</strong> (깔끔한 코드 강제)</li>
+</ul>
+
+<!-- FOOTER -->
+<div class="footer">
+  <p>Go 핵심 학습자료 &mdash; 택가이코드(tgc) + hanimo 실제 코드 기반</p>
+  <p style="margin-top:4px">Next.js 풀스택 개발자를 위한 Go 전환 가이드 &middot; 2026</p>
+</div>
+
+</body>
+</html>

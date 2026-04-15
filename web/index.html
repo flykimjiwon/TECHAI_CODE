@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>택가이 컴패니언</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/vendor/highlight-dark.min.css" onerror="this.remove()">
+  <link rel="stylesheet" href="/vendor/diff2html.min.css" onerror="this.remove()">
+</head>
+<body>
+  <!-- Header -->
+  <header id="header">
+    <div class="header-left">
+      <span class="logo">택가이</span>
+      <span class="logo-sub">컴패니언</span>
+      <span id="status-indicator" class="status-dot disconnected" title="연결 중..."></span>
+    </div>
+    <div class="header-right">
+      <span id="mode-badge" class="mode-badge mode-0">Code</span>
+      <span id="auto-badge" class="auto-badge hidden">AUTO</span>
+      <span id="session-badge" class="session-badge"></span>
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <main id="main">
+    <!-- Chat panel (left) -->
+    <section class="panel chat-panel" id="chat-panel">
+      <div class="panel-header">Chat</div>
+      <div class="panel-body" id="chat-body"></div>
+    </section>
+
+    <!-- Right column -->
+    <div class="right-column">
+      <!-- Plan / Stream panel (right top) -->
+      <section class="panel plan-panel" id="plan-panel">
+        <div class="panel-header">Stream</div>
+        <div class="panel-body" id="plan-body"></div>
+      </section>
+
+      <!-- Tools panel (right bottom) -->
+      <section class="panel tools-panel" id="tools-panel">
+        <div class="panel-header">Tools <span id="tool-count" class="tool-count">0</span></div>
+        <div class="panel-body" id="tools-body"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/vendor/highlight.min.js" onerror=""></script>
+  <script src="/vendor/mermaid.min.js" onerror=""></script>
+  <script src="/vendor/diff2html.min.js" onerror=""></script>
+  <script src="/app.js"></script>
+</body>
+</html>

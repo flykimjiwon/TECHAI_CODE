@@ -1,6 +1,16 @@
 {
   "documents": [
     {
+      "path": "knowledge/docs/auth/nextauth.md",
+      "title": "Auth.js v5 (NextAuth) Reference",
+      "tier": 2,
+      "keywords": [
+        "auth",
+        "nextauth"
+      ],
+      "tokens": 1694
+    },
+    {
       "path": "knowledge/docs/bxm/batch.md",
       "title": "배치 처리 패턴",
       "tier": 0,
@@ -177,6 +187,30 @@
       "tokens": 720
     },
     {
+      "path": "knowledge/docs/css/framer-motion.md",
+      "title": "Framer Motion Reference",
+      "tier": 1,
+      "keywords": [
+        "css",
+        "framer-motion",
+        "framer",
+        "motion"
+      ],
+      "tokens": 1435
+    },
+    {
+      "path": "knowledge/docs/css/radix-ui.md",
+      "title": "Radix UI Primitives Reference",
+      "tier": 1,
+      "keywords": [
+        "css",
+        "radix-ui",
+        "radix",
+        "ui"
+      ],
+      "tokens": 1676
+    },
+    {
       "path": "knowledge/docs/css/shadcn-ui.md",
       "title": "shadcn/ui Components Reference",
       "tier": 1,
@@ -189,6 +223,19 @@
       "tokens": 828
     },
     {
+      "path": "knowledge/docs/css/tailwind-v4-advanced.md",
+      "title": "Tailwind CSS v4 Advanced Features",
+      "tier": 1,
+      "keywords": [
+        "css",
+        "tailwind-v4-advanced",
+        "tailwind",
+        "v4",
+        "advanced"
+      ],
+      "tokens": 1110
+    },
+    {
       "path": "knowledge/docs/css/tailwind-v4.md",
       "title": "Tailwind CSS v4 Reference",
       "tier": 1,
@@ -199,6 +246,36 @@
         "v4"
       ],
       "tokens": 492
+    },
+    {
+      "path": "knowledge/docs/database/drizzle.md",
+      "title": "Drizzle ORM Reference",
+      "tier": 2,
+      "keywords": [
+        "database",
+        "drizzle"
+      ],
+      "tokens": 1474
+    },
+    {
+      "path": "knowledge/docs/database/prisma.md",
+      "title": "Prisma ORM Reference",
+      "tier": 2,
+      "keywords": [
+        "database",
+        "prisma"
+      ],
+      "tokens": 1379
+    },
+    {
+      "path": "knowledge/docs/database/supabase.md",
+      "title": "Supabase JS Client Reference",
+      "tier": 2,
+      "keywords": [
+        "database",
+        "supabase"
+      ],
+      "tokens": 1546
     },
     {
       "path": "knowledge/docs/go/stdlib.md",
@@ -251,6 +328,18 @@
       "tokens": 621
     },
     {
+      "path": "knowledge/docs/react/nextjs-advanced.md",
+      "title": "Next.js 15 Advanced Reference",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "nextjs-advanced",
+        "nextjs",
+        "advanced"
+      ],
+      "tokens": 1916
+    },
+    {
       "path": "knowledge/docs/react/nextjs.md",
       "title": "Next.js 15 App Router Reference",
       "tier": 1,
@@ -261,6 +350,62 @@
       "tokens": 904
     },
     {
+      "path": "knowledge/docs/react/react-hook-form.md",
+      "title": "React Hook Form Reference",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "react-hook-form",
+        "hook",
+        "form"
+      ],
+      "tokens": 1416
+    },
+    {
+      "path": "knowledge/docs/react/react19.md",
+      "title": "React 19 New Features Reference",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "react19"
+      ],
+      "tokens": 1486
+    },
+    {
+      "path": "knowledge/docs/react/tanstack-query.md",
+      "title": "TanStack Query v5 Reference",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "tanstack-query",
+        "tanstack",
+        "query"
+      ],
+      "tokens": 1302
+    },
+    {
+      "path": "knowledge/docs/react/zustand.md",
+      "title": "Zustand State Management Reference",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "zustand"
+      ],
+      "tokens": 1198
+    },
+    {
+      "path": "knowledge/docs/terminal/cross-platform.md",
+      "title": "크로스 플랫폼 명령어 매핑",
+      "tier": 1,
+      "keywords": [
+        "terminal",
+        "cross-platform",
+        "cross",
+        "platform"
+      ],
+      "tokens": 2461
+    },
+    {
       "path": "knowledge/docs/terminal/git.md",
       "title": "Git Commands Reference",
       "tier": 1,
@@ -269,6 +414,18 @@
         "git"
       ],
       "tokens": 1357
+    },
+    {
+      "path": "knowledge/docs/terminal/linux-dev.md",
+      "title": "Linux 개발 환경 Reference",
+      "tier": 1,
+      "keywords": [
+        "terminal",
+        "linux-dev",
+        "linux",
+        "dev"
+      ],
+      "tokens": 3041
     },
     {
       "path": "knowledge/docs/terminal/linux.md",
@@ -282,6 +439,18 @@
       "tokens": 820
     },
     {
+      "path": "knowledge/docs/terminal/macos-dev.md",
+      "title": "macOS 개발 환경 Reference",
+      "tier": 1,
+      "keywords": [
+        "terminal",
+        "macos-dev",
+        "macos",
+        "dev"
+      ],
+      "tokens": 3118
+    },
+    {
       "path": "knowledge/docs/terminal/macos.md",
       "title": "macOS Terminal Reference",
       "tier": 1,
@@ -291,6 +460,18 @@
         "macos"
       ],
       "tokens": 681
+    },
+    {
+      "path": "knowledge/docs/terminal/windows-dev.md",
+      "title": "Windows 개발 환경 Reference",
+      "tier": 1,
+      "keywords": [
+        "terminal",
+        "windows-dev",
+        "windows",
+        "dev"
+      ],
+      "tokens": 2343
     },
     {
       "path": "knowledge/docs/terminal/windows.md",
@@ -304,6 +485,69 @@
       "tokens": 584
     },
     {
+      "path": "knowledge/docs/testing/playwright.md",
+      "title": "Playwright E2E Testing Reference",
+      "tier": 2,
+      "keywords": [
+        "testing",
+        "playwright"
+      ],
+      "tokens": 1740
+    },
+    {
+      "path": "knowledge/docs/testing/testing-library.md",
+      "title": "Testing Library (React) Reference",
+      "tier": 2,
+      "keywords": [
+        "testing",
+        "testing-library",
+        "library"
+      ],
+      "tokens": 1416
+    },
+    {
+      "path": "knowledge/docs/testing/vitest.md",
+      "title": "Vitest Reference",
+      "tier": 2,
+      "keywords": [
+        "testing",
+        "vitest"
+      ],
+      "tokens": 1358
+    },
+    {
+      "path": "knowledge/docs/tooling/eslint-flat.md",
+      "title": "ESLint Flat Config Reference",
+      "tier": 2,
+      "keywords": [
+        "tooling",
+        "eslint-flat",
+        "eslint",
+        "flat"
+      ],
+      "tokens": 1720
+    },
+    {
+      "path": "knowledge/docs/tooling/turborepo.md",
+      "title": "Turborepo Reference",
+      "tier": 2,
+      "keywords": [
+        "tooling",
+        "turborepo"
+      ],
+      "tokens": 1493
+    },
+    {
+      "path": "knowledge/docs/tooling/vite.md",
+      "title": "Vite Config Reference",
+      "tier": 2,
+      "keywords": [
+        "tooling",
+        "vite"
+      ],
+      "tokens": 1496
+    },
+    {
       "path": "knowledge/docs/typescript/types.md",
       "title": "TypeScript Type System Reference",
       "tier": 1,
@@ -312,6 +556,28 @@
         "types"
       ],
       "tokens": 791
+    },
+    {
+      "path": "knowledge/docs/utils/date-fns.md",
+      "title": "date-fns v4 Reference",
+      "tier": 2,
+      "keywords": [
+        "utils",
+        "date-fns",
+        "date",
+        "fns"
+      ],
+      "tokens": 1812
+    },
+    {
+      "path": "knowledge/docs/validation/zod.md",
+      "title": "Zod Validation Reference",
+      "tier": 2,
+      "keywords": [
+        "validation",
+        "zod"
+      ],
+      "tokens": 1919
     },
     {
       "path": "knowledge/docs/vue/composition.md",

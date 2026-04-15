@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gemma 4 전환 효과 예측 — 택갈이코드 사내망 모델 교체 분석</title>
+<title>Gemma 4 전환 효과 예측 — 택가이코드 사내망 모델 교체 분석</title>
 <style>
   :root {
     --bg: #0B0E14;
@@ -316,7 +316,7 @@
 <!-- Header -->
 <div class="header">
   <h1>Gemma 4 전환 효과 예측</h1>
-  <p class="subtitle">GPT-OSS-120B / Qwen3-Coder-30B → Gemma 4 31B/26B 교체 시 택갈이코드 성능 변화 분석</p>
+  <p class="subtitle">GPT-OSS-120B / Qwen3-Coder-30B → Gemma 4 31B/26B 교체 시 택가이코드 성능 변화 분석</p>
   <span class="badge">사내망 (온프레미스) 전용 분석 &middot; 2026-04-08</span>
 </div>
 
@@ -491,7 +491,7 @@
       <div class="metric" style="color:var(--cyan)">신규</div>
       <p><strong>AIME 2026 89.2%</strong> — 수학 올림피아드급 추론. 복잡한 아키텍처 설계, 버그 분석에 강점.</p>
       <br>
-      <p><strong>&lt;|think|&gt; 모드:</strong> 모델이 답변 전 내부 추론 과정을 명시. 택갈이코드에서 이를 파싱해 접기/펼치기 UI로 제공 가능.</p>
+      <p><strong>&lt;|think|&gt; 모드:</strong> 모델이 답변 전 내부 추론 과정을 명시. 택가이코드에서 이를 파싱해 접기/펼치기 UI로 제공 가능.</p>
       <br>
       <p><span class="tag" style="background:rgba(34,211,238,0.2);color:var(--cyan)">플랜 모드 강화</span></p>
     </div>
@@ -521,7 +521,7 @@
       <div class="metric" style="color:var(--orange)">이미지</div>
       <p><strong>현재:</strong> 텍스트만 처리. 스크린샷, 다이어그램 분석 불가.</p>
       <br>
-      <p><strong>전환 후:</strong> 이미지 입력 지원. UI 스크린샷 분석, 에러 화면 캡처 → 바로 디버깅 가능. 단, 택갈이코드 TUI에서 이미지 입력 구현 필요.</p>
+      <p><strong>전환 후:</strong> 이미지 입력 지원. UI 스크린샷 분석, 에러 화면 캡처 → 바로 디버깅 가능. 단, 택가이코드 TUI에서 이미지 입력 구현 필요.</p>
       <br>
       <p><span class="tag" style="background:rgba(251,146,60,0.2);color:var(--orange)">향후 확장</span></p>
     </div>
@@ -713,9 +713,9 @@
     <div class="risk-card medium">
       <div class="risk-level" style="color:var(--yellow)">MEDIUM RISK</div>
       <h4>Thinking 토큰 파싱</h4>
-      <p>&lt;|think|&gt; / &lt;|channel&gt;thought 토큰을 택갈이코드에서 파싱해야 함. 스트리밍 중 토큰 분리 로직 추가 필요.</p>
+      <p>&lt;|think|&gt; / &lt;|channel&gt;thought 토큰을 택가이코드에서 파싱해야 함. 스트리밍 중 토큰 분리 로직 추가 필요.</p>
       <br>
-      <p><strong>대응:</strong> 택갈이코드 v0.4.0에서 thinking 파싱 구현. 초기에는 thinking 숨기기로 시작.</p>
+      <p><strong>대응:</strong> 택가이코드 v0.4.0에서 thinking 파싱 구현. 초기에는 thinking 숨기기로 시작.</p>
     </div>
 
     <div class="risk-card low">
@@ -760,7 +760,7 @@
     </div>
 
     <div class="timeline-item">
-      <h4>Phase 2: 택갈이코드 v0.4.0 — Gemma 4 지원</h4>
+      <h4>Phase 2: 택가이코드 v0.4.0 — Gemma 4 지원</h4>
       <p>모델 설정에 Gemma 4 31B/26B 추가. openai-compatible provider 등록. Thinking 모드 파싱 (&lt;|think|&gt; 토큰). 예상: 1주.</p>
     </div>
 
@@ -789,7 +789,7 @@
     <h3 style="color:var(--cyan);font-size:1.1rem;">전환 권장: 강력 추천</h3>
     <br>
     <table style="font-size:0.8rem;">
-    <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>Tool Calling:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--green)">3중 차단 → 네이티브 지원. 택갈이코드 핵심 기능 정상화.</td></tr>
+    <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>Tool Calling:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--green)">3중 차단 → 네이티브 지원. 택가이코드 핵심 기능 정상화.</td></tr>
     <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>품질:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--green)">LCB 80%, AIME 89.2%, CF 2150 — 30B급 최상위.</td></tr>
     <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>속도:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--green)">120B → 31B = 3~4배. 26B MoE = 10배.</td></tr>
     <tr><td style="text-align:left;border:none;padding:0.3rem 0"><strong>비용:</strong></td><td style="text-align:left;border:none;padding:0.3rem 0;color:var(--green)">GPU 75% 절감. 동시 사용자 3배 증가.</td></tr>
@@ -800,7 +800,7 @@
 </div>
 
 <div class="footer">
-  택갈이코드 Gemma 4 전환 효과 예측 보고서<br>
+  택가이코드 Gemma 4 전환 효과 예측 보고서<br>
   2026-04-08 &middot; v0.3.0 세션 분석 기반<br>
   Generated for internal review — Shinhan AI Platform Team
 </div>

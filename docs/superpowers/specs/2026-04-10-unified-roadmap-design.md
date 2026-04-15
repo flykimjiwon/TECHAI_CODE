@@ -1,4 +1,4 @@
-# 택갈이코드 통합 로드맵 설계서
+# 택가이코드 통합 로드맵 설계서
 
 > **작성일**: 2026-04-10
 > **현재 버전**: v0.5.0 (Embedded Knowledge Store 완성)
@@ -106,7 +106,7 @@ Stage 3 (LLM): 여전히 maxTokens 초과 시
 | 압축 후 목표 | 60% | 50% |
 | 보존 메시지 수 | 최근 15개 | 최근 8개 |
 
-**포팅 방법**: `compaction.go` 복사 → `택갈이코드/internal/llm/` 배치. `sendMessage()`에서 전송 전 `Compact()` 호출 추가.
+**포팅 방법**: `compaction.go` 복사 → `택가이코드/internal/llm/` 배치. `sendMessage()`에서 전송 전 `Compact()` 호출 추가.
 
 **구현 파일**:
 ```
@@ -477,9 +477,9 @@ internal/snapshot/
 
 **현재 문제**: 키워드 매칭으로 **문서 전체** 주입. "BXM Bean 작성법" → BXM 전체 40KB 주입. 정작 필요한 건 Bean 섹션 2KB.
 
-**PageIndex 개념의 택갈이코드 적응**:
+**PageIndex 개념의 택가이코드 적응**:
 - PageIndex는 Python + 런타임 LLM 호출
-- 택갈이코드는 **빌드 타임에 트리를 미리 생성**하여 JSON으로 embed
+- 택가이코드는 **빌드 타임에 트리를 미리 생성**하여 JSON으로 embed
 - 런타임 LLM 호출 불필요 (폐쇄망 친화)
 
 #### 트리 인덱스란?

@@ -13,7 +13,7 @@
 ## File Structure
 
 ```
-택갈이코드/
+택가이코드/
 ├── knowledge/                          # //go:embed 대상 (신규 디렉토리)
 │   ├── docs/                           # 레퍼런스 문서
 │   │   ├── bxm/                        # Tier 0
@@ -170,7 +170,7 @@ func TestStoreForOS(t *testing.T) {
 
 - [ ] **Step 3: 테스트 실행하여 실패 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go test ./internal/knowledge/ -v`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go test ./internal/knowledge/ -v`
 Expected: FAIL — package does not exist
 
 - [ ] **Step 4: store.go 구현**
@@ -453,12 +453,12 @@ knowledgeStore, _ := knowledge.NewStore(tgc.KnowledgeFS)
 
 - [ ] **Step 5: 테스트 실행하여 통과 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go test ./internal/knowledge/ -v`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go test ./internal/knowledge/ -v`
 Expected: PASS (3 tests)
 
 - [ ] **Step 6: 빌드 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go build -o /dev/null ./cmd/tgc/`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go build -o /dev/null ./cmd/tgc/`
 Expected: 정상 빌드
 
 - [ ] **Step 7: 커밋**
@@ -557,7 +557,7 @@ func TestExtractKeywords(t *testing.T) {
 
 - [ ] **Step 2: 테스트 실행하여 실패 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go test ./internal/knowledge/ -run TestExtractKeywords -v`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go test ./internal/knowledge/ -run TestExtractKeywords -v`
 Expected: FAIL — ExtractKeywords undefined
 
 - [ ] **Step 3: extractor.go 구현**
@@ -727,7 +727,7 @@ func tokenize(s string) []string {
 
 - [ ] **Step 4: 테스트 실행하여 통과 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go test ./internal/knowledge/ -run TestExtractKeywords -v`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go test ./internal/knowledge/ -run TestExtractKeywords -v`
 Expected: PASS (8 sub-tests)
 
 - [ ] **Step 5: 커밋**
@@ -811,7 +811,7 @@ func TestInjectorEmptyQuery(t *testing.T) {
 
 - [ ] **Step 2: 테스트 실행하여 실패 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go test ./internal/knowledge/ -run TestInjector -v`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go test ./internal/knowledge/ -run TestInjector -v`
 Expected: FAIL — NewInjector undefined
 
 - [ ] **Step 3: injector.go 구현**
@@ -871,7 +871,7 @@ func (inj *Injector) Inject(mode int, userQuery string) string {
 
 - [ ] **Step 4: 테스트 실행하여 통과 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go test ./internal/knowledge/ -run TestInjector -v`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go test ./internal/knowledge/ -run TestInjector -v`
 Expected: PASS (3 tests)
 
 - [ ] **Step 5: 커밋**
@@ -987,12 +987,12 @@ func truncate(s string, n int) string {
 
 - [ ] **Step 5: 빌드 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go build -o /dev/null ./cmd/tgc/`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go build -o /dev/null ./cmd/tgc/`
 Expected: 정상 빌드
 
 - [ ] **Step 6: 수동 테스트**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && make build && ./techai`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && make build && ./techai`
 테스트:
 1. "Go fmt 사용법 알려줘" → debug.log에 `[KNOWLEDGE] injected` 로그 확인
 2. "안녕하세요" → `[KNOWLEDGE]` 로그 없음 확인 (키워드 없으므로 미주입)
@@ -1164,7 +1164,7 @@ build: build-index
 
 - [ ] **Step 3: 인덱스 빌드 테스트**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go run ./cmd/build-index/`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go run ./cmd/build-index/`
 Expected: `Generated knowledge/index.json: N documents indexed`
 
 Run: `cat knowledge/index.json`
@@ -1320,7 +1320,7 @@ func htmlToMarkdown(html string) string {
 
 - [ ] **Step 2: 스크래핑 실행**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go run ./cmd/scrape-bxm/`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go run ./cmd/scrape-bxm/`
 Expected: 13 BXM .md files in `knowledge/docs/bxm/`
 
 - [ ] **Step 3: 결과 검증 + 수동 보정**
@@ -1335,7 +1335,7 @@ Expected: `# Bean 작성` 등 마크다운 형태
 
 - [ ] **Step 4: 인덱스 재빌드**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go run ./cmd/build-index/`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go run ./cmd/build-index/`
 Expected: `Generated knowledge/index.json: ~15 documents indexed`
 
 - [ ] **Step 5: BXM 관련 키워드를 extractor.go에 보강**
@@ -1501,7 +1501,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 - [ ] **Step 6: 인덱스 재빌드 + 빌드 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go run ./cmd/build-index/`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go run ./cmd/build-index/`
 Run: `go build -o /dev/null ./cmd/tgc/`
 Expected: 정상
 
@@ -1574,7 +1574,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 - [ ] **Step 4: 인덱스 재빌드 + 전체 빌드 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go run ./cmd/build-index/ && go build -o /dev/null ./cmd/tgc/`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go run ./cmd/build-index/ && go build -o /dev/null ./cmd/tgc/`
 Expected: 정상, index.json에 ~40+ 문서
 
 - [ ] **Step 5: 커밋**
@@ -1604,12 +1604,12 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 - [ ] **Step 1: 전체 테스트 실행**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && go test ./internal/knowledge/ -v`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && go test ./internal/knowledge/ -v`
 Expected: ALL PASS
 
 - [ ] **Step 2: 프로덕션 빌드**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && make build`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && make build`
 Expected: 정상 빌드, `./techai` 바이너리 생성
 
 - [ ] **Step 3: 바이너리 사이즈 확인**
@@ -1632,7 +1632,7 @@ Run: `./techai`
 
 - [ ] **Step 5: 크로스 플랫폼 빌드 확인**
 
-Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택갈이코드 && make build-all`
+Run: `cd /Users/kimjiwon/Desktop/kimjiwon/택가이코드 && make build-all`
 Expected: 5개 바이너리 생성 (darwin-arm64, darwin-amd64, linux-amd64, windows-amd64, windows-arm64)
 
 - [ ] **Step 6: 태그 생성**

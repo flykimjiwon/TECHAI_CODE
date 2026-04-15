@@ -1,9 +1,9 @@
-# 택갈이코드 차기 기능 분석 보고서
+# 택가이코드 차기 기능 분석 보고서
 
 > **작성일**: 2026-04-09
 > **현재 버전**: v0.5.0 (Embedded Knowledge Store 완성)
 > **분석 대상**: OpenCode (Go 터미널 코딩 에이전트), gstack (Garry Tan의 Claude Code 스킬셋)
-> **목적**: 폐쇄망 환경에서 택갈이코드에 이식할 수 있는 기능 식별 + 브라우저 컴패니언 설계
+> **목적**: 폐쇄망 환경에서 택가이코드에 이식할 수 있는 기능 식별 + 브라우저 컴패니언 설계
 > **자매 문서**: [`hanimo-porting-guide.md`](2026-04-09-hanimo-porting-guide.md) — hanimo에서 직접 포팅할 소스 매핑
 > **다음 구현 시 반드시 이 문서 + 포팅 가이드를 함께 참조할 것**
 
@@ -11,7 +11,7 @@
 
 ## 단일 바이너리 원칙
 
-택갈이코드의 핵심 가치는 **단일 실행파일 배포**입니다. 모든 추가 기능은 이 원칙을 깨뜨리지 않아야 합니다.
+택가이코드의 핵심 가치는 **단일 실행파일 배포**입니다. 모든 추가 기능은 이 원칙을 깨뜨리지 않아야 합니다.
 
 ### 빌드 타임 vs 런타임 분리
 
@@ -653,7 +653,7 @@ make build-all          # 5개 플랫폼 크로스 컴파일
 - `ARCHITECTURE.md` — 데몬 모델 + CLI 설계 원칙
 - `BROWSER.md:25-48` — CLI↔데몬 HTTP 아키텍처 다이어그램
 
-### 택갈이코드 (`/Users/kimjiwon/Desktop/kimjiwon/택갈이코드/`)
+### 택가이코드 (`/Users/kimjiwon/Desktop/kimjiwon/택가이코드/`)
 - `internal/app/app.go:42-76` — Model 구조체 (통합 포인트)
 - `internal/app/app.go:313-407` — 스트림/도구 핸들러 (이벤트 Emit 포인트)
 - `internal/app/app.go:485-517` — handleSlashCommand (슬래시 명령 추가점)

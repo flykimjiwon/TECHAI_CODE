@@ -1,0 +1,10 @@
+택가이코드 코딩 규칙
+
+1. Go 1.22+ 필수, CGO 사용 금지 (크로스 컴파일)
+2. Bubble Tea v2 사용, v1 API 혼용 금지
+3. debugTransport로 HTTP transport 래핑 금지 (SSE 스트리밍 블로킹)
+4. app.go 수정 시 최소 단위 변경만 허용 (UI freeze 방지)
+5. 새 도구 추가 시 registry.go의 AllTools()와 executeInner() 양쪽에 등록
+6. 임포트 경로는 반드시 github.com/kimjiwon/tgc 사용
+7. 한국어 UI 텍스트는 하드코딩 (i18n 시스템 없음)
+8. knowledge 패키지 함수명 충돌 주의: parseUserDoc, splitSearchTerms 접두사 사용

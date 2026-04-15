@@ -25,6 +25,7 @@ var PaletteItems = []PaletteItem{
 	{Label: "화면 정리", Description: "대화 초기화", Action: "/clear"},
 	{Label: "설정 초기화", Description: "API 키 재설정", Action: "/setup"},
 	{Label: "도움말", Description: "키보드 단축키 안내", Action: "/help"},
+	{Label: "컴패니언", Description: "브라우저 대시보드", Action: "/companion"},
 }
 
 // FuzzyFilter returns items matching the query (case-insensitive substring match).
