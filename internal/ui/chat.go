@@ -80,7 +80,7 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 			block := renderUserBlock(msg.Content, contentWidth)
 			lines = append(lines, block)
 		case RoleAssistant:
-			rendered := renderMarkdown(msg.Content, contentWidth-4)
+			rendered := renderMarkdown(cleanAskUser(msg.Content), contentWidth-4)
 			msgLines := strings.Split(rendered, "\n")
 			// Show line count for long messages
 			if len(msgLines) > 20 {
@@ -378,6 +378,46 @@ func renderMarkdown(content string, width int) string {
 		return wrapText(content, width)
 	}
 	return strings.TrimRight(out, "\n")
+}
+
+// cleanAskUser parses [ASK_USER]...[/ASK_USER] blocks into clean question format.
+func cleanAskUser(content string) string {
+	for {
+		start := strings.Index(content, "[ASK_USER]")
+		if start < 0 {
+			break
+		}
+		end := strings.Index(content, "[/ASK_USER]")
+		if end < 0 {
+			break
+		}
+
+		block := content[start+len("[ASK_USER]") : end]
+		var question string
+		var options []string
+
+		for _, line := range strings.Split(block, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "question:") {
+				question = strings.TrimSpace(strings.TrimPrefix(line, "question:"))
+			} else if strings.HasPrefix(line, "- ") {
+				options = append(options, line)
+			}
+		}
+
+		// Format as clean question
+		var replacement string
+		if question != "" {
+			replacement = "\n❓ " + question
+			if len(options) > 0 {
+				replacement += "\n" + strings.Join(options, "\n")
+			}
+			replacement += "\n"
+		}
+
+		content = content[:start] + replacement + content[end+len("[/ASK_USER]"):]
+	}
+	return content
 }
 
 func wrapText(text string, width int) string {
