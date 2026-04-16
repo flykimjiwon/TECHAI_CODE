@@ -720,10 +720,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.SetHeight(newHeight)
 			m.recalcLayout()
 		}
-		// For large pastes, set placeholder hint showing line count
+		// Show line count for large pastes
 		lineCount := strings.Count(text, "\n") + 1
 		if lineCount > 10 {
-			m.textarea.Placeholder = fmt.Sprintf("[Pasted %d lines]", lineCount)
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("  [Pasted %d lines]", lineCount), Timestamp: time.Now(),
+			})
+			m.updateViewport()
 		}
 		return m, nil
 
