@@ -328,7 +328,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	if config.IsDebug() {
 		m.msgs = append(m.msgs, ui.Message{
 			Role:      ui.RoleSystem,
-			Content:   fmt.Sprintf("[DEBUG MODE] 로그 파일: %s", config.DebugLogPath()),
+			Content:   fmt.Sprintf("[DEBUG MODE] Log: %s", config.DebugLogPath()),
 			Timestamp: time.Now(),
 		})
 	}
@@ -720,12 +720,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.SetHeight(newHeight)
 			m.recalcLayout()
 		}
+		// For large pastes, set placeholder hint showing line count
 		lineCount := strings.Count(text, "\n") + 1
 		if lineCount > 10 {
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: fmt.Sprintf("[붙여넣기 %d줄]", lineCount), Timestamp: time.Now(),
-			})
-			m.updateViewport()
+			m.textarea.Placeholder = fmt.Sprintf("[Pasted %d lines]", lineCount)
 		}
 		return m, nil
 

@@ -107,17 +107,17 @@ func modeInfoBoxInner(mode int, modelID string) string {
 	case 0:
 		tips = fmt.Sprintf("%s\n%s",
 			modeName.Render(fmt.Sprintf("Super — %s", shortModel)),
-			desc.Render("만능 모드. 코드, 분석, 대화 자동 감지"),
+			desc.Render("All-purpose. Code, analysis, conversation auto-detect"),
 		)
 	case 1:
 		tips = fmt.Sprintf("%s\n%s",
 			modeName.Render(fmt.Sprintf("Deep Agent — %s", shortModel)),
-			desc.Render("자율 코딩. 최대 100회 반복, 자동 검증"),
+			desc.Render("Autonomous coding. Up to 100 iterations, self-verify"),
 		)
 	case 2:
 		tips = fmt.Sprintf("%s\n%s",
 			modeName.Render(fmt.Sprintf("Plan — %s", shortModel)),
-			desc.Render("계획 우선. 단계별 계획 → 승인 후 실행"),
+			desc.Render("Plan first. Step-by-step plan → approve → execute"),
 		)
 	}
 	return tipStyle.Render(tips)
