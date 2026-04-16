@@ -1431,6 +1431,25 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			return slashResultMsg{content: diff}
 		}
 
+	case "/compact":
+		// Manual context compaction
+		beforeLen := len(m.history)
+		beforeTokens := m.tokenCount
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		cap := llm.GetCapability(m.currentModel())
+		target := cap.ContextWindow / 2 // compact to 50% of window
+		m.history = llm.CompactWithLLM(ctx, m.client, m.currentModel(), m.history, target)
+		afterLen := len(m.history)
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem,
+			Content: fmt.Sprintf("Compacted: %d → %d messages (tokens: %d → ~%d)",
+				beforeLen, afterLen, beforeTokens, beforeTokens*afterLen/max(beforeLen, 1)),
+			Timestamp: time.Now(),
+		})
+		m.updateViewport()
+		return true, nil
+
 	case "/init":
 		// Generate project profile and save to .techai.md
 		profile := tools.GenerateProjectProfile(".")
@@ -1489,7 +1508,8 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
   /copy — Copy AI response    /export — Export session to .md
   /undo — Undo file edit    /undo list — Snapshot history
   /companion — Browser dashboard    /mcp — MCP server status
-  /clear — Clear chat    /setup — Reset config    /exit — Quit`, config.AppVersion)
+  /compact — Compress history    /clear — Clear chat
+  /setup — Reset config    /exit — Quit`, config.AppVersion)
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})

@@ -23,6 +23,7 @@ var PaletteItems = []PaletteItem{
 	{Label: "Multi-Agent", Description: "Dual model parallel run", Action: "/multi"},
 	{Label: "Diagnostics", Description: "Run project linters", Action: "/diagnostics"},
 	{Label: "Git Status", Description: "Repository status", Action: "/git"},
+	{Label: "Compact", Description: "Compress conversation history", Action: "/compact"},
 	{Label: "Clear", Description: "Clear conversation", Action: "/clear"},
 	{Label: "Copy", Description: "Copy last AI response", Action: "/copy"},
 	{Label: "Export", Description: "Export session to markdown", Action: "/export"},
