@@ -44,7 +44,7 @@ func TestExtractKeywords(t *testing.T) {
 		{
 			name:     "Spring Boot REST API",
 			query:    "Spring Boot REST API 만들기",
-			expected: []string{"spring", "rest", "api"},
+			expected: []string{"spring-boot-ops", "rest", "api"},
 		},
 		{
 			name:     "Vue 3 composition API",
@@ -84,9 +84,9 @@ func TestExtractKeywords_KoreanOnly(t *testing.T) {
 
 func TestExtractKeywords_MultiWordMatch(t *testing.T) {
 	got := ExtractKeywords("spring boot 시작하기")
-	// "spring boot" should match as a compound term -> "spring"
-	if !containsStr(got, "spring") {
-		t.Errorf("ExtractKeywords(\"spring boot 시작하기\") = %v, missing \"spring\"", got)
+	// "spring boot" should match as compound term -> "spring-boot-ops"
+	if !containsStr(got, "spring-boot-ops") {
+		t.Errorf("ExtractKeywords(\"spring boot 시작하기\") = %v, missing \"spring-boot-ops\"", got)
 	}
 	// The individual word "boot" should NOT appear as a separate keyword
 	// (it is not in the dictionary on its own, so this is automatically correct)

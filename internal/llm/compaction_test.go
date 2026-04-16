@@ -32,11 +32,11 @@ func makeConversation(n int, toolContentLen int) []openai.ChatCompletionMessage 
 
 func TestEstimateTokens_CharsOverFour(t *testing.T) {
 	msgs := []openai.ChatCompletionMessage{
-		makeMsg(openai.ChatMessageRoleUser, strings.Repeat("a", 100)), // 25 tok
-		makeMsg(openai.ChatMessageRoleAssistant, strings.Repeat("b", 200)), // 50 tok
+		makeMsg(openai.ChatMessageRoleUser, strings.Repeat("a", 100)), // (100+1)/2 = 50 tok
+		makeMsg(openai.ChatMessageRoleAssistant, strings.Repeat("b", 200)), // (200+1)/2 = 100 tok
 	}
 	got := estimateTokens(msgs)
-	want := 75
+	want := 150
 	if got != want {
 		t.Fatalf("estimateTokens = %d, want %d", got, want)
 	}

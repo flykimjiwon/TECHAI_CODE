@@ -109,8 +109,7 @@ func HashlineEdit(path, startAnchor, endAnchor, newContent string) (string, erro
 	result = append(result, newLines...)
 	result = append(result, lines[endLine:]...)
 
-	err = os.WriteFile(absPath, []byte(strings.Join(result, "\n")), 0644)
-	if err != nil {
+	if err := SnapshotAndWrite(absPath, []byte(strings.Join(result, "\n"))); err != nil {
 		return "", fmt.Errorf("cannot write file: %v", err)
 	}
 

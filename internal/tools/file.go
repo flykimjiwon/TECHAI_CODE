@@ -303,7 +303,7 @@ func ListFiles(dir string, recursive bool) ([]string, error) {
 
 	// Append total count so LLM knows the full picture even if output gets truncated
 	if recursive && len(files) > 500 {
-		files = append(files, fmt.Sprintf("\n[총 %d개 항목]", len(files)))
+		files = append(files, fmt.Sprintf("\n[Total: %d items]", len(files)))
 	}
 
 	return files, err

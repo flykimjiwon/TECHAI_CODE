@@ -202,7 +202,7 @@ func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.D
 		left += Subtle.Render(fmt.Sprintf("  %.1fs", elapsed.Seconds()))
 	}
 
-	right := Subtle.Render("Ctrl+K 팔레트  Esc 메뉴  Tab 전환  Ctrl+C ")
+	right := Subtle.Render("Ctrl+K Palette  Esc Menu  Tab Switch  Ctrl+C")
 
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {
