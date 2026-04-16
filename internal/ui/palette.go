@@ -16,6 +16,7 @@ type PaletteItem struct {
 
 // PaletteItems is the default list of commands available in the palette.
 var PaletteItems = []PaletteItem{
+	{Label: "Init", Description: "Scan project → generate .techai.md", Action: "/init"},
 	{Label: "New Session", Description: "Start new conversation", Action: "/new"},
 	{Label: "Sessions", Description: "Browse recent sessions", Action: "/sessions"},
 	{Label: "Auto Mode", Description: "AI autonomous execution", Action: "/auto"},

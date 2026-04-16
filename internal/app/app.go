@@ -306,6 +306,15 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		})
 	}
 
+	// Show /init hint when .techai.md doesn't exist
+	if _, err := os.Stat(".techai.md"); os.IsNotExist(err) {
+		m.msgs = append(m.msgs, ui.Message{
+			Role:      ui.RoleSystem,
+			Content:   "  New here? Run /init to scan your project.",
+			Timestamp: time.Now(),
+		})
+	}
+
 	// Create the first session row so subsequent AppendMessage calls
 	// have a valid parent. Fall back to in-memory only on failure.
 	if m.store != nil {
@@ -1422,6 +1431,28 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			return slashResultMsg{content: diff}
 		}
 
+	case "/init":
+		// Generate project profile and save to .techai.md
+		profile := tools.GenerateProjectProfile(".")
+		if err := os.WriteFile(".techai.md", []byte(profile), 0644); err != nil {
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("Failed to write .techai.md: %v", err), Timestamp: time.Now()})
+		} else {
+			// Reload project context into system prompt
+			m.projectCtx = "\n\n## Project Context (.techai.md)\n" + profile
+			if len(m.history) > 0 {
+				mode := llm.Mode(m.activeTab)
+				m.history[0].Content = llm.SystemPrompt(mode) + m.projectCtx
+			}
+			lines := strings.Count(profile, "\n")
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem,
+				Content: fmt.Sprintf(".techai.md generated (%d lines). Project context loaded.\nRun /init again anytime to refresh.", lines),
+				Timestamp: time.Now(),
+			})
+		}
+		m.updateViewport()
+		return true, nil
+
 	case "/exit", "/quit":
 		return true, tea.Quit
 
@@ -1446,17 +1477,19 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		return true, nil
 
 	case "/help":
-		help := fmt.Sprintf(`  택가이코드 %s
-  Enter — 전송    Shift+Enter — 줄바꿈    Tab — 모드 전환
-  Ctrl+K — 커맨드 팔레트    Esc — 메뉴    Ctrl+C — 종료
-  /new — 새 세션    /sessions — 목록    /session <id> — 복원
-  /auto — 자율 모드    /diagnostics — 코드 진단    /git — 저장소 상태
-  /multi — 멀티 에이전트    /version — 버전    /clear — 화면 정리
-  /undo — 마지막 수정 되돌리기    /undo list — 스냅샷 목록
-  /copy — 마지막 AI 응답 클립보드 복사    /export — 세션 md 내보내기
-  /diff — 현재 Git 변경사항    ↑/↓ — 입력 히스토리
-  /companion — 브라우저 대시보드    /mcp — MCP 서버 상태
-  /setup — 설정 초기화    /exit — 종료`, config.AppVersion)
+		help := fmt.Sprintf(`  TECHAI CODE %s
+  Enter — Send    Shift+Enter — Newline    Tab — Switch mode
+  Ctrl+K — Palette    Esc — Menu    Ctrl+U — Clear input    Ctrl+C — Quit
+  ↑/↓ — Input history    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
+
+  /init — Scan project → generate .techai.md
+  /new — New session    /sessions — List    /session <id> — Restore
+  /auto — Auto mode    /multi — Multi-agent    /diagnostics — Lint
+  /git — Git status    /diff — Git changes    /version — Version
+  /copy — Copy AI response    /export — Export session to .md
+  /undo — Undo file edit    /undo list — Snapshot history
+  /companion — Browser dashboard    /mcp — MCP server status
+  /clear — Clear chat    /setup — Reset config    /exit — Quit`, config.AppVersion)
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
