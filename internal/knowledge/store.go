@@ -6,9 +6,11 @@ package knowledge
 import (
 	"encoding/json"
 	"io/fs"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // Tier represents document priority. Lower is higher priority.
@@ -169,6 +171,183 @@ func (s *Store) Search(keywords []string, budget int) []Doc {
 	}
 
 	return out
+}
+
+// BM25Search performs a content-based search across all documents using
+// simplified BM25 scoring. Used as Level 2 fallback when keyword index
+// search returns insufficient results.
+//
+// Parameters:
+//   - query: raw user query string (will be tokenized and lowercased)
+//   - budget: maximum total token budget for returned documents
+//   - exclude: paths to exclude (already found by Level 1)
+//
+// Returns documents sorted by BM25 score descending, within budget.
+func (s *Store) BM25Search(query string, budget int, exclude map[string]bool) []Doc {
+	if query == "" || budget <= 0 {
+		return nil
+	}
+
+	// Tokenize query into search terms (3+ chars to avoid noise)
+	tokens := bm25Tokenize(strings.ToLower(query))
+	if len(tokens) == 0 {
+		return nil
+	}
+
+	// Pre-compute IDF: log(N / df) for each term
+	N := float64(len(s.docs))
+	if N == 0 {
+		return nil
+	}
+
+	df := make(map[string]int) // document frequency per term
+	for i := range s.docs {
+		content := strings.ToLower(s.docs[i].Content)
+		for _, tok := range tokens {
+			if strings.Contains(content, tok) {
+				df[tok]++
+			}
+		}
+	}
+
+	// BM25 parameters
+	const k1 = 1.2
+	const b = 0.75
+
+	// Compute average document length
+	var totalLen float64
+	for i := range s.docs {
+		totalLen += float64(len(s.docs[i].Content))
+	}
+	avgDL := totalLen / N
+
+	type scored struct {
+		doc   *Doc
+		score float64
+	}
+	var results []scored
+
+	for i := range s.docs {
+		if exclude != nil && exclude[s.docs[i].Path] {
+			continue
+		}
+
+		content := strings.ToLower(s.docs[i].Content)
+		dl := float64(len(content))
+		score := 0.0
+
+		for _, tok := range tokens {
+			termDF := df[tok]
+			if termDF == 0 {
+				continue
+			}
+
+			// Term frequency in this document
+			tf := float64(strings.Count(content, tok))
+			if tf == 0 {
+				continue
+			}
+
+			// IDF: log((N - df + 0.5) / (df + 0.5))
+			idf := math.Log((N - float64(termDF) + 0.5) / (float64(termDF) + 0.5))
+			if idf < 0 {
+				idf = 0.01 // floor for very common terms
+			}
+
+			// BM25 score component
+			tfNorm := (tf * (k1 + 1)) / (tf + k1*(1-b+b*(dl/avgDL)))
+			score += idf * tfNorm
+		}
+
+		if score > 0 {
+			results = append(results, scored{&s.docs[i], score})
+		}
+	}
+
+	if len(results) == 0 {
+		return nil
+	}
+
+	// Sort by score descending
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].score > results[j].score
+	})
+
+	// Collect within budget
+	var out []Doc
+	remaining := budget
+	for _, sc := range results {
+		tokens := estimateTokens(sc.doc.Content)
+		if tokens > remaining {
+			continue
+		}
+		out = append(out, *sc.doc)
+		remaining -= tokens
+	}
+
+	return out
+}
+
+// bm25Tokenize splits a query into meaningful tokens for BM25 search.
+// Filters out tokens shorter than 2 characters to reduce noise.
+func bm25Tokenize(s string) []string {
+	raw := strings.FieldsFunc(s, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '.' && r != '-' && r != '_'
+	})
+	var out []string
+	seen := make(map[string]bool)
+	for _, tok := range raw {
+		tok = strings.ToLower(tok)
+		if len(tok) >= 2 && !seen[tok] {
+			seen[tok] = true
+			out = append(out, tok)
+		}
+	}
+	return out
+}
+
+// DocList returns a formatted list of all documents with index, title, and keywords.
+// Used by Level 3 (LLM fallback) to present document choices to the LLM.
+func (s *Store) DocList() []DocInfo {
+	infos := make([]DocInfo, len(s.docs))
+	for i, doc := range s.docs {
+		title := ""
+		lines := strings.SplitN(doc.Content, "\n", 10)
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "# ") {
+				title = strings.TrimPrefix(trimmed, "# ")
+				break
+			}
+		}
+		if title == "" {
+			base := filepath.Base(doc.Path)
+			title = strings.TrimSuffix(base, filepath.Ext(base))
+		}
+		infos[i] = DocInfo{
+			Index:    i,
+			Path:     doc.Path,
+			Title:    title,
+			Keywords: doc.Keywords,
+		}
+	}
+	return infos
+}
+
+// DocByIndex returns a document by its index in the store.
+func (s *Store) DocByIndex(idx int) *Doc {
+	if idx < 0 || idx >= len(s.docs) {
+		return nil
+	}
+	return &s.docs[idx]
+}
+
+// DocInfo holds lightweight document metadata for LLM selection.
+type DocInfo struct {
+	Index    int
+	Path     string
+	Title    string
+	Keywords []string
 }
 
 // ForOS returns all documents that are either OS-agnostic (OS=="") or

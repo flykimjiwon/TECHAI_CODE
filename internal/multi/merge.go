@@ -19,9 +19,14 @@ const synthesisTimeout = 30 * time.Second
 // cohesive response. Falls back to simple merge on error.
 // The parent ctx is used so that user cancellation (Ctrl+C) stops the synthesis call.
 func MergeWithSynthesis(ctx context.Context, client *llm.Client, model string, strategy Strategy, a1, a2 AgentResult) string {
-	// If either agent errored, fall back to simple merge
-	if a1.Err != nil || a2.Err != nil {
+	// If Agent1 errored, fall back to simple merge (shows error)
+	if a1.Err != nil {
 		return simpleMerge(strategy, a1, a2)
+	}
+	// If only Agent2 errored (e.g. model 404), return Agent1 cleanly
+	if a2.Err != nil {
+		config.DebugLog("[MERGE] Agent2 error, returning Agent1 only: %v", a2.Err)
+		return a1.Content
 	}
 
 	// If Agent2 has no content, just return Agent1

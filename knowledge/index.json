@@ -258,6 +258,36 @@
       "tokens": 1474
     },
     {
+      "path": "knowledge/docs/database/mysql.md",
+      "title": "MySQL Reference",
+      "tier": 2,
+      "keywords": [
+        "database",
+        "mysql"
+      ],
+      "tokens": 3304
+    },
+    {
+      "path": "knowledge/docs/database/oracle.md",
+      "title": "Oracle Database Reference",
+      "tier": 2,
+      "keywords": [
+        "database",
+        "oracle"
+      ],
+      "tokens": 3073
+    },
+    {
+      "path": "knowledge/docs/database/postgresql.md",
+      "title": "PostgreSQL Reference",
+      "tier": 2,
+      "keywords": [
+        "database",
+        "postgresql"
+      ],
+      "tokens": 3057
+    },
+    {
       "path": "knowledge/docs/database/prisma.md",
       "title": "Prisma ORM Reference",
       "tier": 2,
@@ -266,6 +296,31 @@
         "prisma"
       ],
       "tokens": 1379
+    },
+    {
+      "path": "knowledge/docs/database/sql-core.md",
+      "title": "SQL Core Reference",
+      "tier": 2,
+      "keywords": [
+        "database",
+        "sql-core",
+        "sql",
+        "core"
+      ],
+      "tokens": 3278
+    },
+    {
+      "path": "knowledge/docs/database/sql-ddl-design.md",
+      "title": "SQL DDL \u0026 Schema Design Reference",
+      "tier": 2,
+      "keywords": [
+        "database",
+        "sql-ddl-design",
+        "sql",
+        "ddl",
+        "design"
+      ],
+      "tokens": 3316
     },
     {
       "path": "knowledge/docs/database/supabase.md",
@@ -278,6 +333,16 @@
       "tokens": 1546
     },
     {
+      "path": "knowledge/docs/database/tibero.md",
+      "title": "Tibero Reference",
+      "tier": 2,
+      "keywords": [
+        "database",
+        "tibero"
+      ],
+      "tokens": 2200
+    },
+    {
       "path": "knowledge/docs/go/stdlib.md",
       "title": "Go Standard Library Quick Reference",
       "tier": 1,
@@ -288,14 +353,88 @@
       "tokens": 155
     },
     {
-      "path": "knowledge/docs/java/spring.md",
-      "title": "Spring Boot",
+      "path": "knowledge/docs/java/jeus.md",
+      "title": "JEUS WAS (Web Application Server)",
       "tier": 2,
       "keywords": [
         "java",
-        "spring"
+        "jeus"
       ],
-      "tokens": 497
+      "tokens": 2115
+    },
+    {
+      "path": "knowledge/docs/java/spring-boot-ops.md",
+      "title": "Spring Boot Ops — 설정, Actuator, 로깅, 빌드, 배포",
+      "tier": 2,
+      "keywords": [
+        "java",
+        "spring-boot-ops",
+        "spring",
+        "boot",
+        "ops"
+      ],
+      "tokens": 2814
+    },
+    {
+      "path": "knowledge/docs/java/spring-core.md",
+      "title": "Spring Core — DI, Configuration, Bean Lifecycle",
+      "tier": 2,
+      "keywords": [
+        "java",
+        "spring-core",
+        "spring",
+        "core"
+      ],
+      "tokens": 2210
+    },
+    {
+      "path": "knowledge/docs/java/spring-data-jpa.md",
+      "title": "Spring Data JPA — Entity, Repository, Query, N+1, Transaction",
+      "tier": 2,
+      "keywords": [
+        "java",
+        "spring-data-jpa",
+        "spring",
+        "data",
+        "jpa"
+      ],
+      "tokens": 3142
+    },
+    {
+      "path": "knowledge/docs/java/spring-mvc.md",
+      "title": "Spring MVC — Controllers, Requests, Responses, Exception Handling",
+      "tier": 2,
+      "keywords": [
+        "java",
+        "spring-mvc",
+        "spring",
+        "mvc"
+      ],
+      "tokens": 2994
+    },
+    {
+      "path": "knowledge/docs/java/spring-security.md",
+      "title": "Spring Security — 인증/인가, JWT, OAuth2",
+      "tier": 2,
+      "keywords": [
+        "java",
+        "spring-security",
+        "spring",
+        "security"
+      ],
+      "tokens": 3364
+    },
+    {
+      "path": "knowledge/docs/java/spring-test.md",
+      "title": "Spring Test — 통합/슬라이스 테스트, MockMvc, Testcontainers",
+      "tier": 2,
+      "keywords": [
+        "java",
+        "spring-test",
+        "spring",
+        "test"
+      ],
+      "tokens": 3326
     },
     {
       "path": "knowledge/docs/javascript/es2024.md",
@@ -340,6 +479,18 @@
       "tokens": 1916
     },
     {
+      "path": "knowledge/docs/react/nextjs-pages.md",
+      "title": "Next.js Pages Router (Legacy Reference)",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "nextjs-pages",
+        "nextjs",
+        "pages"
+      ],
+      "tokens": 3227
+    },
+    {
       "path": "knowledge/docs/react/nextjs.md",
       "title": "Next.js 15 App Router Reference",
       "tier": 1,
@@ -348,6 +499,17 @@
         "nextjs"
       ],
       "tokens": 904
+    },
+    {
+      "path": "knowledge/docs/react/react-class.md",
+      "title": "React Class Components (Legacy Reference)",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "react-class",
+        "class"
+      ],
+      "tokens": 2817
     },
     {
       "path": "knowledge/docs/react/react-hook-form.md",
@@ -360,6 +522,28 @@
         "form"
       ],
       "tokens": 1416
+    },
+    {
+      "path": "knowledge/docs/react/react-patterns.md",
+      "title": "React Patterns",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "react-patterns",
+        "patterns"
+      ],
+      "tokens": 3557
+    },
+    {
+      "path": "knowledge/docs/react/react-performance.md",
+      "title": "React Performance",
+      "tier": 1,
+      "keywords": [
+        "react",
+        "react-performance",
+        "performance"
+      ],
+      "tokens": 3241
     },
     {
       "path": "knowledge/docs/react/react19.md",
@@ -392,6 +576,18 @@
         "zustand"
       ],
       "tokens": 1198
+    },
+    {
+      "path": "knowledge/docs/terminal/bash-scripting.md",
+      "title": "Bash Scripting Reference",
+      "tier": 1,
+      "keywords": [
+        "terminal",
+        "bash-scripting",
+        "bash",
+        "scripting"
+      ],
+      "tokens": 2375
     },
     {
       "path": "knowledge/docs/terminal/cross-platform.md",
@@ -460,6 +656,30 @@
         "macos"
       ],
       "tokens": 681
+    },
+    {
+      "path": "knowledge/docs/terminal/shell-ops.md",
+      "title": "Shell Ops Reference",
+      "tier": 1,
+      "keywords": [
+        "terminal",
+        "shell-ops",
+        "shell",
+        "ops"
+      ],
+      "tokens": 2698
+    },
+    {
+      "path": "knowledge/docs/terminal/shell-tools.md",
+      "title": "Shell Tools Reference",
+      "tier": 1,
+      "keywords": [
+        "terminal",
+        "shell-tools",
+        "shell",
+        "tools"
+      ],
+      "tokens": 2819
     },
     {
       "path": "knowledge/docs/terminal/windows-dev.md",

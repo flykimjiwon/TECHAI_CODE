@@ -81,26 +81,26 @@ func AutoDetect(input string, history []openai.ChatCompletionMessage, tokenCount
 		}
 	}
 
-	// 2. Keyword match (instant)
-	for _, kw := range reviewKeywords {
-		if strings.Contains(lower, kw) {
-			return true
+	// 2. Keyword match — only for short inputs (< 300 chars).
+	// Long inputs (pastes, context dumps) often contain trigger words
+	// incidentally without actually requesting multi-agent work.
+	inputLen := utf8.RuneCountInString(input)
+	if inputLen < 300 {
+		for _, kw := range reviewKeywords {
+			if strings.Contains(lower, kw) {
+				return true
+			}
 		}
-	}
-	for _, kw := range consensusKeywords {
-		if strings.Contains(lower, kw) {
-			return true
+		for _, kw := range consensusKeywords {
+			if strings.Contains(lower, kw) {
+				return true
+			}
 		}
-	}
-	for _, kw := range scanKeywords {
-		if strings.Contains(lower, kw) {
-			return true
+		for _, kw := range scanKeywords {
+			if strings.Contains(lower, kw) {
+				return true
+			}
 		}
-	}
-
-	// 3. Input length > 500 characters
-	if utf8.RuneCountInString(input) > 500 {
-		return true
 	}
 
 	// 4. Conversation > 30 turns

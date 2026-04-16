@@ -36,6 +36,24 @@ var dangerousPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\bchmod\s+777\s+/`),                          // chmod 777 /
 }
 
+// Risky command patterns — not blocked, but flagged with a warning in output.
+var riskyPatterns = []struct {
+	re   *regexp.Regexp
+	desc string
+}{
+	{regexp.MustCompile(`\brm\s+-[^\s]*r`), "재귀 삭제 (rm -r)"},
+	{regexp.MustCompile(`\bgit\s+reset\s+--hard`), "Git 하드 리셋"},
+	{regexp.MustCompile(`\bgit\s+push\s+.*--force`), "Git 강제 푸시"},
+	{regexp.MustCompile(`\bgit\s+push\s+.*-f\b`), "Git 강제 푸시"},
+	{regexp.MustCompile(`\bgit\s+clean\s+.*-f`), "Git 미추적 파일 삭제"},
+	{regexp.MustCompile(`\bgit\s+checkout\s+--\s*\.`), "Git 변경사항 폐기"},
+	{regexp.MustCompile(`\bgit\s+branch\s+-D`), "Git 브랜치 강제 삭제"},
+	{regexp.MustCompile(`\bdrop\s+(table|database)\b`), "DB 테이블/데이터베이스 삭제"},
+	{regexp.MustCompile(`\btruncate\s+table\b`), "DB 테이블 비우기"},
+	{regexp.MustCompile(`\bnpm\s+publish\b`), "npm 패키지 배포"},
+	{regexp.MustCompile(`\bkill\s+-9`), "프로세스 강제 종료"},
+}
+
 // CheckSafety returns an error if the command matches a dangerous pattern.
 func CheckSafety(command string) error {
 	lower := strings.ToLower(command)
@@ -46,6 +64,19 @@ func CheckSafety(command string) error {
 		}
 	}
 	return nil
+}
+
+// CheckRisky returns a warning string if the command is risky but not blocked.
+// Returns empty string if the command is safe.
+func CheckRisky(command string) string {
+	lower := strings.ToLower(command)
+	for _, p := range riskyPatterns {
+		if p.re.MatchString(lower) {
+			config.DebugLog("[SHELL-WARN] cmd=%q risky: %s", command, p.desc)
+			return fmt.Sprintf("⚠ 주의: %s", p.desc)
+		}
+	}
+	return ""
 }
 
 func ShellExec(ctx context.Context, command string) (ShellResult, error) {

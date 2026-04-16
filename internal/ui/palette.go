@@ -16,17 +16,22 @@ type PaletteItem struct {
 
 // PaletteItems is the default list of commands available in the palette.
 var PaletteItems = []PaletteItem{
-	{Label: "새 세션", Description: "새 대화 세션 시작", Action: "/new"},
-	{Label: "세션 목록", Description: "최근 세션 보기", Action: "/sessions"},
-	{Label: "자율 모드", Description: "AI 자율 작업 수행", Action: "/auto"},
-	{Label: "멀티 에이전트", Description: "두 모델 병렬 실행", Action: "/multi"},
-	{Label: "진단", Description: "프로젝트 코드 진단", Action: "/diagnostics"},
-	{Label: "Git 상태", Description: "저장소 상태 확인", Action: "/git"},
-	{Label: "화면 정리", Description: "대화 초기화", Action: "/clear"},
-	{Label: "설정 초기화", Description: "API 키 재설정", Action: "/setup"},
-	{Label: "도움말", Description: "키보드 단축키 안내", Action: "/help"},
-	{Label: "컴패니언", Description: "브라우저 대시보드", Action: "/companion"},
-	{Label: "MCP 상태", Description: "MCP 서버 연결 상태", Action: "/mcp"},
+	{Label: "New Session", Description: "Start new conversation", Action: "/new"},
+	{Label: "Sessions", Description: "Browse recent sessions", Action: "/sessions"},
+	{Label: "Auto Mode", Description: "AI autonomous execution", Action: "/auto"},
+	{Label: "Multi-Agent", Description: "Dual model parallel run", Action: "/multi"},
+	{Label: "Diagnostics", Description: "Run project linters", Action: "/diagnostics"},
+	{Label: "Git Status", Description: "Repository status", Action: "/git"},
+	{Label: "Clear", Description: "Clear conversation", Action: "/clear"},
+	{Label: "Copy", Description: "Copy last AI response", Action: "/copy"},
+	{Label: "Export", Description: "Export session to markdown", Action: "/export"},
+	{Label: "Diff", Description: "Show git changes", Action: "/diff"},
+	{Label: "Undo", Description: "Undo last file edit", Action: "/undo"},
+	{Label: "Setup", Description: "Reset API key", Action: "/setup"},
+	{Label: "Companion", Description: "Browser dashboard", Action: "/companion"},
+	{Label: "MCP Status", Description: "MCP server connections", Action: "/mcp"},
+	{Label: "Help", Description: "Keyboard shortcuts", Action: "/help"},
+	{Label: "Exit", Description: "Quit application", Action: "/exit"},
 }
 
 // FuzzyFilter returns items matching the query (case-insensitive substring match).
@@ -77,7 +82,7 @@ func RenderPalette(items []PaletteItem, selected int, query string, width int) s
 	// Search bar
 	searchDisplay := query
 	if searchDisplay == "" {
-		searchDisplay = lipgloss.NewStyle().Foreground(ColorMuted).Render("검색...")
+		searchDisplay = lipgloss.NewStyle().Foreground(ColorMuted).Render("Search...")
 	} else {
 		searchDisplay = searchStyle.Render(query)
 	}
@@ -91,7 +96,7 @@ func RenderPalette(items []PaletteItem, selected int, query string, width int) s
 	}
 
 	if len(items) == 0 {
-		lines = append(lines, lipgloss.NewStyle().Foreground(ColorMuted).Italic(true).Render("  일치하는 명령 없음"))
+		lines = append(lines, lipgloss.NewStyle().Foreground(ColorMuted).Italic(true).Render("  No matching commands"))
 	} else {
 		// Calculate scroll offset to keep selected item visible
 		offset := 0
@@ -131,7 +136,7 @@ func RenderPalette(items []PaletteItem, selected int, query string, width int) s
 
 	lines = append(lines, "")
 	hintStyle := lipgloss.NewStyle().Foreground(ColorMuted)
-	lines = append(lines, hintStyle.Render("↑↓ 이동  Enter 선택  Esc 닫기"))
+	lines = append(lines, hintStyle.Render("↑↓ Move  Enter Select  Esc Close"))
 
 	content := strings.Join(lines, "\n")
 

@@ -39,56 +39,47 @@ func FileWrite(path, content string) error {
 // Stage 2: LineTrimmed — ignore leading/trailing whitespace per line
 // Stage 3: IndentFlex — normalize all indentation differences
 // Stage 4: Levenshtein — accept 85%+ similarity match
-// Returns the number of replacements made and which stage matched.
-func FileEdit(path, oldStr, newStr string) (int, error) {
+// Returns the number of replacements made, a unified diff preview, and any error.
+func FileEdit(path, oldStr, newStr string) (int, string, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return 0, fmt.Errorf("invalid path: %w", err)
+		return 0, "", fmt.Errorf("invalid path: %w", err)
 	}
 	data, err := os.ReadFile(absPath)
 	if err != nil {
-		return 0, fmt.Errorf("read failed: %w", err)
+		return 0, "", fmt.Errorf("read failed: %w", err)
 	}
 	content := string(data)
 
+	applyEdit := func(original, matched, replacement, stage string) (int, string, error) {
+		newContent := strings.Replace(original, matched, replacement, 1)
+		diff := GenerateUnifiedDiff(path, original, newContent)
+		if err := SnapshotAndWrite(absPath, []byte(newContent)); err != nil {
+			return 0, "", fmt.Errorf("write failed: %w", err)
+		}
+		config.DebugLog("[FILE-EDIT] stage=%s path=%s", stage, path)
+		return 1, diff, nil
+	}
+
 	// Stage 1: ExactMatch
 	if strings.Contains(content, oldStr) {
-		newContent := strings.Replace(content, oldStr, newStr, 1)
-		if err := SnapshotAndWrite(absPath, []byte(newContent)); err != nil {
-			return 0, fmt.Errorf("write failed: %w", err)
-		}
-		config.DebugLog("[FILE-EDIT] stage=ExactMatch path=%s", path)
-		return 1, nil
+		return applyEdit(content, oldStr, newStr, "ExactMatch")
 	}
 
 	// Stage 2: LineTrimmed — match ignoring leading/trailing whitespace per line
-	if idx, matchedOld := lineTrimmedFind(content, oldStr); idx >= 0 {
-		newContent := strings.Replace(content, matchedOld, newStr, 1)
-		if err := SnapshotAndWrite(absPath, []byte(newContent)); err != nil {
-			return 0, fmt.Errorf("write failed: %w", err)
-		}
-		config.DebugLog("[FILE-EDIT] stage=LineTrimmed path=%s", path)
-		return 1, nil
+	if _, matchedOld := lineTrimmedFind(content, oldStr); matchedOld != "" {
+		return applyEdit(content, matchedOld, newStr, "LineTrimmed")
 	}
 
 	// Stage 3: IndentFlex — normalize all indentation
-	if idx, matchedOld := indentFlexFind(content, oldStr); idx >= 0 {
-		newContent := strings.Replace(content, matchedOld, newStr, 1)
-		if err := SnapshotAndWrite(absPath, []byte(newContent)); err != nil {
-			return 0, fmt.Errorf("write failed: %w", err)
-		}
-		config.DebugLog("[FILE-EDIT] stage=IndentFlex path=%s", path)
-		return 1, nil
+	if _, matchedOld := indentFlexFind(content, oldStr); matchedOld != "" {
+		return applyEdit(content, matchedOld, newStr, "IndentFlex")
 	}
 
 	// Stage 4: Levenshtein — 85%+ similarity
 	if matchedOld, similarity := levenshteinFind(content, oldStr, 0.85); matchedOld != "" {
-		newContent := strings.Replace(content, matchedOld, newStr, 1)
-		if err := SnapshotAndWrite(absPath, []byte(newContent)); err != nil {
-			return 0, fmt.Errorf("write failed: %w", err)
-		}
-		config.DebugLog("[FILE-EDIT] stage=Levenshtein(%.1f%%) path=%s", similarity*100, path)
-		return 1, nil
+		n, diff, err := applyEdit(content, matchedOld, newStr, fmt.Sprintf("Levenshtein(%.1f%%)", similarity*100))
+		return n, diff, err
 	}
 
 	// All stages failed
@@ -97,7 +88,7 @@ func FileEdit(path, oldStr, newStr string) (int, error) {
 	if len(previewRunes) > 500 {
 		preview = string(previewRunes[:500]) + "..."
 	}
-	return 0, fmt.Errorf("old_string not found in %s (tried 4 fuzzy stages). File preview:\n%s", path, preview)
+	return 0, "", fmt.Errorf("old_string not found in %s (tried 4 fuzzy stages). File preview:\n%s", path, preview)
 }
 
 // lineTrimmedFind finds oldStr in content by comparing lines with trimmed whitespace.

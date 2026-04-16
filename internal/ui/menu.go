@@ -11,13 +11,13 @@ import (
 
 // MainMenuItems is the default list of menu entries.
 var MainMenuItems = []string{
-	"세션 목록",
-	"새 세션",
-	"멀티 에이전트",
-	"Git 상태",
-	"설정 초기화",
-	"화면 정리",
-	"도움말",
+	"Sessions",
+	"New Session",
+	"Multi-Agent",
+	"Git Status",
+	"Reset Config",
+	"Clear Screen",
+	"Help",
 }
 
 // MenuActionFromIndex returns the slash command for a given menu item index.
@@ -45,7 +45,7 @@ func RenderMenu(items []string, selected int, width int) string {
 
 	var lines []string
 
-	lines = append(lines, titleStyle.Render("택가이코드"))
+	lines = append(lines, titleStyle.Render("TECHAI CODE"))
 	lines = append(lines, "")
 	lines = append(lines, lipgloss.NewStyle().Foreground(ColorMuted).Render(strings.Repeat("─", menuWidth-4)))
 
@@ -56,7 +56,7 @@ func RenderMenu(items []string, selected int, width int) string {
 	}
 
 	if len(items) == 0 {
-		lines = append(lines, lipgloss.NewStyle().Foreground(ColorMuted).Italic(true).Render("  항목 없음"))
+		lines = append(lines, lipgloss.NewStyle().Foreground(ColorMuted).Italic(true).Render("  No items"))
 	} else {
 		offset := 0
 		if selected >= maxVisible {
@@ -93,7 +93,7 @@ func RenderMenu(items []string, selected int, width int) string {
 
 	lines = append(lines, "")
 	hintStyle := lipgloss.NewStyle().Foreground(ColorMuted)
-	lines = append(lines, hintStyle.Render("↑↓ 이동  Enter 선택  Esc 닫기"))
+	lines = append(lines, hintStyle.Render("↑↓ Move  Enter Select  Esc Close"))
 
 	content := strings.Join(lines, "\n")
 
@@ -122,7 +122,7 @@ func RenderSessionPicker(sessions []session.SessionMeta, selected int, currentID
 		Bold(true)
 
 	var lines []string
-	lines = append(lines, titleStyle.Render("세션 목록"))
+	lines = append(lines, titleStyle.Render("Sessions"))
 	lines = append(lines, "")
 	lines = append(lines, lipgloss.NewStyle().Foreground(ColorMuted).Render(strings.Repeat("─", pickerWidth-4)))
 
@@ -132,7 +132,7 @@ func RenderSessionPicker(sessions []session.SessionMeta, selected int, currentID
 	}
 
 	if len(sessions) == 0 {
-		lines = append(lines, lipgloss.NewStyle().Foreground(ColorMuted).Italic(true).Render("  저장된 세션이 없습니다"))
+		lines = append(lines, lipgloss.NewStyle().Foreground(ColorMuted).Italic(true).Render("  No saved sessions"))
 	} else {
 		offset := 0
 		if selected >= maxVisible {
@@ -180,7 +180,7 @@ func RenderSessionPicker(sessions []session.SessionMeta, selected int, currentID
 
 	lines = append(lines, "")
 	hintStyle := lipgloss.NewStyle().Foreground(ColorMuted)
-	lines = append(lines, hintStyle.Render("↑↓ 이동  Enter 선택  Esc 닫기"))
+	lines = append(lines, hintStyle.Render("↑↓ Move  Enter Select  Esc Close"))
 
 	content := strings.Join(lines, "\n")
 

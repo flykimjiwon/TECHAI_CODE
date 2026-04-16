@@ -166,6 +166,13 @@ func RenderStatusBar(model string, tokens int, contextWindow int, elapsed time.D
 
 	if tokens > 0 {
 		left += Subtle.Render(fmt.Sprintf("  %dtok", tokens))
+		// Estimated cost: ~$0.30/1M input tokens (gpt-oss-120b tier)
+		cost := float64(tokens) * 0.30 / 1_000_000
+		if cost >= 0.01 {
+			left += Subtle.Render(fmt.Sprintf("  $%.2f", cost))
+		} else if cost >= 0.001 {
+			left += Subtle.Render(fmt.Sprintf("  $%.3f", cost))
+		}
 	}
 	// Context window usage: ctx:XX% colored by severity so the user can
 	// see how close they are to the model's limit at a glance. Shown

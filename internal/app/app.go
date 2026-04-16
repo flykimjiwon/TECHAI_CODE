@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/atotto/clipboard"
 	openai "github.com/sashabaranov/go-openai"
 
 	tgc "github.com/kimjiwon/tgc"
@@ -55,6 +57,11 @@ type multiProgressMsg struct {
 // multiResultMsg carries the final merged result from the multi-agent pipeline.
 type multiResultMsg struct {
 	result multi.MergedResult
+}
+
+// slashResultMsg carries async slash command output back to the UI.
+type slashResultMsg struct {
+	content string
 }
 
 type Model struct {
@@ -137,6 +144,11 @@ type Model struct {
 
 	// MCP: Model Context Protocol client manager.
 	mcpManager *mcp.Manager
+
+	// Input history: arrow keys cycle through previous inputs.
+	inputHistory []string
+	historyIdx   int // -1 = not browsing; 0 = most recent
+	historyDraft string // saved current input when entering history
 }
 
 func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
@@ -197,6 +209,13 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	envCtx := llm.FormatEnvironmentContext(envResults)
 	config.DebugLog("[ENV] probed %d tools", len(envResults))
 
+	// Detect project type and framework
+	projInfo := tools.DetectProject(".")
+	projCtxStr := tools.FormatProjectContext(projInfo)
+	if projCtxStr != "" {
+		projectCtx += "\n\n## Detected Project\n" + projCtxStr
+	}
+
 	// Append environment + user docs context to projectCtx
 	projectCtx += envCtx
 	if userDocs.Count() > 0 {
@@ -252,6 +271,20 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		m.setupInput.Focus()
 	} else {
 		m.client = llm.NewClient(cfg.API.BaseURL, cfg.API.APIKey)
+
+		// Wire Level 3 LLM fallback for knowledge search.
+		// When keyword + BM25 search both fail, ask the LLM to pick docs.
+		if knowledgeInj != nil {
+			client := m.client
+			model := cfg.Models.Super
+			knowledgeInj.SetLLMSelector(func(prompt string) (string, error) {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				return client.Chat(ctx, model, []openai.ChatCompletionMessage{
+					{Role: openai.ChatMessageRoleUser, Content: prompt},
+				})
+			})
+		}
 	}
 
 	// Single conversation with initial mode's system prompt
@@ -496,6 +529,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.paletteFiltered = ui.FuzzyFilter("", ui.PaletteItems)
 			return m, nil
 
+		case "ctrl+u":
+			// Clear input field
+			m.textarea.Reset()
+			m.textarea.SetHeight(1)
+			m.historyIdx = -1
+			m.historyDraft = ""
+			m.recalcLayout()
+			return m, nil
+
 		case "ctrl+l":
 			// Keep system prompt, clear conversation
 			m.history = m.history[:1]
@@ -551,6 +593,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Enter = send message
 			input := strings.TrimSpace(m.textarea.Value())
 			if input != "" {
+				// Save to input history
+				m.inputHistory = append([]string{input}, m.inputHistory...)
+				if len(m.inputHistory) > 100 {
+					m.inputHistory = m.inputHistory[:100]
+				}
+				m.historyIdx = -1
+				m.historyDraft = ""
+
 				m.textarea.Reset()
 				m.textarea.SetHeight(1)
 				m.recalcLayout()
@@ -560,6 +610,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.sendMessage(input)
 			}
 			return m, nil
+
+		case "up":
+			// Up arrow: browse input history (only when textarea is single-line)
+			if m.textarea.Height() == 1 && len(m.inputHistory) > 0 {
+				if m.historyIdx == -1 {
+					// Entering history mode — save current draft
+					m.historyDraft = m.textarea.Value()
+					m.historyIdx = 0
+				} else if m.historyIdx < len(m.inputHistory)-1 {
+					m.historyIdx++
+				}
+				m.textarea.Reset()
+				m.textarea.InsertString(m.inputHistory[m.historyIdx])
+				return m, nil
+			}
+
+		case "down":
+			// Down arrow: browse input history forward
+			if m.historyIdx >= 0 {
+				m.historyIdx--
+				m.textarea.Reset()
+				if m.historyIdx < 0 {
+					// Back to draft
+					m.textarea.InsertString(m.historyDraft)
+				} else {
+					m.textarea.InsertString(m.inputHistory[m.historyIdx])
+				}
+				return m, nil
+			}
 
 		case "pgup", "pgdown":
 			var vpCmd tea.Cmd
@@ -595,10 +674,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.textarea.InsertString(text)
-		// Auto-grow textarea for multi-line pastes
+		// Auto-grow textarea for multi-line pastes (max 10 lines)
 		lines := strings.Count(m.textarea.Value(), "\n") + 1
-		if lines > m.textarea.Height() && lines <= 10 {
-			m.textarea.SetHeight(lines)
+		if lines > m.textarea.Height() {
+			newHeight := lines
+			if newHeight > 10 {
+				newHeight = 10
+			}
+			m.textarea.SetHeight(newHeight)
 			m.recalcLayout()
 		}
 		lineCount := strings.Count(text, "\n") + 1
@@ -673,7 +756,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.persistMessage(assistantMsg)
 
 				for _, tc := range msg.toolCalls {
-					status := fmt.Sprintf(">> %s(%s)", tc.Name, truncateArgs(tc.Arguments, 60))
+					status := formatToolCallPreview(tc.Name, tc.Arguments)
 					m.msgs = append(m.msgs, ui.Message{
 						Role: ui.RoleTool, Content: status, Timestamp: time.Now(),
 					})
@@ -844,6 +927,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewport()
 		// Continue waiting for more progress
 		return m, m.waitForNextMulti()
+
+	case slashResultMsg:
+		m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: msg.content, Timestamp: time.Now()})
+		m.updateViewport()
+		return m, nil
 
 	case multiResultMsg:
 		m.multiRunning = false
@@ -1240,6 +1328,100 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.updateViewport()
 		return true, nil
 
+	case "/copy":
+		// /copy — last AI response, /copy N — Nth recent AI response, /copy all — entire session
+		target := ""
+		if arg == "all" {
+			var sb strings.Builder
+			for _, msg := range m.msgs {
+				switch msg.Role {
+				case ui.RoleUser:
+					sb.WriteString("[사용자] " + msg.Content + "\n\n")
+				case ui.RoleAssistant:
+					sb.WriteString("[AI] " + msg.Content + "\n\n")
+				}
+			}
+			target = sb.String()
+		} else {
+			// Find Nth AI response (default: last)
+			n := 1
+			if arg != "" {
+				fmt.Sscanf(arg, "%d", &n)
+			}
+			count := 0
+			for i := len(m.msgs) - 1; i >= 0; i-- {
+				if m.msgs[i].Role == ui.RoleAssistant {
+					count++
+					if count == n {
+						target = m.msgs[i].Content
+						break
+					}
+				}
+			}
+		}
+		if target == "" {
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: "복사할 AI 응답이 없습니다.", Timestamp: time.Now()})
+		} else {
+			if err := clipboard.WriteAll(target); err != nil {
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("클립보드 복사 실패: %v", err), Timestamp: time.Now()})
+			} else {
+				runes := []rune(target)
+				preview := string(runes)
+				if len(runes) > 60 {
+					preview = string(runes[:60]) + "..."
+				}
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("클립보드에 복사됨 (%d자): %s", len(runes), preview), Timestamp: time.Now()})
+			}
+		}
+		m.updateViewport()
+		return true, nil
+
+	case "/export":
+		// Export session to markdown file
+		filename := fmt.Sprintf("techai-session-%s.md", time.Now().Format("20060102-150405"))
+		if arg != "" {
+			filename = arg
+			if !strings.HasSuffix(filename, ".md") {
+				filename += ".md"
+			}
+		}
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("# TECHAI 세션 (%s)\n\n", time.Now().Format("2006-01-02 15:04")))
+		for _, msg := range m.msgs {
+			switch msg.Role {
+			case ui.RoleUser:
+				sb.WriteString(fmt.Sprintf("## 사용자\n\n%s\n\n", msg.Content))
+			case ui.RoleAssistant:
+				sb.WriteString(fmt.Sprintf("## AI\n\n%s\n\n", msg.Content))
+			}
+		}
+		if err := os.WriteFile(filename, []byte(sb.String()), 0644); err != nil {
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("내보내기 실패: %v", err), Timestamp: time.Now()})
+		} else {
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("세션 내보내기 완료: %s", filename), Timestamp: time.Now()})
+		}
+		m.updateViewport()
+		return true, nil
+
+	case "/diff":
+		// Show git diff asynchronously to avoid blocking the TUI loop
+		return true, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			result, err := tools.ShellExec(ctx, "git diff")
+			if err != nil {
+				return slashResultMsg{content: fmt.Sprintf("diff 실패: %v", err)}
+			}
+			if result.Stdout == "" {
+				return slashResultMsg{content: "변경사항 없음"}
+			}
+			diff := result.Stdout
+			if len(diff) > 5000 {
+				diff = diff[:5000] + "\n\n... (truncated)"
+			}
+			return slashResultMsg{content: diff}
+		}
+
 	case "/exit", "/quit":
 		return true, tea.Quit
 
@@ -1271,6 +1453,8 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
   /auto — 자율 모드    /diagnostics — 코드 진단    /git — 저장소 상태
   /multi — 멀티 에이전트    /version — 버전    /clear — 화면 정리
   /undo — 마지막 수정 되돌리기    /undo list — 스냅샷 목록
+  /copy — 마지막 AI 응답 클립보드 복사    /export — 세션 md 내보내기
+  /diff — 현재 Git 변경사항    ↑/↓ — 입력 히스토리
   /companion — 브라우저 대시보드    /mcp — MCP 서버 상태
   /setup — 설정 초기화    /exit — 종료`, config.AppVersion)
 		m.msgs = append(m.msgs, ui.Message{
@@ -1658,15 +1842,22 @@ func (m *Model) shouldUseMulti(input string) bool {
 	if !m.multiEnabled {
 		return false
 	}
-	// If auto mode, use hybrid detection
+	// If auto mode, use hybrid detection with LLM confirmation
 	if m.multiAuto {
 		ctxWindow := llm.GetCapability(m.currentModel()).ContextWindow
 		// 1st: keyword + heuristic (instant, 0ms)
-		if multi.AutoDetect(input, m.history, m.tokenCount, ctxWindow) {
+		keywordMatch := multi.AutoDetect(input, m.history, m.tokenCount, ctxWindow)
+		if keywordMatch {
+			// Keyword matched — confirm with LLM to avoid false positives
+			// Use Super model (Dev model may be unavailable)
+			if !multi.AutoDetectWithLLM(m.client, m.cfg.Models.Super, input) {
+				config.DebugLog("[MULTI-AUTO] keyword matched but LLM said NO, skipping")
+				return false
+			}
 			return true
 		}
-		// 2nd: LLM classification fallback (max 5s)
-		return multi.AutoDetectWithLLM(m.client, m.cfg.Models.Dev, input)
+		// 2nd: No keyword match — try LLM classification (max 5s)
+		return multi.AutoDetectWithLLM(m.client, m.cfg.Models.Super, input)
 	}
 	// Non-auto: always use multi when enabled
 	return true
@@ -1734,6 +1925,70 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return string(runes[:n]) + "..."
+}
+
+// formatToolCallPreview returns a user-friendly tool call description.
+func formatToolCallPreview(name, argsJSON string) string {
+	// Extract key argument for display
+	var args map[string]interface{}
+	_ = json.Unmarshal([]byte(argsJSON), &args)
+
+	icons := map[string]string{
+		"file_read":        "reading",
+		"file_write":       "writing",
+		"file_edit":        "editing",
+		"list_files":       "listing",
+		"shell_exec":       "running",
+		"grep_search":      "searching",
+		"glob_search":      "finding",
+		"hashline_read":    "reading",
+		"hashline_edit":    "editing",
+		"git_status":       "git status",
+		"git_diff":         "git diff",
+		"git_log":          "git log",
+		"diagnostics":      "diagnosing",
+		"knowledge_search": "searching docs",
+	}
+
+	action := icons[name]
+	if action == "" {
+		action = name
+	}
+
+	// Show the most relevant argument
+	detail := ""
+	switch name {
+	case "file_read", "file_write", "file_edit", "hashline_read", "hashline_edit":
+		if p, ok := args["path"].(string); ok {
+			detail = p
+		}
+	case "shell_exec":
+		if c, ok := args["command"].(string); ok {
+			if len(c) > 60 {
+				c = c[:60] + "..."
+			}
+			detail = c
+		}
+	case "grep_search":
+		if p, ok := args["pattern"].(string); ok {
+			detail = p
+		}
+	case "glob_search":
+		if p, ok := args["pattern"].(string); ok {
+			detail = p
+		}
+	case "knowledge_search":
+		if q, ok := args["query"].(string); ok {
+			detail = q
+		}
+	default:
+		detail = truncateArgs(argsJSON, 50)
+	}
+
+	if detail != "" {
+		return fmt.Sprintf(">> %s %s", action, detail)
+	}
+	return fmt.Sprintf(">> %s", action)
 }
 
 func truncateArgs(s string, max int) string {

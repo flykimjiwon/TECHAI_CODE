@@ -468,11 +468,15 @@ func executeInner(name string, argsJSON string) string {
 		if path == "" || oldStr == "" {
 			return "Error: path and old_string are required"
 		}
-		count, err := FileEdit(path, oldStr, newStr)
+		count, diff, err := FileEdit(path, oldStr, newStr)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
-		return fmt.Sprintf("OK: replaced %d occurrence(s) in %s", count, path)
+		result := fmt.Sprintf("OK: replaced %d occurrence(s) in %s", count, path)
+		if diff != "" {
+			result += "\n\n" + diff
+		}
+		return result
 
 	case "list_files":
 		path, _ := args["path"].(string)
@@ -497,13 +501,19 @@ func executeInner(name string, argsJSON string) string {
 		if command == "" {
 			return "Error: command is required"
 		}
+		// Prepend risky warning if applicable
+		warning := CheckRisky(command)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		result, err := ShellExec(ctx, command)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
-		output := result.Stdout
+		output := ""
+		if warning != "" {
+			output = warning + "\n\n"
+		}
+		output += result.Stdout
 		if result.Stderr != "" {
 			output += "\nSTDERR: " + result.Stderr
 		}
