@@ -76,8 +76,8 @@ func FileEdit(path, oldStr, newStr string) (int, string, error) {
 		return applyEdit(content, matchedOld, newStr, "IndentFlex")
 	}
 
-	// Stage 4: Levenshtein — 85%+ similarity
-	if matchedOld, similarity := levenshteinFind(content, oldStr, 0.85); matchedOld != "" {
+	// Stage 4: Levenshtein — 95%+ similarity (high threshold to avoid wrong-block matches)
+	if matchedOld, similarity := levenshteinFind(content, oldStr, 0.95); matchedOld != "" {
 		n, diff, err := applyEdit(content, matchedOld, newStr, fmt.Sprintf("Levenshtein(%.1f%%)", similarity*100))
 		return n, diff, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	openai "github.com/sashabaranov/go-openai"
 
@@ -37,13 +38,14 @@ const (
 	compactStage3KeepTail = 10
 )
 
-// estimateTokens returns a rough token count using the standard chars/4
-// heuristic. Good enough for compaction trigger decisions; real token counts
-// come from the API usage field (Phase 1-2).
+// estimateTokens returns a rough token count using rune-based heuristic.
+// Mixed Korean/English text averages ~2 runes per token. Pure English is ~4 chars/token
+// but rune count handles CJK correctly (1 CJK rune ≈ 1.5 tokens).
+// Real token counts come from the API usage field when available.
 func estimateTokens(msgs []openai.ChatCompletionMessage) int {
 	total := 0
 	for _, m := range msgs {
-		total += len(m.Content) / 4
+		total += (utf8.RuneCountInString(m.Content) + 1) / 2
 	}
 	return total
 }

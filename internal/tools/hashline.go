@@ -9,10 +9,12 @@ import (
 	"strings"
 )
 
-// hashLine computes a 4-char MD5 hash prefix for a line of text.
+// hashLine computes an 8-char MD5 hash prefix for a line of text.
+// 8 chars = 4 bytes = ~4 billion possible values, reducing collision risk
+// from 1-in-65K (4 chars) to 1-in-4B for files with 200+ lines.
 func hashLine(line string) string {
 	h := md5.Sum([]byte(line))
-	return fmt.Sprintf("%x", h)[:4]
+	return fmt.Sprintf("%x", h)[:8]
 }
 
 // parseAnchor parses an anchor like "3#e4d9" into line number and hash.

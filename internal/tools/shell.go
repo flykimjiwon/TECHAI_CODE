@@ -55,15 +55,42 @@ var riskyPatterns = []struct {
 }
 
 // CheckSafety returns an error if the command matches a dangerous pattern.
+// Also checks chained commands (&&, ;, |) individually to prevent bypass.
 func CheckSafety(command string) error {
-	lower := strings.ToLower(command)
-	for _, p := range dangerousPatterns {
-		if p.MatchString(lower) {
-			config.DebugLog("[SHELL-BLOCK] cmd=%q matched pattern=%s", command, p.String())
-			return fmt.Errorf("blocked: dangerous command pattern detected: %s", p.String())
+	// Split chained commands and check each segment
+	segments := splitChainedCommands(command)
+	for _, seg := range segments {
+		lower := strings.ToLower(strings.TrimSpace(seg))
+		for _, p := range dangerousPatterns {
+			if p.MatchString(lower) {
+				config.DebugLog("[SHELL-BLOCK] cmd=%q segment=%q matched pattern=%s", command, seg, p.String())
+				return fmt.Errorf("blocked: dangerous command pattern detected in: %s", strings.TrimSpace(seg))
+			}
 		}
 	}
 	return nil
+}
+
+// splitChainedCommands splits a command string on &&, ||, ;, and pipe operators
+// to check each segment independently against safety patterns.
+func splitChainedCommands(command string) []string {
+	// Replace chain operators with a unique separator
+	for _, sep := range []string{"&&", "||", ";", "|"} {
+		command = strings.ReplaceAll(command, sep, "\x00")
+	}
+	// Also handle $() and backtick subshells
+	command = strings.ReplaceAll(command, "$(", "\x00")
+	command = strings.ReplaceAll(command, "`", "\x00")
+
+	parts := strings.Split(command, "\x00")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 // CheckRisky returns a warning string if the command is risky but not blocked.

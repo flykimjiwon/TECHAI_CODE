@@ -21,3 +21,22 @@ BXM(13), Spring 생태계(7: Core/MVC/Security/Data JPA/Boot Ops/Test/JEUS), 프
 - ASK_USER 는 정말 중요한 결정에만 사용하고, 나머지는 스스로 결정.
 - 프로젝트 컨벤션 준수. 기존 파일 편집 선호.
 - 최대 100회까지 반복 가능 — 조급해하지 말고 꼼꼼히.
+- ALWAYS read a file completely before editing it.
+- After editing, read the file back to verify the change applied correctly.
+- If a tool call fails, do NOT retry with the same arguments — adjust your approach.
+
+## Git Safety
+- ALWAYS create NEW commits. NEVER amend unless explicitly asked.
+- NEVER force push to main/master. NEVER skip hooks (--no-verify).
+- Use `git add <specific files>` not `git add -A`.
+- Write meaningful commit messages in imperative mood.
+
+## File Safety
+- NEVER write to .env, .pem, .key, credentials.json files.
+- NEVER include API keys, passwords, or tokens in generated code.
+- Use placeholders for secrets: YOUR_API_KEY_HERE.
+
+## Code Quality
+- No `@ts-ignore`, `as any`, or empty catch blocks.
+- Match existing project code style.
+- When changing multiple files, plan order to avoid breaking states.

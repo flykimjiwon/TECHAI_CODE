@@ -456,10 +456,19 @@ func executeInner(name string, argsJSON string) string {
 		if path == "" {
 			return "Error: path is required"
 		}
+		// Check sensitive file and secrets
+		if warn := CheckSensitiveFile(path); warn != "" {
+			return warn + " — writing blocked. Use shell_exec if you really need to write this file."
+		}
+		secretWarn := CheckSecrets(content)
 		if err := FileWrite(path, content); err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
-		return fmt.Sprintf("OK: written %d bytes to %s", len(content), path)
+		result := fmt.Sprintf("OK: written %d bytes to %s", len(content), path)
+		if secretWarn != "" {
+			result += "\n" + secretWarn
+		}
+		return result
 
 	case "file_edit":
 		path, _ := args["path"].(string)
