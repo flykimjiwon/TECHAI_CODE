@@ -149,6 +149,12 @@ type Model struct {
 	inputHistory []string
 	historyIdx   int // -1 = not browsing; 0 = most recent
 	historyDraft string // saved current input when entering history
+
+	// Custom commands loaded from .tgc/commands/ and ~/.tgc/commands/.
+	customCommands map[string]string
+
+	// Memory: persistent project/global facts injected into system prompt.
+	memoryStore *tools.MemoryStore
 }
 
 func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
@@ -239,18 +245,35 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		}
 	}
 
+	// Load custom commands from .tgc/commands/ and ~/.tgc/commands/
+	customCmds := tools.LoadCustomCommands()
+	if len(customCmds) > 0 {
+		for name := range customCmds {
+			config.DebugLog("[APP] custom command registered: /%s", name)
+		}
+		// Append custom commands to palette
+		for name := range customCmds {
+			ui.PaletteItems = append(ui.PaletteItems, ui.PaletteItem{
+				Label:       "/" + name,
+				Description: "Custom command",
+				Action:      "/" + name,
+			})
+		}
+	}
+
 	m := Model{
-		cfg:          cfg,
-		activeTab:    initialMode,
-		cwd:          cwdShort,
-		projectCtx:   projectCtx,
-		knowledgeInj: knowledgeInj,
-		textarea:     ta,
-		viewport:     vp,
-		inSetup:      needsSetup,
-		setupCfg:     config.DefaultConfig(),
-		setupInput:   setupTa,
-		store:        sessionStore,
+		cfg:            cfg,
+		activeTab:      initialMode,
+		cwd:            cwdShort,
+		projectCtx:     projectCtx,
+		knowledgeInj:   knowledgeInj,
+		textarea:       ta,
+		viewport:       vp,
+		inSetup:        needsSetup,
+		setupCfg:       config.DefaultConfig(),
+		setupInput:     setupTa,
+		store:          sessionStore,
+		customCommands: customCmds,
 	}
 
 	// Initialize multi-agent config from loaded settings
@@ -287,9 +310,13 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		}
 	}
 
+	// Initialize memory store
+	m.memoryStore = tools.NewMemoryStore()
+	memoryCtx := m.memoryStore.ForContext()
+
 	// Single conversation with initial mode's system prompt
 	mode := llm.Mode(initialMode)
-	sysPrompt := llm.SystemPrompt(mode) + projectCtx
+	sysPrompt := llm.SystemPrompt(mode) + projectCtx + memoryCtx
 	m.history = []openai.ChatCompletionMessage{
 		{Role: openai.ChatMessageRoleSystem, Content: sysPrompt},
 	}
@@ -1472,6 +1499,96 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.updateViewport()
 		return true, nil
 
+	case "/remember":
+		if arg == "" {
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: "Usage: /remember <text> | /remember -g <text> | /remember list | /remember edit <id> <text> | /remember delete <id> | /remember search <query>", Timestamp: time.Now()})
+			m.updateViewport()
+			return true, nil
+		}
+		switch {
+		case arg == "list":
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: m.memoryStore.List(), Timestamp: time.Now()})
+		case strings.HasPrefix(arg, "search "):
+			query := strings.TrimPrefix(arg, "search ")
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: m.memoryStore.Search(query), Timestamp: time.Now()})
+		case strings.HasPrefix(arg, "edit "):
+			parts := strings.SplitN(strings.TrimPrefix(arg, "edit "), " ", 2)
+			if len(parts) < 2 {
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: "Usage: /remember edit <id> <new text>", Timestamp: time.Now()})
+			} else {
+				var id int
+				fmt.Sscanf(parts[0], "%d", &id)
+				result := m.memoryStore.Edit(id, parts[1], false)
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: result, Timestamp: time.Now()})
+			}
+		case strings.HasPrefix(arg, "delete "):
+			var id int
+			fmt.Sscanf(strings.TrimPrefix(arg, "delete "), "%d", &id)
+			result := m.memoryStore.Delete(id, false)
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: result, Timestamp: time.Now()})
+		case strings.HasPrefix(arg, "-g edit "):
+			parts := strings.SplitN(strings.TrimPrefix(arg, "-g edit "), " ", 2)
+			if len(parts) < 2 {
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: "Usage: /remember -g edit <id> <new text>", Timestamp: time.Now()})
+			} else {
+				var id int
+				fmt.Sscanf(parts[0], "%d", &id)
+				result := m.memoryStore.Edit(id, parts[1], true)
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: result, Timestamp: time.Now()})
+			}
+		case strings.HasPrefix(arg, "-g delete "):
+			var id int
+			fmt.Sscanf(strings.TrimPrefix(arg, "-g delete "), "%d", &id)
+			result := m.memoryStore.Delete(id, true)
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: result, Timestamp: time.Now()})
+		case strings.HasPrefix(arg, "-g "):
+			content := strings.TrimPrefix(arg, "-g ")
+			result := m.memoryStore.Add(content, true)
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: result, Timestamp: time.Now()})
+		default:
+			result := m.memoryStore.Add(arg, false)
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: result, Timestamp: time.Now()})
+		}
+		m.updateViewport()
+		return true, nil
+
+	case "/forget":
+		if arg == "" {
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: "Usage: /forget <id> or /forget -g <id>", Timestamp: time.Now()})
+		} else if strings.HasPrefix(arg, "-g ") {
+			var id int
+			fmt.Sscanf(strings.TrimPrefix(arg, "-g "), "%d", &id)
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: m.memoryStore.Delete(id, true), Timestamp: time.Now()})
+		} else {
+			var id int
+			fmt.Sscanf(arg, "%d", &id)
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: m.memoryStore.Delete(id, false), Timestamp: time.Now()})
+		}
+		m.updateViewport()
+		return true, nil
+
+	case "/commands":
+		if len(m.customCommands) == 0 {
+			m.msgs = append(m.msgs, ui.Message{
+				Role:      ui.RoleSystem,
+				Content:   "No custom commands loaded. Add .md files to .tgc/commands/ or ~/.tgc/commands/",
+				Timestamp: time.Now(),
+			})
+		} else {
+			var lines []string
+			lines = append(lines, "  Custom commands:")
+			for name := range m.customCommands {
+				lines = append(lines, fmt.Sprintf("  /%s", name))
+			}
+			m.msgs = append(m.msgs, ui.Message{
+				Role:      ui.RoleSystem,
+				Content:   strings.Join(lines, "\n"),
+				Timestamp: time.Now(),
+			})
+		}
+		m.updateViewport()
+		return true, nil
+
 	case "/exit", "/quit":
 		return true, tea.Quit
 
@@ -1502,6 +1619,9 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
   ↑/↓ — Input history    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
 
   /init — Scan project → generate .techai.md
+  /remember <text> — Save memory    /remember list — Show all
+  /remember -g <text> — Global memory    /forget <id> — Delete
+  /commands — List custom commands (.tgc/commands/)
   /new — New session    /sessions — List    /session <id> — Restore
   /auto — Auto mode    /multi — Multi-agent    /diagnostics — Lint
   /git — Git status    /diff — Git changes    /version — Version
@@ -1509,13 +1629,22 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
   /undo — Undo file edit    /undo list — Snapshot history
   /companion — Browser dashboard    /mcp — MCP server status
   /compact — Compress history    /clear — Clear chat
-  /setup — Reset config    /exit — Quit`, config.AppVersion)
+  /commands — List custom commands    /setup — Reset config    /exit — Quit`, config.AppVersion)
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})
 		m.updateViewport()
 		return true, nil
 	}
+
+	// Check custom commands
+	cmdName := strings.TrimPrefix(cmd, "/")
+	if template, ok := m.customCommands[cmdName]; ok {
+		message := strings.ReplaceAll(template, "$ARGUMENTS", arg)
+		config.DebugLog("[COMMANDS] executing custom command /%s with arg=%q", cmdName, arg)
+		return true, m.sendMessage(message)
+	}
+
 	return false, nil
 }
 
