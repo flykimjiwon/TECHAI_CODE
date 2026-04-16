@@ -253,6 +253,31 @@ techai --version      # 버전 출력
 | `/mcp` | MCP server status | Shows connected servers, tool counts, errors |
 | `/companion` | Browser dashboard | Opens `localhost:8787` — real-time SSE stream of AI activity |
 
+### Memory
+
+| Command | Action | Details |
+|---------|--------|---------|
+| `/remember <text>` | Save project memory | Stored in `.tgc/memories.json`, injected into AI context |
+| `/remember -g <text>` | Save global memory | Stored in `~/.tgc/memories.json`, shared across all projects |
+| `/remember list` | Show all memories | Project + global, with hit counts |
+| `/remember edit <id> <text>` | Update memory | Edit by ID |
+| `/remember delete <id>` | Delete project memory | Delete by ID |
+| `/remember -g edit <id> <text>` | Update global memory | Edit global by ID |
+| `/remember -g delete <id>` | Delete global memory | Delete global by ID |
+| `/remember search <query>` | Search memories | Case-insensitive keyword match |
+| `/forget <id>` | Delete shorthand | Same as `/remember delete <id>` |
+| `/forget -g <id>` | Delete global shorthand | Same as `/remember -g delete <id>` |
+
+### Custom Commands
+
+| Command | Action | Details |
+|---------|--------|---------|
+| `/commands` | List loaded commands | Shows all `.md`-based custom commands |
+| `/<name>` | Run custom command | File `.tgc/commands/<name>.md` content sent as message |
+| `/<name> <args>` | Run with arguments | `$ARGUMENTS` in template replaced with args |
+
+> Create `.tgc/commands/review.md` → type `/review src/main.go` → AI receives the template with args.
+
 ### System
 
 | Command | Action | Details |
@@ -264,11 +289,88 @@ techai --version      # 버전 출력
 
 ## Modes (Tab to switch)
 
-| Mode | Description | Tools | Use Case |
-|------|-------------|-------|----------|
-| **Super** | All-purpose. Auto-detects: code, analysis, conversation | 14 built-in + MCP | Default mode. Handles everything |
-| **Deep Agent** | Autonomous coding. Up to 100 iterations | Full tools + auto-continue | Large tasks. Stops on `[TASK_COMPLETE]` |
-| **Plan** | Plan-first. Creates step-by-step plan before execution | Full tools (including write) | Complex tasks requiring planning |
+| Mode | Model (Novita) | Model (Onprem) | Description |
+|------|----------------|----------------|-------------|
+| **Super** | `openai/gpt-oss-120b` | `GPT-OSS-120B` | All-purpose. Auto-detects intent: code, analysis, conversation. Full 14 tools + MCP. 128K context window. Optimized for complex tool chaining, multi-step reasoning, knowledge injection (8K budget, 6 sections). Default mode. |
+| **Deep Agent** | `openai/gpt-oss-120b` | `GPT-OSS-120B` | Autonomous coding. AI works without user input for up to 100 iterations. Stops on `[TASK_COMPLETE]` marker. Same model as Super but with auto-continue system prompt. Best for large refactors, multi-file changes. |
+| **Plan** | `openai/gpt-oss-120b` | `GPT-OSS-120B` | Plan-first approach. AI creates step-by-step plan before execution. Full tools including write access. Best for complex tasks requiring architectural decisions. |
+
+### Multi-Agent Models
+
+When multi-agent is enabled (`/multi`), two models work together:
+
+| Role | Novita | Onprem | Gemma | Purpose |
+|------|--------|--------|-------|---------|
+| **Agent1 (Super)** | `openai/gpt-oss-120b` | `GPT-OSS-120B` | `google/gemma-4-31b-it` | Primary: generates code, full tool access |
+| **Agent2 (Dev)** | `qwen/qwen3-coder-30b` | `Qwen3-Coder-30B` | `google/gemma-4-31b-it` | Secondary: reviews, compares. Read-only tools. 32K context, 2K knowledge budget |
+
+### Multi-Agent Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  User Input                                                 │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                    ┌──────▼──────┐
+                    │  Auto-Detect │  Keyword match (0ms)
+                    │  + LLM Gate  │  + LLM confirmation (5s)
+                    └──────┬──────┘
+                           │
+              ┌────────────┼────────────┐
+              │            │            │
+     ┌────────▼──┐  ┌─────▼─────┐  ┌──▼────────┐
+     │  Review    │  │ Consensus │  │   Scan     │
+     └────────┬──┘  └─────┬─────┘  └──┬────────┘
+              │            │            │
+    ┌─────────▼─────────┐  │   ┌───────▼────────┐
+    │  Phase 1           │  │   │  Parallel Split │
+    │  Agent1 (Super)    │  │   │  Agent1: dir/a/ │
+    │  GPT-OSS-120B      │  │   │  Agent2: dir/b/ │
+    │  Full tools (14)   │  │   └───────┬────────┘
+    └─────────┬─────────┘  │           │
+              │            │           │
+    ┌─────────▼─────────┐  │           │
+    │  Phase 2           │  │           │
+    │  Agent2 (Dev)      │  │           │
+    │  Qwen3-Coder-30B   │  │           │
+    │  Read-only tools   │  │           │
+    │  Reviews output    │  │           │
+    └─────────┬─────────┘  │           │
+              │            │           │
+              │  ┌─────────▼─────────┐ │
+              │  │  Both agents run   │ │
+              │  │  same prompt in    │ │
+              │  │  parallel          │ │
+              │  │  Agent1 ──┐        │ │
+              │  │  Agent2 ──┤        │ │
+              │  └──────────┬┘        │ │
+              │             │         │ │
+              └──────┬──────┘─────────┘ │
+                     │                  │
+              ┌──────▼──────────────────▼──┐
+              │  LLM Synthesis              │
+              │  Merges outputs into one    │
+              │  cohesive response          │
+              │  (skips if Agent2 = no issues│
+              │   or Agent2 errored)        │
+              └──────────────┬─────────────┘
+                             │
+                      ┌──────▼──────┐
+                      │  Final      │
+                      │  Response   │
+                      └─────────────┘
+```
+
+### Model Capability Differences
+
+| Capability | GPT-OSS-120B (Super) | Qwen3-Coder-30B (Dev) |
+|-----------|---------------------|----------------------|
+| Context Window | 128K tokens | 32K tokens |
+| Coding Tier | Strong (complex chaining) | Moderate (simple tasks) |
+| Knowledge Budget | 8,000 tokens (6 sections) | 2,000 tokens (2 sections) |
+| Compaction Trigger | 80% / 90% (auto) | 60% / 75% (auto) |
+| Preserve Recent | 15 messages | 8 messages |
+| Edit Strategy | `file_edit` (fuzzy 4-stage) | `hashline_edit` (hash anchors) |
 
 ## Tools (14 built-in + MCP)
 
@@ -311,6 +413,45 @@ AI automatically invokes these tools during conversation. Shown as `Tool:ON(14)`
 | **.techai.md** | Project context file generated by `/init`. Auto-loaded into system prompt. Contains structure, deps, scripts, git info |
 | **Onprem** | On-premise build variant for internal networks. Separate config dir (`~/.tgc-onprem/`), hardcoded endpoint |
 | **Palette** | Command palette (`Ctrl+K`). Fuzzy search across all slash commands |
+| **Memory** | Persistent facts saved via `/remember`. Project-local (`.tgc/memories.json`) or global (`~/.tgc/memories.json`). Auto-injected into system prompt |
+| **Custom Command** | User-defined slash command from `.md` file in `.tgc/commands/` or `~/.tgc/commands/`. Supports `$ARGUMENTS` placeholder |
+
+## File Paths
+
+All paths use `os.UserHomeDir()` — `~` on macOS/Linux, `C:\Users\<username>` on Windows.
+
+### Global (per user, all projects)
+
+| File | macOS / Linux | Windows |
+|------|---------------|---------|
+| Config | `~/.tgc/config.yaml` | `C:\Users\<user>\.tgc\config.yaml` |
+| Sessions DB | `~/.tgc/sessions.db` | `C:\Users\<user>\.tgc\sessions.db` |
+| Debug Log | `~/.tgc/debug.log` | `C:\Users\<user>\.tgc\debug.log` |
+| Snapshots | `~/.tgc/snapshots/` | `C:\Users\<user>\.tgc\snapshots\` |
+| Global Memory | `~/.tgc/memories.json` | `C:\Users\<user>\.tgc\memories.json` |
+| Global Commands | `~/.tgc/commands/*.md` | `C:\Users\<user>\.tgc\commands\*.md` |
+| Global Knowledge | `~/.tgc/knowledge/*.md` | `C:\Users\<user>\.tgc\knowledge\*.md` |
+
+### Project-local (per project, in CWD)
+
+| File | Path |
+|------|------|
+| Project Context | `.techai.md` (generated by `/init`) |
+| Project Memory | `.tgc/memories.json` |
+| Project Commands | `.tgc/commands/*.md` |
+| Project Knowledge | `.tgc/knowledge/*.md` |
+
+> **Priority**: Project-local overrides global when both exist (commands, knowledge).
+
+### Build Variants (separate config dirs)
+
+| Build | Config Dir | macOS / Linux | Windows |
+|-------|-----------|---------------|---------|
+| Default (Novita) | `.tgc` | `~/.tgc/` | `C:\Users\<user>\.tgc\` |
+| Onprem (Shinhan) | `.tgc-onprem` | `~/.tgc-onprem/` | `C:\Users\<user>\.tgc-onprem\` |
+| Gemma (Novita) | `.tgc-gemma` | `~/.tgc-gemma/` | `C:\Users\<user>\.tgc-gemma\` |
+
+> Three builds can be installed side-by-side without interference.
 
 ## 지식 시스템 (Knowledge System)
 
