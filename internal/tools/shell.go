@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -106,22 +107,28 @@ func CheckRisky(command string) string {
 	return ""
 }
 
+// ShellExec runs a command and collects output. For streaming output, use ShellExecStreaming.
 func ShellExec(ctx context.Context, command string) (ShellResult, error) {
-	// Safety check
+	return ShellExecStreaming(ctx, command, nil)
+}
+
+// LineCallback is called for each line of output during streaming shell execution.
+// prefix is "stdout" or "stderr".
+type LineCallback func(prefix, line string)
+
+// ShellExecStreaming runs a command with line-by-line output streaming.
+// If onLine is nil, output is buffered (same as ShellExec).
+func ShellExecStreaming(ctx context.Context, command string, onLine LineCallback) (ShellResult, error) {
 	if err := CheckSafety(command); err != nil {
 		return ShellResult{ExitCode: -1}, err
 	}
 
-	cwd := ""
-	if dir, err := exec.LookPath("sh"); err == nil {
-		cwd = dir
-	}
 	deadline, hasDeadline := ctx.Deadline()
 	timeout := "none"
 	if hasDeadline {
 		timeout = fmt.Sprintf("%v", time.Until(deadline).Round(time.Millisecond))
 	}
-	config.DebugLog("[SHELL] cmd=%q | cwd=%s | timeout=%s | os=%s", command, cwd, timeout, runtime.GOOS)
+	config.DebugLog("[SHELL] cmd=%q | timeout=%s | os=%s | streaming=%v", command, timeout, runtime.GOOS, onLine != nil)
 
 	start := time.Now()
 
@@ -133,12 +140,60 @@ func ShellExec(ctx context.Context, command string) (ShellResult, error) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	var err error
 
-	err := cmd.Run()
+	if onLine != nil {
+		// Streaming mode: pipe stdout/stderr through line scanners
+		stdoutPipe, pErr := cmd.StdoutPipe()
+		if pErr != nil {
+			return ShellResult{ExitCode: -1}, fmt.Errorf("stdout pipe failed: %w", pErr)
+		}
+		stderrPipe, pErr2 := cmd.StderrPipe()
+		if pErr2 != nil {
+			return ShellResult{ExitCode: -1}, fmt.Errorf("stderr pipe failed: %w", pErr2)
+		}
+
+		if startErr := cmd.Start(); startErr != nil {
+			config.DebugLog("[SHELL-ERR] start failed: %v", startErr)
+			return ShellResult{ExitCode: -1}, fmt.Errorf("exec failed: %w", startErr)
+		}
+
+		// Read stdout and stderr concurrently, line by line
+		done := make(chan struct{}, 2)
+		go func() {
+			scanner := bufio.NewScanner(stdoutPipe)
+			scanner.Buffer(make([]byte, 0, 64*1024), 256*1024)
+			for scanner.Scan() {
+				line := scanner.Text()
+				stdout.WriteString(line + "\n")
+				onLine("stdout", line)
+			}
+			done <- struct{}{}
+		}()
+		go func() {
+			scanner := bufio.NewScanner(stderrPipe)
+			scanner.Buffer(make([]byte, 0, 64*1024), 256*1024)
+			for scanner.Scan() {
+				line := scanner.Text()
+				stderr.WriteString(line + "\n")
+				onLine("stderr", line)
+			}
+			done <- struct{}{}
+		}()
+
+		// Wait for both readers to finish
+		<-done
+		<-done
+
+		err = cmd.Wait()
+	} else {
+		// Buffered mode (original behavior)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err = cmd.Run()
+	}
+
 	duration := time.Since(start)
-
 	result := ShellResult{
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),

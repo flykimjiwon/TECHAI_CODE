@@ -118,11 +118,12 @@ func AllTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "shell_exec",
-				Description: "Execute a shell command. Use for: git, npm, build, test, lint, etc. Dangerous commands (rm -rf /, sudo) are blocked. Prefer grep_search/glob_search over shell grep/find.",
+				Description: "Execute a shell command. Use for: git, npm, build, test, lint, etc. Dangerous commands (rm -rf /, sudo) are blocked. Prefer grep_search/glob_search over shell grep/find. Set timeout for long-running commands (builds, tests).",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{
 						"command": {Type: "string", Description: "Shell command to execute"},
+						"timeout": {Type: "string", Description: "Timeout in seconds (default: 30, max: 300). Use higher values for builds/tests."},
 					},
 					Required: []string{"command"},
 				},
@@ -510,9 +511,23 @@ func executeInner(name string, argsJSON string) string {
 		if command == "" {
 			return "Error: command is required"
 		}
+		// Configurable timeout (default 30s, max 300s)
+		timeoutSec := 30
+		if ts, ok := args["timeout"].(string); ok {
+			fmt.Sscanf(ts, "%d", &timeoutSec)
+		}
+		if tf, ok := args["timeout"].(float64); ok {
+			timeoutSec = int(tf)
+		}
+		if timeoutSec > 300 {
+			timeoutSec = 300
+		}
+		if timeoutSec < 1 {
+			timeoutSec = 30
+		}
 		// Prepend risky warning if applicable
 		warning := CheckRisky(command)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
 		defer cancel()
 		result, err := ShellExec(ctx, command)
 		if err != nil {
