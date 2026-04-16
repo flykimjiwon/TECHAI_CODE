@@ -153,6 +153,9 @@ type Model struct {
 	// Custom commands loaded from .tgc/commands/ and ~/.tgc/commands/.
 	customCommands map[string]string
 
+	// Paste hint: shown above input box, cleared on next Enter
+	pasteHint string
+
 	// Memory: persistent project/global facts injected into system prompt.
 	memoryStore *tools.MemoryStore
 }
@@ -571,6 +574,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.SetHeight(1)
 			m.historyIdx = -1
 			m.historyDraft = ""
+			m.pasteHint = ""
 			m.recalcLayout()
 			return m, nil
 
@@ -636,6 +640,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.historyIdx = -1
 				m.historyDraft = ""
+				m.pasteHint = ""
 
 				m.textarea.Reset()
 				m.textarea.SetHeight(1)
@@ -710,23 +715,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.textarea.InsertString(text)
-		// Auto-grow textarea for multi-line pastes (max 10 lines)
+		// Auto-grow textarea for multi-line pastes (max 5 lines for short, hint for long)
 		lines := strings.Count(m.textarea.Value(), "\n") + 1
-		if lines > m.textarea.Height() {
-			newHeight := lines
-			if newHeight > 10 {
-				newHeight = 10
-			}
-			m.textarea.SetHeight(newHeight)
-			m.recalcLayout()
-		}
-		// Show line count for large pastes
 		lineCount := strings.Count(text, "\n") + 1
-		if lineCount > 10 {
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: fmt.Sprintf("  [Pasted %d lines]", lineCount), Timestamp: time.Now(),
-			})
-			m.updateViewport()
+		if lineCount <= 5 {
+			// Short paste: expand textarea to show content
+			if lines > m.textarea.Height() && lines <= 5 {
+				m.textarea.SetHeight(lines)
+				m.recalcLayout()
+			}
+		} else {
+			// Long paste: keep textarea compact, show hint above it
+			m.textarea.SetHeight(1)
+			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+			m.recalcLayout()
 		}
 		return m, nil
 
@@ -1697,7 +1699,13 @@ func (m Model) View() tea.View {
 			vpContent = lipgloss.Place(m.width, m.viewport.Height(), lipgloss.Center, lipgloss.Center, overlay)
 		}
 
-		content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
+		// Show paste hint above input box if present
+		if m.pasteHint != "" {
+			hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24")).Italic(true)
+			content = lipgloss.JoinVertical(lipgloss.Left, vpContent, hintStyle.Render("  "+m.pasteHint), inputBox, statusBar)
+		} else {
+			content = lipgloss.JoinVertical(lipgloss.Left, vpContent, inputBox, statusBar)
+		}
 	}
 
 	v := tea.NewView(content)
