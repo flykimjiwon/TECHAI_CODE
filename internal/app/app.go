@@ -22,6 +22,7 @@ import (
 	"github.com/kimjiwon/tgc/internal/gitinfo"
 	"github.com/kimjiwon/tgc/internal/knowledge"
 	"github.com/kimjiwon/tgc/internal/llm"
+	"github.com/kimjiwon/tgc/internal/mcp"
 	"github.com/kimjiwon/tgc/internal/multi"
 	"github.com/kimjiwon/tgc/internal/session"
 	"github.com/kimjiwon/tgc/internal/tools"
@@ -133,6 +134,9 @@ type Model struct {
 	companionHub    *companion.Hub
 	companionServer *companion.Server
 	companionPort   int
+
+	// MCP: Model Context Protocol client manager.
+	mcpManager *mcp.Manager
 }
 
 func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
@@ -295,6 +299,19 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	// state on the very first frame. This is silent when the cwd is not
 	// a git repository.
 	m.gitInfo = gitinfo.Fetch(".")
+
+	// Initialize MCP clients from config. Done in background; failures
+	// are logged and surfaced via /mcp status command.
+	if len(cfg.MCP.Servers) > 0 {
+		mgr := mcp.NewManager(cfg.MCP.Servers)
+		if err := mgr.Start(); err != nil {
+			config.DebugLog("[MCP] manager start error: %v", err)
+		}
+		m.mcpManager = mgr
+		tools.MCPManager = mgr
+		tools.RegisterMCPTools(mgr.AllTools())
+		config.DebugLog("[MCP] manager started servers=%d tools=%d", len(cfg.MCP.Servers), len(mgr.AllTools()))
+	}
 
 	return m
 }
@@ -1210,6 +1227,42 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		return true, nil
 
 
+	case "/mcp":
+		if m.mcpManager == nil {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[MCP] 설정된 서버 없음. config.yaml의 mcp.servers 확인", Timestamp: time.Now(),
+			})
+		} else {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "[MCP] 서버 상태:\n" + m.mcpManager.Status(), Timestamp: time.Now(),
+			})
+		}
+		m.updateViewport()
+		return true, nil
+
+	case "/exit", "/quit":
+		return true, tea.Quit
+
+	case "/undo":
+		count := 1
+		if arg != "" {
+			if arg == "list" {
+				list := tools.FormatSnapshotList(20)
+				m.msgs = append(m.msgs, ui.Message{
+					Role: ui.RoleSystem, Content: "  스냅샷 목록:\n" + list, Timestamp: time.Now(),
+				})
+				m.updateViewport()
+				return true, nil
+			}
+			fmt.Sscanf(arg, "%d", &count)
+		}
+		result := tools.UndoLast(count)
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: result, Timestamp: time.Now(),
+		})
+		m.updateViewport()
+		return true, nil
+
 	case "/help":
 		help := fmt.Sprintf(`  택가이코드 %s
   Enter — 전송    Shift+Enter — 줄바꿈    Tab — 모드 전환
@@ -1217,7 +1270,9 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
   /new — 새 세션    /sessions — 목록    /session <id> — 복원
   /auto — 자율 모드    /diagnostics — 코드 진단    /git — 저장소 상태
   /multi — 멀티 에이전트    /version — 버전    /clear — 화면 정리
-  /companion — 브라우저 대시보드    /setup — 설정 초기화`, config.AppVersion)
+  /undo — 마지막 수정 되돌리기    /undo list — 스냅샷 목록
+  /companion — 브라우저 대시보드    /mcp — MCP 서버 상태
+  /setup — 설정 초기화    /exit — 종료`, config.AppVersion)
 		m.msgs = append(m.msgs, ui.Message{
 			Role: ui.RoleSystem, Content: help, Timestamp: time.Now(),
 		})

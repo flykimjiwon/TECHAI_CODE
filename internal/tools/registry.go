@@ -11,7 +11,33 @@ import (
 
 	"github.com/kimjiwon/tgc/internal/config"
 	"github.com/kimjiwon/tgc/internal/knowledge"
+	"github.com/kimjiwon/tgc/internal/mcp"
 )
+
+// MCPTools holds openai.Tool definitions registered from MCP servers.
+var MCPTools []openai.Tool
+
+// MCPManager is the global MCP manager used for routing tool calls.
+var MCPManager *mcp.Manager
+
+// RegisterMCPTools converts MCP tools to openai.Tool format and appends to MCPTools.
+func RegisterMCPTools(tools []mcp.MCPTool) {
+	for _, t := range tools {
+		schema := t.InputSchema
+		if schema == nil {
+			schema = map[string]interface{}{"type": "object", "properties": map[string]interface{}{}}
+		}
+		MCPTools = append(MCPTools, openai.Tool{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        t.Name,
+				Description: t.Description,
+				Parameters:  schema,
+			},
+		})
+	}
+	config.DebugLog("[TOOLS] registered %d MCP tools", len(tools))
+}
 
 type paramSchema struct {
 	Type       string                    `json:"type"`
@@ -25,8 +51,9 @@ type propertySchema struct {
 }
 
 // AllTools returns tool definitions for modes with full access (super, dev).
+// MCP tools are appended at the end when registered.
 func AllTools() []openai.Tool {
-	return []openai.Tool{
+	base := []openai.Tool{
 		{
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
@@ -240,6 +267,7 @@ func AllTools() []openai.Tool {
 			},
 		},
 	}
+	return append(base, MCPTools...)
 }
 
 // ReadOnlyTools returns tool definitions for plan mode (no file writes).
@@ -634,6 +662,14 @@ func executeInner(name string, argsJSON string) string {
 		return ExecuteKnowledgeSearch(query, maxResults)
 
 	default:
+		if strings.HasPrefix(name, "mcp_") && MCPManager != nil {
+			result, err := MCPManager.CallTool(name, args)
+			if err != nil {
+				config.DebugLog("[TOOL-MCP] call error tool=%s: %v", name, err)
+				return fmt.Sprintf("Error: %v", err)
+			}
+			return result
+		}
 		config.DebugLog("[TOOL-ERR] unknown tool '%s'", name)
 		return fmt.Sprintf("Error: unknown tool '%s'", name)
 	}

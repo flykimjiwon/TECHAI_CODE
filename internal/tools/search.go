@@ -42,6 +42,7 @@ const (
 
 // GrepSearch searches file contents by regex pattern.
 // Returns matches in "file:line:content" format.
+// Respects .gitignore if present, falls back to hardcoded skipDirs.
 func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines int) (string, error) {
 	if pattern == "" {
 		return "", fmt.Errorf("pattern is required")
@@ -64,6 +65,8 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 		return "", fmt.Errorf("invalid path: %w", err)
 	}
 
+	gi := LoadGitIgnore(absBase)
+
 	var globRe *regexp.Regexp
 	if glob != "" {
 		globPattern := globToRegex(glob)
@@ -80,10 +83,19 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 		if err != nil {
 			return nil
 		}
+
+		rel, _ := filepath.Rel(absBase, path)
+		rel = filepath.ToSlash(rel)
+
 		if d.IsDir() {
-			if skipDirs[d.Name()] {
+			if shouldSkip(gi, rel, true, d.Name()) {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+
+		// Skip by gitignore or fallback
+		if shouldSkip(gi, rel, false, d.Name()) {
 			return nil
 		}
 
@@ -93,9 +105,7 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 			return nil
 		}
 
-		// Apply glob filter on relative path (use forward slashes for cross-platform regex)
-		rel, _ := filepath.Rel(absBase, path)
-		rel = filepath.ToSlash(rel)
+		// Apply glob filter
 		if globRe != nil && !globRe.MatchString(rel) && !globRe.MatchString(d.Name()) {
 			return nil
 		}
@@ -135,7 +145,7 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 		return "No matches found.", nil
 	}
 
-	config.DebugLog("[GREP] pattern=%q path=%s matches=%d bytes=%d", pattern, basePath, matchCount, results.Len())
+	config.DebugLog("[GREP] pattern=%q path=%s matches=%d bytes=%d gitignore=%v", pattern, basePath, matchCount, results.Len(), gi != nil)
 	return results.String(), nil
 }
 
@@ -200,6 +210,7 @@ func searchFile(absPath, relPath string, re *regexp.Regexp, contextLines int) ([
 }
 
 // GlobSearch finds files matching a glob pattern (supports **).
+// Respects .gitignore if present, falls back to hardcoded skipDirs.
 func GlobSearch(pattern, basePath string) (string, error) {
 	if pattern == "" {
 		return "", fmt.Errorf("pattern is required")
@@ -213,6 +224,8 @@ func GlobSearch(pattern, basePath string) (string, error) {
 		return "", fmt.Errorf("invalid path: %w", err)
 	}
 
+	gi := LoadGitIgnore(absBase)
+
 	// Convert glob pattern to regex for ** support
 	globRe, err := regexp.Compile(globToRegex(pattern))
 	if err != nil {
@@ -225,15 +238,21 @@ func GlobSearch(pattern, basePath string) (string, error) {
 		if err != nil {
 			return nil
 		}
+
+		rel, _ := filepath.Rel(absBase, path)
+		rel = filepath.ToSlash(rel)
+
 		if d.IsDir() {
-			if skipDirs[d.Name()] {
+			if shouldSkip(gi, rel, true, d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		rel, _ := filepath.Rel(absBase, path)
-		rel = filepath.ToSlash(rel)
+		if shouldSkip(gi, rel, false, d.Name()) {
+			return nil
+		}
+
 		if globRe.MatchString(rel) {
 			matches = append(matches, rel)
 			if len(matches) >= maxGlobFiles {
@@ -256,7 +275,7 @@ func GlobSearch(pattern, basePath string) (string, error) {
 		result += fmt.Sprintf("\n... (truncated at %d files)", maxGlobFiles)
 	}
 
-	config.DebugLog("[GLOB] pattern=%q path=%s matches=%d", pattern, basePath, len(matches))
+	config.DebugLog("[GLOB] pattern=%q path=%s matches=%d gitignore=%v", pattern, basePath, len(matches), gi != nil)
 	return result, nil
 }
 
