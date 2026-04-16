@@ -195,93 +195,122 @@ techai --version      # 버전 출력
 | `Alt+↑/↓` | Scroll 3 lines |
 | `PgUp/PgDown` | Page scroll |
 
-## Slash Commands
+## Slash Commands (21 commands)
+
+### Project
+
+| Command | Action | Details |
+|---------|--------|---------|
+| `/init` | Scan project → generate `.techai.md` | Analyzes directory structure, dependencies, entry points, scripts, git info. Generated file is auto-loaded into AI context on every session. Run again to refresh. |
 
 ### Session
 
-| Command | Action |
-|---------|--------|
-| `/new` | Start new session |
-| `/sessions` | Browse recent sessions (picker overlay) |
-| `/session <id>` | Restore specific session |
+| Command | Action | Details |
+|---------|--------|---------|
+| `/new` | Start new session | Creates fresh SQLite-backed session |
+| `/sessions` | Browse recent sessions | Picker overlay with ↑↓ navigation, shows last 20 sessions |
+| `/session <id>` | Restore specific session | Full conversation history + mode restored |
+| `/compact` | Compress conversation history | 3-stage: snip old tool outputs → truncate large messages → LLM summary. Targets 50% of context window. Use when `ctx:%` gets high. |
+| `/clear` | Clear conversation | Keeps system prompt, resets tokens to 0 |
 
 ### AI Modes
 
-| Command | Action |
-|---------|--------|
-| `/auto` | Toggle autonomous mode (max 20 iterations) |
-| `/multi on` | Enable multi-agent |
-| `/multi off` | Disable multi-agent |
-| `/multi review` | Strategy: Agent1 generates → Agent2 reviews |
-| `/multi consensus` | Strategy: Both models answer → compare |
-| `/multi scan` | Strategy: Parallel file scanning |
-| `/multi auto` | Strategy: Auto-detect (keyword + LLM confirmation) |
+| Command | Action | Details |
+|---------|--------|---------|
+| `/auto` | Toggle autonomous mode | AI works independently up to 20 iterations, stops on `[AUTO_COMPLETE]` |
+| `/multi on` | Enable multi-agent | Two models (Super + Dev) work together |
+| `/multi off` | Disable multi-agent | Single model only |
+| `/multi review` | Strategy: Review | Agent1(Super) generates → Agent2(Dev) reviews for bugs/improvements |
+| `/multi consensus` | Strategy: Consensus | Same question sent to both models → results compared and synthesized |
+| `/multi scan` | Strategy: Scan | Codebase split between agents for parallel file scanning |
+| `/multi auto` | Strategy: Auto-detect | Keyword matching + LLM confirmation. Skips on pastes >300 chars |
 
 ### File Operations
 
-| Command | Action |
-|---------|--------|
-| `/undo` | Undo last file modification |
-| `/undo <N>` | Undo last N modifications |
-| `/undo list` | Show snapshot history |
-| `/diff` | Show current git diff (async, non-blocking) |
+| Command | Action | Details |
+|---------|--------|---------|
+| `/undo` | Undo last file modification | Restores from `~/.tgc/snapshots/` (auto-created before every `file_write`/`file_edit`) |
+| `/undo <N>` | Undo last N modifications | Batch restore |
+| `/undo list` | Show snapshot history | Lists up to 20 recent snapshots with timestamps |
+| `/diff` | Show git diff | Runs async (non-blocking). Truncated at 5KB |
 
 ### Clipboard & Export
 
-| Command | Action |
-|---------|--------|
-| `/copy` | Copy last AI response to clipboard |
-| `/copy <N>` | Copy Nth recent AI response |
-| `/copy all` | Copy entire session to clipboard |
-| `/export` | Export session to markdown file |
-| `/export <filename>` | Export with custom filename |
+| Command | Action | Details |
+|---------|--------|---------|
+| `/copy` | Copy last AI response | Copies to system clipboard (uses `atotto/clipboard`) |
+| `/copy <N>` | Copy Nth recent AI response | `/copy 2` = second most recent |
+| `/copy all` | Copy entire session | All user + AI messages |
+| `/export` | Export session to `.md` file | Default: `techai-session-YYYYMMDD-HHMMSS.md` |
+| `/export <name>` | Export with custom filename | Auto-appends `.md` if missing |
 
 ### Tools & Diagnostics
 
-| Command | Action |
-|---------|--------|
-| `/diagnostics` | Run linters (Go/TS/JS/Python auto-detect) |
-| `/git` | Git repository status |
-| `/mcp` | MCP server connection status |
-| `/companion` | Open browser dashboard (localhost:8787) |
+| Command | Action | Details |
+|---------|--------|---------|
+| `/diagnostics` | Run project linters | Auto-detects: Go(`go vet`), TS(`tsc`), JS(`eslint`), Python(`pylint`) |
+| `/git` | Git repository status | Branch, staged/unstaged/untracked counts |
+| `/mcp` | MCP server status | Shows connected servers, tool counts, errors |
+| `/companion` | Browser dashboard | Opens `localhost:8787` — real-time SSE stream of AI activity |
 
 ### System
 
-| Command | Action |
-|---------|--------|
-| `/setup` | Re-run API key setup wizard |
-| `/clear` | Clear conversation history |
-| `/version` | Show version |
-| `/help` | Show keyboard shortcuts & commands |
-| `/exit` | Quit (same as Ctrl+C) |
+| Command | Action | Details |
+|---------|--------|---------|
+| `/setup` | Reset API key | Re-runs setup wizard, saves to `~/.tgc/config.yaml` |
+| `/version` | Show version | Build version from `git describe` |
+| `/help` | Show all commands | Keyboard shortcuts + slash command reference |
+| `/exit` | Quit | Same as `Ctrl+C` or `/quit` |
 
-## 모드별 차이
+## Modes (Tab to switch)
 
-| 모드 | 설명 | 특징 |
-|------|------|------|
-| **Super** (슈퍼택가이) | 만능 모드. 코드, 분석, 대화 자동 감지 | 14개 내장 도구 + MCP 도구 |
-| **Deep Agent** | 자율 코딩. 최대 100회 반복, 자동 검증 | 자율 실행, `[TASK_COMPLETE]` 마커 |
-| **Plan** | 계획 우선. 단계별 계획 → 승인 후 실행 | 전체 도구 (쓰기 포함) |
+| Mode | Description | Tools | Use Case |
+|------|-------------|-------|----------|
+| **Super** | All-purpose. Auto-detects: code, analysis, conversation | 14 built-in + MCP | Default mode. Handles everything |
+| **Deep Agent** | Autonomous coding. Up to 100 iterations | Full tools + auto-continue | Large tasks. Stops on `[TASK_COMPLETE]` |
+| **Plan** | Plan-first. Creates step-by-step plan before execution | Full tools (including write) | Complex tasks requiring planning |
 
-## 도구 (Tools)
+## Tools (14 built-in + MCP)
 
-AI가 자동으로 호출하는 14개 내장 도구 + MCP 확장 도구:
+AI automatically invokes these tools during conversation. Shown as `Tool:ON(14)` in status bar.
 
-| 도구 | 설명 |
-|------|------|
-| `file_read` | 파일 읽기 (50KB 제한) |
-| `file_write` | 파일 생성/덮어쓰기 (자동 스냅샷) |
-| `file_edit` | **Fuzzy 4단계 매칭** — 정확→트림→들여쓰기→유사도 순 (자동 스냅샷) |
-| `list_files` | 디렉토리 목록 (재귀 지원) |
-| `shell_exec` | 셸 명령 실행 (30초 타임아웃) |
-| `grep_search` | 정규식 파일 검색 (.gitignore 존중) |
-| `glob_search` | 글로브 패턴 파일 찾기 (.gitignore 존중) |
-| `hashline_read` | 해시 앵커 라인 읽기 |
-| `hashline_edit` | 해시 앵커 기반 안전 편집 |
-| `git_status/diff/log` | Git 상태, 변경사항, 커밋 이력 |
-| `diagnostics` | 프로젝트 린트 자동 실행 |
-| `knowledge_search` | 사용자 지식 문서 검색 |
-| `mcp_*` | MCP 서버 제공 도구 (설정 시 자동 등록) |
+| Tool | Description | Safety |
+|------|-------------|--------|
+| `file_read` | Read file contents (max 50KB) | — |
+| `file_write` | Create or overwrite file | Auto-snapshot before write |
+| `file_edit` | Edit file with **4-stage fuzzy matching**: ExactMatch → LineTrimmed → IndentFlex → Levenshtein(85%) | Auto-snapshot + diff preview |
+| `list_files` | List directory contents (recursive supported) | Skips `.git`, `node_modules`, `dist` |
+| `shell_exec` | Execute shell command (30s timeout) | Blocks dangerous commands (`rm -rf /`, `sudo`). Warns on risky commands (`rm -r`, `git reset --hard`) |
+| `grep_search` | Regex search in file contents | Respects `.gitignore`. Max 100 matches |
+| `glob_search` | Find files by glob pattern (`**/*.go`) | Respects `.gitignore`. Max 2000 files |
+| `hashline_read` | Read file with MD5 hash anchors per line | For stale-edit protection |
+| `hashline_edit` | Edit file using hash anchors | Verifies hash before replacing |
+| `git_status` | Git status (short format) | — |
+| `git_diff` | Git diff (staged or unstaged) | — |
+| `git_log` | Recent commits (default 10) | — |
+| `diagnostics` | Auto-detect project type → run linter | Go/TS/JS/Python |
+| `knowledge_search` | Search embedded + user knowledge docs | 3-stage: keyword → BM25 → LLM |
+| `mcp_*` | MCP server-provided tools | Auto-registered from config. Prefixed `mcp_{server}_{tool}` |
+
+## Glossary
+
+| Term | Description |
+|------|-------------|
+| **Context Window** | Maximum tokens the LLM can process at once. Shown as `ctx:XX%` in HUD. Auto-compact at 90% |
+| **Compaction** | 3-stage process to reduce conversation size: (1) Snip old tool outputs (2) Truncate large messages (3) LLM summary |
+| **Multi-Agent** | Two LLMs working together. Strategy determines how: Review (generate+review), Consensus (compare), Scan (parallel search) |
+| **Fuzzy Edit** | 4-stage file matching: exact → whitespace-trimmed → indent-normalized → Levenshtein similarity (85%+) |
+| **Snapshot** | Auto-backup of files before AI modification. Stored in `~/.tgc/snapshots/`. Restored via `/undo` |
+| **MCP** | Model Context Protocol. Standard for connecting AI to external tools (Jira, Wiki, CI/CD). Supports stdio and SSE transports |
+| **Tool** | Function the AI can call during conversation (read files, run commands, search code). Count shown as `Tool:ON(14)` |
+| **HUD** | Status bar at bottom: mode, model, CWD, git branch, debug flag, tool count, multi status, token count, cost estimate, context % |
+| **Knowledge RAG** | 81 embedded reference docs + user `.tgc/knowledge/` docs. Auto-injected into prompts via 3-stage search pipeline |
+| **Deep Agent** | Autonomous mode where AI continues working without user input until task is complete or iteration limit reached |
+| **Companion** | Browser-based dashboard (`localhost:8787`) showing real-time AI activity via Server-Sent Events (SSE) |
+| **Session** | Conversation persisted in SQLite (`~/.tgc/sessions.db`). Survives app restart. Browsable via `/sessions` |
+| **.techai.md** | Project context file generated by `/init`. Auto-loaded into system prompt. Contains structure, deps, scripts, git info |
+| **Onprem** | On-premise build variant for internal networks. Separate config dir (`~/.tgc-onprem/`), hardcoded endpoint |
+| **Palette** | Command palette (`Ctrl+K`). Fuzzy search across all slash commands |
 
 ## 지식 시스템 (Knowledge System)
 
