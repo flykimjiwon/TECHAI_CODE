@@ -1838,10 +1838,22 @@ func (m *Model) streamStatus() string {
 
 func (m *Model) updateViewport() {
 	var stream string
+	msgs := m.msgs
 	if m.streaming {
 		stream = m.streamStatus()
+		// Live render: show partial streamBuf as transient assistant message
+		// so user sees text arrive token-by-token instead of staring at spinner
+		if m.streamBuf != "" {
+			msgs = make([]ui.Message, len(m.msgs), len(m.msgs)+1)
+			copy(msgs, m.msgs)
+			msgs = append(msgs, ui.Message{
+				Role:      ui.RoleAssistant,
+				Content:   m.streamBuf,
+				Timestamp: time.Now(),
+			})
+		}
 	}
-	content := ui.RenderMessages(m.msgs, stream, m.viewport.Width())
+	content := ui.RenderMessages(msgs, stream, m.viewport.Width())
 	m.viewport.SetContent(content)
 	m.viewport.GotoBottom()
 }
