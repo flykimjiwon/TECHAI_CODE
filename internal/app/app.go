@@ -280,7 +280,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		setupInput:     setupTa,
 		store:          sessionStore,
 		customCommands: customCmds,
-		mouseEnabled:  true,
+		mouseEnabled:  false,
 	}
 
 	// Initialize multi-agent config from loaded settings
