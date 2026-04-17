@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -348,6 +349,15 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 			Timestamp: time.Now(),
 		})
 	}
+
+	// Show newline shortcut hint based on OS
+	newlineHint := "  Newline: Shift+Enter  |  /help for all shortcuts"
+	if runtime.GOOS == "windows" {
+		newlineHint = "  Newline: Ctrl+J (Windows)  |  /help for all shortcuts"
+	}
+	m.msgs = append(m.msgs, ui.Message{
+		Role: ui.RoleSystem, Content: newlineHint, Timestamp: time.Now(),
+	})
 
 	// Create the first session row so subsequent AppendMessage calls
 	// have a valid parent. Fall back to in-memory only on failure.
