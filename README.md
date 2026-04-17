@@ -204,6 +204,12 @@ techai --version      # 버전 출력
 
 > **Text Selection**: Mouse mode is OFF by default — drag to select and copy text freely. Press `Ctrl+B` to enable mouse scroll if needed.
 
+> **Windows Newline**: `Shift+Enter` may not work on PowerShell/CMD. Use `Ctrl+J` instead.
+> To enable `Shift+Enter` on Windows Terminal, add to `settings.json`:
+> ```json
+> { "keys": "shift+enter", "command": { "action": "sendInput", "input": "\u000A" } }
+> ```
+
 ## Slash Commands (27 commands)
 
 ### Project
