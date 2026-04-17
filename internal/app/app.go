@@ -1815,8 +1815,10 @@ func (m *Model) streamStatus() string {
 	}
 
 	if m.lastChunkAt.IsZero() {
-		// No chunks received yet
-		return fmt.Sprintf("%s 연결중... (%.1fs)", frame, elapsed.Seconds())
+		if elapsed > 30*time.Second {
+			return fmt.Sprintf("%s Connecting... (%.0fs — no response)", frame, elapsed.Seconds())
+		}
+		return fmt.Sprintf("%s Connecting... (%.1fs)", frame, elapsed.Seconds())
 	}
 
 	sinceLastChunk := time.Since(m.lastChunkAt)
@@ -1826,12 +1828,12 @@ func (m *Model) streamStatus() string {
 	}
 
 	if sinceLastChunk > 15*time.Second {
-		return fmt.Sprintf("%s 응답없음 (%.0fs 대기중 · %dtok)", frame, sinceLastChunk.Seconds(), m.tokenCount)
+		return fmt.Sprintf("%s Stalled (%.0fs waiting · %dtok)", frame, sinceLastChunk.Seconds(), m.tokenCount)
 	}
 	if sinceLastChunk > 5*time.Second {
-		return fmt.Sprintf("%s 응답지연... (%.0fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
+		return fmt.Sprintf("%s Slow... (%.0fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 	}
-	return fmt.Sprintf("%s 수신중 (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
+	return fmt.Sprintf("%s Streaming (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 }
 
 func (m *Model) updateViewport() {

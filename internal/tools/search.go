@@ -35,9 +35,9 @@ var binaryExts = map[string]bool{
 }
 
 const (
-	maxGrepMatches = 100
-	maxGrepBytes   = 30000
-	maxGlobFiles   = 2000
+	maxGrepMatches = 300
+	maxGrepBytes   = 60000
+	maxGlobFiles   = 5000
 )
 
 // GrepSearch searches file contents by regex pattern.
@@ -115,7 +115,7 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 		if err != nil {
 			return nil
 		}
-		if info.Size() > 1024*1024 {
+		if info.Size() > 5*1024*1024 {
 			return nil
 		}
 
