@@ -24,6 +24,12 @@ func GenerateProjectProfile(dir string) string {
 		return fmt.Sprintf("Error: %v", err)
 	}
 
+	// Auto-create .tgc/ subdirectories
+	for _, sub := range []string{"knowledge", "commands"} {
+		_ = os.MkdirAll(filepath.Join(absDir, ".tgc", sub), 0755)
+	}
+	config.DebugLog("[INIT] ensured .tgc/knowledge/ and .tgc/commands/ exist")
+
 	var sb strings.Builder
 	projName := filepath.Base(absDir)
 
