@@ -539,7 +539,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.updateViewport()
 				}
 				return m, nil
-			case "shift+enter", "ctrl+j":
+			case "shift+enter", "ctrl+j", "ctrl+enter":
 				m.textarea.InsertString("\n")
 				return m, nil
 			case "tab":
@@ -636,7 +636,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateViewport()
 			return m, nil
 
-		case "shift+enter", "ctrl+j":
+		case "shift+enter", "ctrl+j", "ctrl+enter":
 			// Shift+Enter or Ctrl+J = newline (Ctrl+J fallback for Windows CMD/PowerShell)
 			m.textarea.InsertString("\n")
 			lines := strings.Count(m.textarea.Value(), "\n") + 1

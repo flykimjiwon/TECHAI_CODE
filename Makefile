@@ -28,7 +28,18 @@ GEMMA_LDFLAGS = -ldflags "-s -w -X main.version=$(VERSION)-gemma \
 	-X 'github.com/kimjiwon/tgc/internal/config.ConfigDirName=.tgc-gemma' \
 	-X 'github.com/kimjiwon/tgc/internal/config.DebugMode=true'"
 
-.PHONY: build run clean build-all build-onprem build-gemma build-release install lint test build-index
+# Kimi K2.5 build config — Novita endpoint, moonshot/kimi-k2.5 for
+# both Super and Dev modes.
+KIMI_URL = https://api.novita.ai/openai
+KIMI_MODEL = moonshotai/kimi-k2.5
+KIMI_LDFLAGS = -ldflags "-s -w -X main.version=$(VERSION)-kimi \
+	-X 'github.com/kimjiwon/tgc/internal/config.DefaultBaseURL=$(KIMI_URL)' \
+	-X 'github.com/kimjiwon/tgc/internal/config.DefaultModel=$(KIMI_MODEL)' \
+	-X 'github.com/kimjiwon/tgc/internal/config.DefaultDevModel=$(KIMI_MODEL)' \
+	-X 'github.com/kimjiwon/tgc/internal/config.ConfigDirName=.tgc-kimi' \
+	-X 'github.com/kimjiwon/tgc/internal/config.DebugMode=true'"
+
+.PHONY: build run clean build-all build-onprem build-gemma build-kimi build-release install lint test build-index
 
 # Knowledge index
 build-index:
@@ -73,8 +84,12 @@ build-gemma:
 	GOOS=linux GOARCH=amd64 go build $(GEMMA_LDFLAGS) -o dist/$(BINARY)-gemma-linux-amd64 ./cmd/tgc
 	GOOS=linux GOARCH=arm64 go build $(GEMMA_LDFLAGS) -o dist/$(BINARY)-gemma-linux-arm64 ./cmd/tgc
 
+build-kimi: build-index
+	mkdir -p dist
+	GOOS=darwin GOARCH=arm64 go build $(KIMI_LDFLAGS) -o dist/$(BINARY)-kimi-darwin-arm64 ./cmd/tgc
+
 # One-shot release: clean dist, build the three variants sequentially.
-build-release: clean build-index build-all build-onprem build-gemma
+build-release: clean build-index build-all build-onprem build-gemma build-kimi
 	@echo "=== release artifacts ==="
 	@ls -lh dist/
 
