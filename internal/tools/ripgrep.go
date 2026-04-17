@@ -6,28 +6,30 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kimjiwon/tgc/internal/config"
 )
 
-// rgAvailable caches whether ripgrep is installed.
-var rgAvailable *bool
+// Thread-safe ripgrep availability check using sync.Once.
+var (
+	rgOnce     sync.Once
+	rgAvailVal bool
+)
 
-// IsRipgrepAvailable checks if 'rg' is on PATH.
+// IsRipgrepAvailable checks if 'rg' is on PATH (cached, thread-safe).
 func IsRipgrepAvailable() bool {
-	if rgAvailable != nil {
-		return *rgAvailable
-	}
-	_, err := exec.LookPath("rg")
-	result := err == nil
-	rgAvailable = &result
-	if result {
-		config.DebugLog("[RG] ripgrep found on PATH")
-	} else {
-		config.DebugLog("[RG] ripgrep not found, using Go fallback")
-	}
-	return result
+	rgOnce.Do(func() {
+		_, err := exec.LookPath("rg")
+		rgAvailVal = err == nil
+		if rgAvailVal {
+			config.DebugLog("[RG] ripgrep found on PATH")
+		} else {
+			config.DebugLog("[RG] ripgrep not found, using Go fallback")
+		}
+	})
+	return rgAvailVal
 }
 
 // rgMatch represents a single ripgrep JSON match.
@@ -64,7 +66,7 @@ func RipgrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines
 		"--json",
 		"--hidden",
 		"--no-messages",
-		"--max-count", fmt.Sprintf("%d", maxGrepMatches),
+		"--max-count", "10", // per-file limit; global limit enforced in parser
 		"--max-filesize", "5M",
 	}
 
@@ -164,6 +166,9 @@ func RipgrepFiles(pattern, basePath string) (string, error) {
 	cmd := exec.CommandContext(ctx, "rg", args...)
 	output, err := cmd.Output()
 	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return "No files matched.", nil
+		}
 		return "", fmt.Errorf("ripgrep files error: %w", err)
 	}
 

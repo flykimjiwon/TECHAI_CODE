@@ -601,6 +601,10 @@ func executeInner(name string, argsJSON string) string {
 			return "Error: pattern is required"
 		}
 		searchPath, _ := args["path"].(string)
+		// Try ripgrep first for fast file listing
+		if result, err := RipgrepFiles(pattern, searchPath); err == nil {
+			return result
+		}
 		result, err := GlobSearch(pattern, searchPath)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
