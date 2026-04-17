@@ -153,6 +153,9 @@ type Model struct {
 	// Custom commands loaded from .tgc/commands/ and ~/.tgc/commands/.
 	customCommands map[string]string
 
+	// Mouse mode: toggleable for text selection vs scroll
+	mouseEnabled bool
+
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
 
@@ -277,6 +280,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		setupInput:     setupTa,
 		store:          sessionStore,
 		customCommands: customCmds,
+		mouseEnabled:  true,
 	}
 
 	// Initialize multi-agent config from loaded settings
@@ -576,6 +580,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.historyDraft = ""
 			m.pasteHint = ""
 			m.recalcLayout()
+			return m, nil
+
+		case "ctrl+m":
+			// Toggle mouse mode (scroll vs text selection)
+			m.mouseEnabled = !m.mouseEnabled
+			label := "ON (scroll)"
+			if !m.mouseEnabled {
+				label = "OFF (text select enabled)"
+			}
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("  Mouse: %s", label), Timestamp: time.Now(),
+			})
+			m.updateViewport()
 			return m, nil
 
 		case "ctrl+l":
@@ -1710,7 +1727,9 @@ func (m Model) View() tea.View {
 
 	v := tea.NewView(content)
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
+	if m.mouseEnabled {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 	return v
 }
 
