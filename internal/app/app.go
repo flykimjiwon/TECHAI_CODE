@@ -1508,21 +1508,75 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		return true, nil
 
 	case "/init":
-		// Generate project profile and save to .techai.md
+		mode := "simple"
+		if arg == "deep" || arg == "hard" {
+			mode = "deep"
+		}
+
+		// Step 1: Static analysis (both modes)
 		profile := tools.GenerateProjectProfile(".")
+
+		if mode == "deep" && m.client != nil {
+			// Deep mode: LLM-powered analysis using Dev model
+			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: "  /init deep — Analyzing project with AI...", Timestamp: time.Now()})
+			m.updateViewport()
+
+			// Collect key file contents for LLM analysis
+			keyFiles := tools.CollectKeyFiles(".", 10)
+			analysisPrompt := fmt.Sprintf(`Analyze this project and generate a comprehensive developer guide in Korean.
+
+## Static Analysis Result:
+%s
+
+## Key File Contents:
+%s
+
+Write a comprehensive .techai.md that includes:
+1. Project overview (한 줄 요약 + 상세 설명)
+2. Architecture pattern (monorepo/monolith/microservice)
+3. Key modules and their relationships
+4. Important code patterns and conventions used
+5. How to build, test, and deploy
+6. Environment setup requirements
+7. Common pitfalls and important notes
+
+Format as clean markdown. Be specific, not generic. Reference actual file names and paths.`, profile, keyFiles)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			devModel := m.cfg.Models.Dev
+			if devModel == "" {
+				devModel = m.cfg.Models.Super
+			}
+
+			result, err := m.client.Chat(ctx, devModel, []openai.ChatCompletionMessage{
+				{Role: openai.ChatMessageRoleUser, Content: analysisPrompt},
+			})
+			if err != nil {
+				// LLM failed — fall back to static profile
+				config.DebugLog("[INIT-DEEP] LLM analysis failed: %v", err)
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("  Deep analysis failed (%v), using static profile.", err), Timestamp: time.Now()})
+			} else {
+				profile = result
+			}
+		}
+
 		if err := os.WriteFile(".techai.md", []byte(profile), 0644); err != nil {
 			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("Failed to write .techai.md: %v", err), Timestamp: time.Now()})
 		} else {
-			// Reload project context into system prompt
 			m.projectCtx = "\n\n## Project Context (.techai.md)\n" + profile
 			if len(m.history) > 0 {
-				mode := llm.Mode(m.activeTab)
-				m.history[0].Content = llm.SystemPrompt(mode) + m.projectCtx
+				md := llm.Mode(m.activeTab)
+				m.history[0].Content = llm.SystemPrompt(md) + m.projectCtx
 			}
 			lines := strings.Count(profile, "\n")
+			label := "simple"
+			if mode == "deep" {
+				label = "deep (AI-analyzed)"
+			}
 			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem,
-				Content: fmt.Sprintf(".techai.md generated (%d lines). Project context loaded.\nRun /init again anytime to refresh.", lines),
+				Role:    ui.RoleSystem,
+				Content: fmt.Sprintf(".techai.md generated [%s] (%d lines). Project context loaded.", label, lines),
 				Timestamp: time.Now(),
 			})
 		}
@@ -1648,7 +1702,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
   Ctrl+K — Palette    Esc — Menu    Ctrl+B — Toggle mouse    Ctrl+C — Quit
   ↑/↓ — Input history    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
 
-  /init — Scan project → generate .techai.md
+  /init — Quick scan    /init deep — AI-powered deep analysis
   /remember <text> — Save memory    /remember list — Show all
   /remember -g <text> — Global memory    /forget <id> — Delete
   /commands — List custom commands (.tgc/commands/)

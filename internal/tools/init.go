@@ -323,3 +323,84 @@ func readGitInfo(dir string) string {
 
 	return strings.Join(lines, "\n") + "\n"
 }
+
+// CollectKeyFiles reads the most important project files for LLM deep analysis.
+// Returns concatenated file contents with headers, limited to maxFiles.
+func CollectKeyFiles(dir string, maxFiles int) string {
+	if dir == "" {
+		dir = "."
+	}
+	absDir, _ := filepath.Abs(dir)
+
+	// Priority order: most informative files first
+	candidates := []string{
+		"README.md", "README", "readme.md",
+		"package.json", "go.mod", "Cargo.toml", "pyproject.toml", "pom.xml",
+		"Makefile", "Dockerfile", "docker-compose.yml", "docker-compose.yaml",
+		".env.example", ".env.sample",
+		"tsconfig.json", "next.config.js", "next.config.ts", "next.config.mjs",
+		"vite.config.ts", "webpack.config.js",
+		".github/workflows/ci.yml", ".github/workflows/ci.yaml",
+		".github/workflows/build.yml", ".github/workflows/deploy.yml",
+		"Jenkinsfile",
+		".techai.md", "AGENTS.md", "CLAUDE.md",
+	}
+
+	// Also find main entry points
+	entryGlobs := []string{
+		"cmd/*/main.go", "main.go",
+		"src/index.ts", "src/index.js", "src/main.ts", "src/app.ts",
+		"app.py", "main.py", "manage.py",
+		"src/main.rs",
+	}
+
+	var sb strings.Builder
+	collected := 0
+
+	for _, candidate := range candidates {
+		if collected >= maxFiles {
+			break
+		}
+		path := filepath.Join(absDir, candidate)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		// Limit per-file content
+		runes := []rune(content)
+		if len(runes) > 3000 {
+			content = string(runes[:3000]) + "\n... [truncated]"
+		}
+		sb.WriteString(fmt.Sprintf("\n### %s\n```\n%s\n```\n", candidate, content))
+		collected++
+	}
+
+	// Entry points
+	for _, pattern := range entryGlobs {
+		if collected >= maxFiles {
+			break
+		}
+		matches, _ := filepath.Glob(filepath.Join(absDir, pattern))
+		for _, match := range matches {
+			if collected >= maxFiles {
+				break
+			}
+			rel, _ := filepath.Rel(absDir, match)
+			data, err := os.ReadFile(match)
+			if err != nil {
+				continue
+			}
+			content := string(data)
+			runes := []rune(content)
+			if len(runes) > 3000 {
+				content = string(runes[:3000]) + "\n... [truncated]"
+			}
+			sb.WriteString(fmt.Sprintf("\n### %s\n```\n%s\n```\n", rel, content))
+			collected++
+		}
+	}
+
+	config.DebugLog("[INIT-DEEP] collected %d key files for LLM analysis", collected)
+	return sb.String()
+}
