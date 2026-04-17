@@ -1634,8 +1634,8 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 
 	case "/help":
 		help := fmt.Sprintf(`  TECHAI CODE %s
-  Enter — Send    Shift+Enter — Newline    Tab — Switch mode
-  Ctrl+K — Palette    Esc — Menu    Ctrl+U — Clear input    Ctrl+C — Quit
+  Enter — Send    Shift+Enter — Newline (Ctrl+J on Windows)
+  Ctrl+K — Palette    Esc — Menu    Ctrl+B — Toggle mouse    Ctrl+C — Quit
   ↑/↓ — Input history    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
 
   /init — Scan project → generate .techai.md
