@@ -255,6 +255,21 @@ func AllTools() []openai.Tool {
 		{
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
+				Name:        "symbol_search",
+				Description: "Find code symbols (functions, classes, methods, interfaces) by name. Faster and more precise than grep for finding definitions. Supports Go, JS/TS, Python, Java, Rust, Shell.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"query": {Type: "string", Description: "Symbol name to search for (partial match supported)"},
+						"path":  {Type: "string", Description: "Directory to search in (default: current directory)"},
+					},
+					Required: []string{"query"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
 				Name:        "knowledge_search",
 				Description: "Search user knowledge docs (.tgc/knowledge/ or ~/.tgc/knowledge/). Returns matching documents with excerpts. Use when the user's question touches project-specific or framework-specific topics listed in the User Knowledge section of the system prompt.",
 				Parameters: paramSchema{
@@ -570,6 +585,10 @@ func executeInner(name string, argsJSON string) string {
 		if cl, ok := args["context_lines"].(float64); ok {
 			contextLines = int(cl)
 		}
+		// Try ripgrep first (100x faster), fall back to Go implementation
+		if result, err := RipgrepSearch(pattern, searchPath, glob, ignoreCase, contextLines); err == nil {
+			return result
+		}
 		result, err := GrepSearch(pattern, searchPath, glob, ignoreCase, contextLines)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
@@ -676,6 +695,18 @@ func executeInner(name string, argsJSON string) string {
 		}
 		file, _ := args["file"].(string)
 		result, err := RunDiagnostics(path, file)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return result
+
+	case "symbol_search":
+		query, _ := args["query"].(string)
+		if query == "" {
+			return "Error: query is required"
+		}
+		searchPath, _ := args["path"].(string)
+		result, err := SymbolSearch(query, searchPath)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
