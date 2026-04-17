@@ -220,7 +220,8 @@ techai --version      # 버전 출력
 
 | Command | Action | Details |
 |---------|--------|---------|
-| `/init` | Scan project → generate `.techai.md` | Analyzes directory structure, dependencies, entry points, scripts, git info. Auto-creates `.tgc/knowledge/` and `.tgc/commands/` folders. Generated file is auto-loaded into AI context on every session. Run again to refresh. |
+| `/init` | Quick scan → generate `.techai.md` | Static analysis (~100ms): directory structure, dependencies, entry points, scripts, git info. Auto-creates `.tgc/knowledge/` and `.tgc/commands/` folders. |
+| `/init deep` | AI-powered deep analysis | Uses Dev model to read key files (README, config, entry points) and generates comprehensive project guide: architecture, patterns, conventions, build/test/deploy instructions. (~10-30s, falls back to simple on failure) |
 
 ### Session
 
@@ -393,7 +394,7 @@ When multi-agent is enabled (`/multi`), two models work together:
 
 ## Tools (14 built-in + MCP)
 
-AI automatically invokes these tools during conversation. Shown as `Tool:ON(14)` in status bar.
+AI automatically invokes these tools during conversation. Shown as `Tool:ON(15)` in status bar.
 
 | Tool | Description | Safety |
 |------|-------------|--------|
@@ -402,7 +403,7 @@ AI automatically invokes these tools during conversation. Shown as `Tool:ON(14)`
 | `file_edit` | Edit file with **4-stage fuzzy matching**: ExactMatch → LineTrimmed → IndentFlex → Levenshtein(85%) | Auto-snapshot + diff preview |
 | `list_files` | List directory contents (recursive supported) | Skips `.git`, `node_modules`, `dist` |
 | `shell_exec` | Execute shell command (30s timeout) | Blocks dangerous commands (`rm -rf /`, `sudo`). Warns on risky commands (`rm -r`, `git reset --hard`) |
-| `grep_search` | Regex search in file contents | Respects `.gitignore`. Max 100 matches |
+| `grep_search` | Regex search in file contents | Uses ripgrep if available (100x faster), Go fallback. `.gitignore` aware. Max 300 matches |
 | `glob_search` | Find files by glob pattern (`**/*.go`) | Respects `.gitignore`. Max 2000 files |
 | `hashline_read` | Read file with MD5 hash anchors per line | For stale-edit protection |
 | `hashline_edit` | Edit file using hash anchors | Verifies hash before replacing |
@@ -410,6 +411,7 @@ AI automatically invokes these tools during conversation. Shown as `Tool:ON(14)`
 | `git_diff` | Git diff (staged or unstaged) | — |
 | `git_log` | Recent commits (default 10) | — |
 | `diagnostics` | Auto-detect project type → run linter | Go/TS/JS/Python |
+| `symbol_search` | Find functions, classes, methods by name | Go/JS/TS/Python/Java/Rust/Shell. Exact match first, then mtime sort |
 | `knowledge_search` | Search embedded + user knowledge docs | 3-stage: keyword → BM25 → LLM |
 | `mcp_*` | MCP server-provided tools | Auto-registered from config. Prefixed `mcp_{server}_{tool}` |
 
@@ -423,7 +425,7 @@ AI automatically invokes these tools during conversation. Shown as `Tool:ON(14)`
 | **Fuzzy Edit** | 4-stage file matching: exact → whitespace-trimmed → indent-normalized → Levenshtein similarity (85%+) |
 | **Snapshot** | Auto-backup of files before AI modification. Stored in `~/.tgc/snapshots/`. Restored via `/undo` |
 | **MCP** | Model Context Protocol. Standard for connecting AI to external tools (Jira, Wiki, CI/CD). Supports stdio and SSE transports |
-| **Tool** | Function the AI can call during conversation (read files, run commands, search code). Count shown as `Tool:ON(14)` |
+| **Tool** | Function the AI can call during conversation (read files, run commands, search code). Count shown as `Tool:ON(15)` |
 | **HUD** | Status bar at bottom: mode, model, CWD, git branch, debug flag, tool count, multi status, token count, cost estimate, context % |
 | **Knowledge RAG** | 81 embedded reference docs + user `.tgc/knowledge/` docs. Auto-injected into prompts via 3-stage search pipeline |
 | **Deep Agent** | Autonomous mode where AI continues working without user input until task is complete or iteration limit reached |
