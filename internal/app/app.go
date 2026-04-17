@@ -582,7 +582,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.recalcLayout()
 			return m, nil
 
-		case "ctrl+m":
+		case "ctrl+b":
 			// Toggle mouse mode (scroll vs text selection)
 			m.mouseEnabled = !m.mouseEnabled
 			label := "ON (scroll)"
