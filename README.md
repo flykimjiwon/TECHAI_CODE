@@ -202,7 +202,11 @@ techai --version      # 버전 출력
 | `Alt+↑/↓` | Scroll 3 lines |
 | `PgUp/PgDown` | Page scroll |
 
-> **Text Selection**: Mouse mode is OFF by default — drag to select and copy text freely. Press `Ctrl+B` to enable mouse scroll if needed.
+> **Mouse Mode** (default: ON):
+> - `Ctrl+B` toggles mouse mode
+> - **ON**: Mouse wheel scroll works, but text drag selection disabled
+> - **OFF**: Text drag selection + copy enabled, scroll via keyboard only (`Alt+↑/↓`, `PgUp/PgDn`)
+> - Tip: `Ctrl+B` → select text → copy → `Ctrl+B` back to scroll mode
 
 > **Windows Newline**: `Shift+Enter` may not work on PowerShell/CMD. Use `Ctrl+J` instead.
 > To enable `Shift+Enter` on Windows Terminal, add to `settings.json`:
