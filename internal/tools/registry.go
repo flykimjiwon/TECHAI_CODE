@@ -619,12 +619,38 @@ func executeInner(name string, argsJSON string) string {
 		}
 		// Try ripgrep first (100x faster), fall back to Go implementation
 		if result, err := RipgrepSearch(pattern, searchPath, glob, ignoreCase, contextLines); err == nil {
-			return result
+			if !strings.HasPrefix(result, "No matches") {
+				return result
+			}
+			// ripgrep found nothing — fall through to smart fallback
 		}
 		result, err := GrepSearch(pattern, searchPath, glob, ignoreCase, contextLines)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
+
+		// Smart fallback: if pattern looks like A.*B (multi-term) and no matches,
+		// auto-try co_search to find files containing both terms on different lines
+		if strings.HasPrefix(result, "No matches") && strings.Contains(pattern, ".*") {
+			parts := strings.Split(pattern, ".*")
+			if len(parts) >= 2 {
+				var terms []string
+				for _, p := range parts {
+					p = strings.TrimSpace(p)
+					if p != "" {
+						terms = append(terms, p)
+					}
+				}
+				if len(terms) >= 2 {
+					config.DebugLog("[GREP-SMART] auto co_search fallback: %v", terms)
+					coResult, coErr := CoSearch(terms, searchPath, glob, ignoreCase)
+					if coErr == nil && !strings.HasPrefix(coResult, "No files") {
+						return "[auto co_search: terms found on different lines]\n\n" + coResult
+					}
+				}
+			}
+		}
+
 		return result
 
 	case "glob_search":
