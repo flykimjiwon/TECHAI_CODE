@@ -270,6 +270,21 @@ func AllTools() []openai.Tool {
 		{
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
+				Name:        "fuzzy_find",
+				Description: "Find files by fuzzy name matching. Type partial names like 'apgo' to find 'app.go', 'regst' to find 'registry.go'. Results sorted by match quality and recency. Use instead of glob_search when you know part of the filename.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"query": {Type: "string", Description: "Partial filename to search for (fuzzy match)"},
+						"path":  {Type: "string", Description: "Directory to search in (default: current directory)"},
+					},
+					Required: []string{"query"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
 				Name:        "knowledge_search",
 				Description: "Search user knowledge docs (.tgc/knowledge/ or ~/.tgc/knowledge/). Returns matching documents with excerpts. Use when the user's question touches project-specific or framework-specific topics listed in the User Knowledge section of the system prompt.",
 				Parameters: paramSchema{
@@ -711,6 +726,18 @@ func executeInner(name string, argsJSON string) string {
 		}
 		searchPath, _ := args["path"].(string)
 		result, err := SymbolSearch(query, searchPath)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return result
+
+	case "fuzzy_find":
+		query, _ := args["query"].(string)
+		if query == "" {
+			return "Error: query is required"
+		}
+		searchPath, _ := args["path"].(string)
+		result, err := FuzzyFind(query, searchPath, 20)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}

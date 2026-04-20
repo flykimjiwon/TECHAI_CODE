@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kimjiwon/tgc/internal/config"
@@ -88,15 +89,17 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 		}
 	}
 
-	var results strings.Builder
-	matchCount := 0
-	filesScanned := 0
+	// Phase 1: Collect candidate files (fast walk, no I/O)
+	type candidate struct {
+		absPath string
+		relPath string
+	}
+	var candidates []candidate
 
-	walkErr := filepath.WalkDir(absBase, func(path string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(absBase, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-
 		rel, _ := filepath.Rel(absBase, path)
 		rel = filepath.ToSlash(rel)
 
@@ -106,24 +109,16 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 			}
 			return nil
 		}
-
-		// Skip by gitignore or fallback
 		if shouldSkip(gi, rel, false, d.Name()) {
 			return nil
 		}
-
-		// Skip binary files
 		ext := strings.ToLower(filepath.Ext(d.Name()))
 		if binaryExts[ext] {
 			return nil
 		}
-
-		// Apply glob filter
 		if globRe != nil && !globRe.MatchString(rel) && !globRe.MatchString(d.Name()) {
 			return nil
 		}
-
-		// Skip large files (>1MB)
 		info, err := d.Info()
 		if err != nil {
 			return nil
@@ -131,36 +126,63 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 		if info.Size() > 5*1024*1024 {
 			return nil
 		}
+		candidates = append(candidates, candidate{absPath: path, relPath: rel})
+		return nil
+	})
 
-		filesScanned++
-		matches, err := searchFile(path, rel, re, contextLines)
-		if err != nil {
-			return nil
-		}
+	// Phase 2: Parallel file scanning with semaphore (gofis pattern)
+	type fileResult struct {
+		matches []string
+	}
+	resultsCh := make(chan fileResult, len(candidates))
+	sem := make(chan struct{}, 8) // max 8 concurrent goroutines
+	var wg sync.WaitGroup
 
-		for _, m := range matches {
+	for _, c := range candidates {
+		wg.Add(1)
+		go func(abs, rel string) {
+			defer wg.Done()
+			sem <- struct{}{}        // acquire
+			defer func() { <-sem }() // release
+
+			matches, err := searchFile(abs, rel, re, contextLines)
+			if err != nil || len(matches) == 0 {
+				resultsCh <- fileResult{}
+				return
+			}
+			resultsCh <- fileResult{matches: matches}
+		}(c.absPath, c.relPath)
+	}
+
+	// Close channel when all goroutines done
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
+
+	// Phase 3: Collect results
+	var results strings.Builder
+	matchCount := 0
+	filesScanned := len(candidates)
+
+	for fr := range resultsCh {
+		for _, m := range fr.matches {
 			if matchCount >= maxGrepMatches || results.Len() >= maxGrepBytes {
 				results.WriteString(fmt.Sprintf("\n... (truncated, %d+ matches)\n", matchCount))
-				return fmt.Errorf("limit reached")
+				goto done
 			}
 			results.WriteString(m)
 			results.WriteString("\n")
 			matchCount++
 		}
-
-		return nil
-	})
-
-	if walkErr != nil && walkErr.Error() != "limit reached" {
-		config.DebugLog("[GREP] walk error: %v", walkErr)
 	}
+done:
 
 	if matchCount == 0 {
 		return "No matches found.", nil
 	}
 
-	config.DebugLog("[GREP] pattern=%q path=%s matches=%d files=%d bytes=%d gitignore=%v", pattern, basePath, matchCount, filesScanned, results.Len(), gi != nil)
-	// Append scan summary
+	config.DebugLog("[GREP] pattern=%q path=%s matches=%d files=%d bytes=%d parallel=8 gitignore=%v", pattern, basePath, matchCount, filesScanned, results.Len(), gi != nil)
 	results.WriteString(fmt.Sprintf("\n(%d matches in %d files scanned)", matchCount, filesScanned))
 	return results.String(), nil
 }
