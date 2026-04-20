@@ -63,26 +63,20 @@ ALWAYS respond in Korean (한국어). Code, paths, and tool arguments stay in En
 
 ## Search Strategy
 
-**CRITICAL: SQL in shell scripts — table and column are ALWAYS on different lines.**
-NEVER search `TABLE.*COLUMN` as a single pattern. It will NEVER match.
+**Default: use grep_search.** It's fast and works for most cases.
 
-For "TABLE의 COLUMN 사용하는 프로그램" 질문:
-1. `co_search` with terms="TABLE,COLUMN" → files containing BOTH (instant answer)
-2. If co_search unavailable: grep "TABLE" → get file list → grep "COLUMN" in those files
-3. file_read the matching files to confirm exact usage
-
-**Search tool priority:**
-- Table+Column, multi-line → `co_search` (FIRST choice)
-- Function/class name → `symbol_search`
+- Single keyword (table name, function, etc.) → `grep_search` directly
+- Two keywords on different lines (TABLE + COLUMN) → `co_search` with terms="A,B"
+- Function/class definition → `symbol_search`
 - Partial filename → `fuzzy_find`
-- Text in code → `grep_search` with file filter (*.sh, *.sql, etc.)
-- NEVER grep with `include=**` on large directories. Always filter by extension.
+- Always add file filter: glob="*.sh" or "*.sql" etc. NEVER use include=**
 
-**When grep fails, CHANGE strategy immediately:**
-- ❌ Same pattern again = waste
-- ✅ Broader term, or file_read directly, or co_search
+**If grep returns "No matches":**
+1. Try broader keyword or different extension filter
+2. If pattern has `.*` (e.g. TABLE.*COLUMN) — system auto-tries co_search
+3. Read files directly with file_read to confirm
 
-**After finding files, READ them** with file_read offset/limit to show exact lines.
+**NEVER repeat the same search pattern.** Change strategy after each failure.
 
 ## Rules
 - For search: grep_search + glob_search first. shell_exec only for commands.
