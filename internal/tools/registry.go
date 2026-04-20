@@ -667,8 +667,15 @@ func executeInner(name string, argsJSON string) string {
 				}
 			}
 			if len(validTerms) >= 2 {
+				// Use co_search to find FILES containing ALL terms (intersection)
+				config.DebugLog("[GREP-COSEARCH] auto co_search for terms: %v", validTerms)
+				coResult, coErr := CoSearch(validTerms, searchPath, glob, ignoreCase)
+				if coErr == nil && !strings.HasPrefix(coResult, "No files") {
+					return coResult
+				}
+				// co_search found nothing — return individual results as fallback
 				var sb strings.Builder
-				sb.WriteString("No single-line matches. Searching each term separately:\n\n")
+				sb.WriteString("Terms not found together in any file. Individual results:\n\n")
 				for _, term := range validTerms {
 					termResult, _ := GrepSearch(term, searchPath, glob, ignoreCase, 0)
 					if !strings.HasPrefix(termResult, "No matches") {
@@ -677,8 +684,7 @@ func executeInner(name string, argsJSON string) string {
 						sb.WriteString(fmt.Sprintf("--- %q --- No matches\n\n", term))
 					}
 				}
-				sb.WriteString("Tip: use file_read with offset to examine files containing both terms.")
-				config.DebugLog("[GREP-SPLIT] auto-split search for %d terms", len(validTerms))
+				config.DebugLog("[GREP-SPLIT] fallback to individual search for %d terms", len(validTerms))
 				return sb.String()
 			}
 		}
