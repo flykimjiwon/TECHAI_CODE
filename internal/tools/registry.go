@@ -136,7 +136,7 @@ func AllTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "grep_search",
-				Description: "Fast content search. Searches file contents using regex. Returns file paths and line numbers sorted by modification time. Filter files with the include parameter (e.g. '*.sh', '*.sql'). When a search returns no matches, try different keywords or broader patterns. Use file_read with offset to examine matches in detail.",
+				Description: "Fast content search by regex. Returns matches grouped by file with context lines. When the user mentions multiple terms (e.g. TABLE + COLUMN), search EACH term separately and cross-reference the files. Use file_read with offset to examine matches. If pattern A.*B returns no matches, the system automatically finds files containing both A and B on different lines.",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{
