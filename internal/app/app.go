@@ -154,8 +154,9 @@ type Model struct {
 	// Custom commands loaded from .tgc/commands/ and ~/.tgc/commands/.
 	customCommands map[string]string
 
-	// Stream warning: shown once when response is slow
+	// Stream warning and retry
 	streamWarnShown bool
+	streamRetries   int
 
 	// Mouse mode: toggleable for text selection vs scroll
 	mouseEnabled bool
@@ -781,10 +782,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.msgs = filtered
 
 		if msg.err != nil {
+			m.lastElapsed = time.Since(m.streamStart)
+			config.DebugLog("[APP-STREAM] error after %v: %v (retries=%d)", m.lastElapsed, msg.err, m.streamRetries)
+
+			// Auto-retry on timeout (max 3 times)
+			if strings.Contains(msg.err.Error(), "timeout") && m.streamRetries < 3 {
+				m.streamRetries++
+				if m.streamCancel != nil {
+					m.streamCancel()
+				}
+				m.streamCh = nil
+				m.msgs = append(m.msgs, ui.Message{
+					Role: ui.RoleSystem, Content: fmt.Sprintf("  Retrying... (attempt %d/3)", m.streamRetries), Timestamp: time.Now(), Tag: "stream-warn",
+				})
+				m.updateViewport()
+				m.streamStart = time.Now()
+				m.lastChunkAt = time.Time{}
+				m.streamWarnShown = false
+				return m, m.startStream()
+			}
+
 			m.streaming = false
 			m.streamCh = nil
-			m.lastElapsed = time.Since(m.streamStart)
-			config.DebugLog("[APP-STREAM] error after %v: %v", m.lastElapsed, msg.err)
+			m.streamRetries = 0
 			m.msgs = append(m.msgs, ui.Message{
 				Role: ui.RoleSystem, Content: fmt.Sprintf("Error: %v", msg.err), Timestamp: time.Now(),
 			})
@@ -2050,6 +2070,7 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.streamBuf = ""
 	m.tokenCount = 0
 	m.toolIter = 0
+	m.streamRetries = 0
 	m.streamStart = time.Now()
 	m.lastChunkAt = time.Time{}
 	m.streamWarnShown = false
@@ -2093,16 +2114,24 @@ func (m *Model) waitForNextChunk() tea.Cmd {
 		return nil
 	}
 	return func() tea.Msg {
-		chunk, ok := <-ch
-		if !ok {
-			return streamChunkMsg{done: true}
-		}
-		return streamChunkMsg{
-			content:   chunk.Content,
-			done:      chunk.Done,
-			err:       chunk.Err,
-			toolCalls: chunk.ToolCalls,
-			usage:     chunk.Usage,
+		// Timeout: if no chunk arrives in 30 seconds, return error
+		// so the app can show warning / retry
+		select {
+		case chunk, ok := <-ch:
+			if !ok {
+				return streamChunkMsg{done: true}
+			}
+			return streamChunkMsg{
+				content:   chunk.Content,
+				done:      chunk.Done,
+				err:       chunk.Err,
+				toolCalls: chunk.ToolCalls,
+				usage:     chunk.Usage,
+			}
+		case <-time.After(45 * time.Second):
+			return streamChunkMsg{
+				err: fmt.Errorf("no response from server (45s timeout). Press Enter to retry"),
+			}
 		}
 	}
 }
