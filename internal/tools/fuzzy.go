@@ -1,12 +1,12 @@
 package tools
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/kimjiwon/tgc/internal/config"
 )
@@ -73,9 +73,9 @@ func FuzzyFind(query, basePath string, maxResults int) (string, error) {
 			matches = append(matches, FuzzyMatch{Path: rel, Score: score, ModTime: mt})
 		}
 
-		// Collect enough candidates
+		// Collect enough candidates then stop
 		if len(matches) > maxResults*10 {
-			return nil // stop walking, sort what we have
+			return fmt.Errorf("enough candidates")
 		}
 		return nil
 	})
@@ -126,18 +126,18 @@ func fuzzyScore(needle, haystack string) int {
 	}
 
 	// Fuzzy character-by-character matching
+	needleRunes := []rune(needle)
 	score := 0
 	needleIdx := 0
 	consecutive := 0
 	prevMatched := false
 
 	for i, ch := range haystack {
-		if needleIdx >= len([]rune(needle)) {
+		if needleIdx >= len(needleRunes) {
 			break
 		}
-		target := []rune(needle)[needleIdx]
 
-		if ch == target {
+		if ch == needleRunes[needleIdx] {
 			needleIdx++
 			if prevMatched {
 				consecutive++
@@ -149,8 +149,8 @@ func fuzzyScore(needle, haystack string) int {
 			// Word boundary bonus (after /, ., _, -)
 			if i > 0 {
 				prev := rune(haystack[i-1])
-				if prev == '/' || prev == '.' || prev == '_' || prev == '-' || unicode.IsUpper(ch) {
-					score += 10 // word boundary match
+				if prev == '/' || prev == '.' || prev == '_' || prev == '-' {
+					score += 10
 				}
 			}
 			if i == 0 {
@@ -164,7 +164,7 @@ func fuzzyScore(needle, haystack string) int {
 	}
 
 	// All characters must match
-	if needleIdx < len([]rune(needle)) {
+	if needleIdx < len(needleRunes) {
 		return 0
 	}
 

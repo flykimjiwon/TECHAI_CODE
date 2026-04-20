@@ -177,6 +177,11 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 		}
 	}
 done:
+	// Drain remaining results to unblock goroutines on early exit
+	go func() {
+		for range resultsCh {
+		}
+	}()
 
 	if matchCount == 0 {
 		return "No matches found.", nil
