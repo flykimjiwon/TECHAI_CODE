@@ -58,7 +58,7 @@ func AllTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "file_read",
-				Description: "Read the contents of a file. Use offset and limit to read specific sections (e.g. after grep finds a line number).",
+				Description: "Read file contents. Use offset and limit to read specific sections — e.g. after grep_search finds a match at line 150, use offset=140 limit=30 to see context around it.",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{
@@ -135,7 +135,7 @@ func AllTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "grep_search",
-				Description: "Search file contents by regex pattern. Returns file:line:content matches. Faster and safer than shell grep. Skips binary files, .git, node_modules, dist.",
+				Description: "Fast content search. Searches file contents using regex. Returns file paths and line numbers sorted by modification time. Filter files with the include parameter (e.g. '*.sh', '*.sql'). When a search returns no matches, try different keywords or broader patterns. Use file_read with offset to examine matches in detail.",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{
@@ -283,11 +283,13 @@ func ReadOnlyTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "file_read",
-				Description: "Read the contents of a file.",
+				Description: "Read file contents. Use offset and limit to read specific sections.",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{
-						"path": {Type: "string", Description: "File path to read"},
+						"path":   {Type: "string", Description: "File path to read"},
+						"offset": {Type: "string", Description: "Line number to start from (1-indexed)"},
+						"limit":  {Type: "string", Description: "Max lines to read"},
 					},
 					Required: []string{"path"},
 				},
@@ -326,7 +328,7 @@ func ReadOnlyTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "grep_search",
-				Description: "Search file contents by regex pattern. Returns file:line:content matches.",
+				Description: "Fast content search. Returns file paths and line numbers sorted by modification time. Use file_read with offset to examine matches.",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{
@@ -625,6 +627,34 @@ func executeInner(name string, argsJSON string) string {
 		result, err := GrepSearch(pattern, searchPath, glob, ignoreCase, contextLines)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
+		}
+
+		// When A.*B pattern finds nothing, auto-search each keyword separately
+		// and report which files contain each — lets model cross-reference
+		if strings.HasPrefix(result, "No matches") && strings.Contains(pattern, ".*") {
+			parts := strings.Split(pattern, ".*")
+			var validTerms []string
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" && len(p) > 2 {
+					validTerms = append(validTerms, p)
+				}
+			}
+			if len(validTerms) >= 2 {
+				var sb strings.Builder
+				sb.WriteString("No single-line matches. Searching each term separately:\n\n")
+				for _, term := range validTerms {
+					termResult, _ := GrepSearch(term, searchPath, glob, ignoreCase, 0)
+					if !strings.HasPrefix(termResult, "No matches") {
+						sb.WriteString(fmt.Sprintf("--- %q ---\n%s\n", term, termResult))
+					} else {
+						sb.WriteString(fmt.Sprintf("--- %q --- No matches\n\n", term))
+					}
+				}
+				sb.WriteString("Tip: use file_read with offset to examine files containing both terms.")
+				config.DebugLog("[GREP-SPLIT] auto-split search for %d terms", len(validTerms))
+				return sb.String()
+			}
 		}
 
 		return result
