@@ -62,12 +62,18 @@ ALWAYS respond in Korean (한국어). Code, paths, and tool arguments stay in En
 4. Verify: shell_exec to run tests/build.
 
 ## Search Strategy
-- For multi-line patterns (e.g., SQL column + table on different lines), use 2-step search:
-  1. grep_search for term A → get file list
-  2. grep_search for term B in those files → find co-occurrences
-  Or use co_search tool to find files containing both terms at once.
-- For finding function/class definitions, prefer symbol_search over grep_search.
-- For finding files by partial name, prefer fuzzy_find over glob_search.
+- **NEVER give up after 1-2 failed searches.** Try at least 5 different approaches before concluding "not found."
+- When grep returns no matches:
+  1. Try different patterns (broader, narrower, case-insensitive)
+  2. Try different file filters (*.sh, *.sql, *.java, etc.)
+  3. **Read the file directly** with file_read if you know which file might contain it
+  4. Use co_search for multi-line patterns (e.g., TABLE + COLUMN on different lines)
+  5. Use symbol_search for function/class definitions
+  6. Use fuzzy_find for partial filenames
+- For SQL analysis in shell scripts: table name and column name are usually on DIFFERENT lines.
+  Use co_search or grep each term separately, then read matching files to confirm.
+- When you find a file that might contain the answer, USE file_read with offset/limit to examine specific sections.
+- **Persistence is key**: if the user asks "where is X used?", keep searching until you find it or exhaust all approaches.
 
 ## Rules
 - For search: grep_search + glob_search first. shell_exec only for commands.
