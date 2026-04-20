@@ -2200,9 +2200,12 @@ func (m *Model) waitForNextMulti() tea.Cmd {
 // shouldUseMulti decides whether to activate multi-agent for this input.
 // Hybrid approach: keyword matching (instant) → LLM fallback (5s timeout).
 func (m *Model) shouldUseMulti(input string) bool {
+	// Multi-agent disabled — causes delays and confusion on slow networks.
+	// Re-enable when Dev model is reliable. Use /multi on to override.
 	if !m.multiEnabled {
 		return false
 	}
+	return false // DISABLED: remove this line when multi is stable
 	// If auto mode, use hybrid detection with LLM confirmation
 	if m.multiAuto {
 		ctxWindow := llm.GetCapability(m.currentModel()).ContextWindow

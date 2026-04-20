@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -454,28 +455,24 @@ func SetUserContext(message string) {
 	}
 }
 
-// extractSearchTerms pulls out likely search terms from user input.
-// Looks for: UPPER_CASE_IDENTIFIERS, CamelCase, terms with underscores.
+// identifierRe matches UPPER_CASE_IDENTIFIERS anywhere in text (not just space-separated).
+// Handles: "RWA_IBS_DMB_CMM_MAS테이블의 DMB_K컬럼" → ["RWA_IBS_DMB_CMM_MAS", "DMB_K"]
+var identifierRe = regexp.MustCompile(`[A-Z][A-Z0-9_]{2,}`)
+
+// extractSearchTerms pulls out UPPER_CASE identifiers from anywhere in the message.
+// Uses regex so it works even when Korean text is attached without spaces.
 func extractSearchTerms(msg string) []string {
+	matches := identifierRe.FindAllString(msg, -1)
 	var terms []string
 	seen := make(map[string]bool)
-	words := strings.Fields(msg)
-	for _, w := range words {
-		// Clean punctuation
-		w = strings.Trim(w, ".,?!;:\"'()[]{}의를에서")
-		if len(w) < 3 {
+	for _, m := range matches {
+		// Must contain underscore (to distinguish from regular words like "SQL", "API")
+		if !strings.Contains(m, "_") {
 			continue
 		}
-		// Match: UPPER_CASE identifiers (TABLE_NAME, DMB_K)
-		isIdentifier := strings.Contains(w, "_") && w == strings.ToUpper(w)
-		// Match: mixed case with underscores (table_name)
-		hasUnderscore := strings.Contains(w, "_") && len(w) > 4
-		if isIdentifier || hasUnderscore {
-			lower := strings.ToUpper(w)
-			if !seen[lower] {
-				seen[lower] = true
-				terms = append(terms, w)
-			}
+		if !seen[m] {
+			seen[m] = true
+			terms = append(terms, m)
 		}
 	}
 	return terms
@@ -684,6 +681,37 @@ func executeInner(name string, argsJSON string) string {
 		if cl, ok := args["context_lines"].(float64); ok {
 			contextLines = int(cl)
 		}
+		// Force-split A.*B patterns — never attempt multi-term single-line search
+		if strings.Contains(pattern, ".*") {
+			parts := strings.Split(pattern, ".*")
+			var validTerms []string
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" && len(p) > 2 {
+					validTerms = append(validTerms, p)
+				}
+			}
+			if len(validTerms) >= 2 {
+				config.DebugLog("[GREP-FORCE-SPLIT] blocking A.*B, using co_search: %v", validTerms)
+				coResult, coErr := CoSearch(validTerms, searchPath, glob, ignoreCase)
+				if coErr == nil && !strings.HasPrefix(coResult, "No files") {
+					return coResult
+				}
+				// co_search no results — search each individually
+				var sb strings.Builder
+				sb.WriteString("Individual search results:\n\n")
+				for _, term := range validTerms {
+					termResult, _ := GrepSearch(term, searchPath, glob, ignoreCase, 2)
+					if !strings.HasPrefix(termResult, "No matches") {
+						sb.WriteString(fmt.Sprintf("--- %q ---\n%s\n", term, termResult))
+					} else {
+						sb.WriteString(fmt.Sprintf("--- %q --- No matches\n\n", term))
+					}
+				}
+				return sb.String()
+			}
+		}
+
 		// Try ripgrep first (100x faster), fall back to Go implementation
 		if result, err := RipgrepSearch(pattern, searchPath, glob, ignoreCase, contextLines); err == nil {
 			if !strings.HasPrefix(result, "No matches") {
@@ -694,40 +722,6 @@ func executeInner(name string, argsJSON string) string {
 		result, err := GrepSearch(pattern, searchPath, glob, ignoreCase, contextLines)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
-		}
-
-		// When A.*B pattern finds nothing, auto-search each keyword separately
-		// and report which files contain each — lets model cross-reference
-		if strings.HasPrefix(result, "No matches") && strings.Contains(pattern, ".*") {
-			parts := strings.Split(pattern, ".*")
-			var validTerms []string
-			for _, p := range parts {
-				p = strings.TrimSpace(p)
-				if p != "" && len(p) > 2 {
-					validTerms = append(validTerms, p)
-				}
-			}
-			if len(validTerms) >= 2 {
-				// Use co_search to find FILES containing ALL terms (intersection)
-				config.DebugLog("[GREP-COSEARCH] auto co_search for terms: %v", validTerms)
-				coResult, coErr := CoSearch(validTerms, searchPath, glob, ignoreCase)
-				if coErr == nil && !strings.HasPrefix(coResult, "No files") {
-					return coResult
-				}
-				// co_search found nothing — return individual results as fallback
-				var sb strings.Builder
-				sb.WriteString("Terms not found together in any file. Individual results:\n\n")
-				for _, term := range validTerms {
-					termResult, _ := GrepSearch(term, searchPath, glob, ignoreCase, 0)
-					if !strings.HasPrefix(termResult, "No matches") {
-						sb.WriteString(fmt.Sprintf("--- %q ---\n%s\n", term, termResult))
-					} else {
-						sb.WriteString(fmt.Sprintf("--- %q --- No matches\n\n", term))
-					}
-				}
-				config.DebugLog("[GREP-SPLIT] fallback to individual search for %d terms", len(validTerms))
-				return sb.String()
-			}
 		}
 
 		// Track failed patterns to prevent loops
