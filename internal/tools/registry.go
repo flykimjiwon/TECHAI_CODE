@@ -427,10 +427,13 @@ func ToolsForMode(mode int) []openai.Tool {
 }
 
 // failedPatterns tracks grep patterns that already returned no matches.
-// Prevents the model from retrying the same failing pattern in a loop.
 var (
-	failedPatterns   = make(map[string]int) // pattern → fail count
+	failedPatterns   = make(map[string]int)
 	failedPatternsMu sync.Mutex
+	// userKeywords stores extracted keywords from the latest user message.
+	// Used to auto-cross-reference when grep only searches 1 of N keywords.
+	userKeywords   []string
+	userKeywordsMu sync.Mutex
 )
 
 // ResetFailedPatterns clears the cache (call on new user message).
@@ -438,6 +441,44 @@ func ResetFailedPatterns() {
 	failedPatternsMu.Lock()
 	failedPatterns = make(map[string]int)
 	failedPatternsMu.Unlock()
+}
+
+// SetUserContext extracts searchable keywords from the user message.
+// Called from app.go sendMessage() so grep can auto-cross-reference.
+func SetUserContext(message string) {
+	userKeywordsMu.Lock()
+	defer userKeywordsMu.Unlock()
+	userKeywords = extractSearchTerms(message)
+	if len(userKeywords) > 0 {
+		config.DebugLog("[USER-CTX] extracted keywords: %v", userKeywords)
+	}
+}
+
+// extractSearchTerms pulls out likely search terms from user input.
+// Looks for: UPPER_CASE_IDENTIFIERS, CamelCase, terms with underscores.
+func extractSearchTerms(msg string) []string {
+	var terms []string
+	seen := make(map[string]bool)
+	words := strings.Fields(msg)
+	for _, w := range words {
+		// Clean punctuation
+		w = strings.Trim(w, ".,?!;:\"'()[]{}의를에서")
+		if len(w) < 3 {
+			continue
+		}
+		// Match: UPPER_CASE identifiers (TABLE_NAME, DMB_K)
+		isIdentifier := strings.Contains(w, "_") && w == strings.ToUpper(w)
+		// Match: mixed case with underscores (table_name)
+		hasUnderscore := strings.Contains(w, "_") && len(w) > 4
+		if isIdentifier || hasUnderscore {
+			lower := strings.ToUpper(w)
+			if !seen[lower] {
+				seen[lower] = true
+				terms = append(terms, w)
+			}
+		}
+	}
+	return terms
 }
 
 // Execute runs a tool by name with the given JSON arguments and returns the result.
@@ -694,6 +735,41 @@ func executeInner(name string, argsJSON string) string {
 			failedPatternsMu.Lock()
 			failedPatterns[cacheKey]++
 			failedPatternsMu.Unlock()
+		}
+
+		// Auto cross-reference: if user mentioned 2+ keywords but grep only searched 1,
+		// auto-search remaining keywords and show intersection
+		if !strings.HasPrefix(result, "No matches") {
+			userKeywordsMu.Lock()
+			remaining := userKeywords
+			userKeywordsMu.Unlock()
+
+			if len(remaining) >= 2 {
+				// Check if current pattern matches one of the user keywords
+				patternUpper := strings.ToUpper(pattern)
+				var otherTerms []string
+				matchedOne := false
+				for _, kw := range remaining {
+					if strings.Contains(patternUpper, strings.ToUpper(kw)) || strings.Contains(strings.ToUpper(kw), patternUpper) {
+						matchedOne = true
+					} else {
+						otherTerms = append(otherTerms, kw)
+					}
+				}
+				// If we matched one keyword and there are others unsearched, auto co_search
+				if matchedOne && len(otherTerms) > 0 {
+					allTerms := append([]string{pattern}, otherTerms...)
+					config.DebugLog("[GREP-XREF] auto cross-reference: searched=%q, adding=%v", pattern, otherTerms)
+					coResult, coErr := CoSearch(allTerms, searchPath, glob, ignoreCase)
+					if coErr == nil && !strings.HasPrefix(coResult, "No files") {
+						result += "\n\n[Auto cross-reference with user keywords]\n" + coResult
+					}
+					// Clear keywords so we don't re-cross-reference on next grep
+					userKeywordsMu.Lock()
+					userKeywords = nil
+					userKeywordsMu.Unlock()
+				}
+			}
 		}
 
 		return result

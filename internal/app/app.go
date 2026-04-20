@@ -2030,8 +2030,9 @@ func (m *Model) startStream() tea.Cmd {
 }
 
 func (m *Model) sendMessage(input string) tea.Cmd {
-	// Reset failed pattern cache for new user message
+	// Reset search state + extract keywords from user message
 	tools.ResetFailedPatterns()
+	tools.SetUserContext(input)
 
 	m.msgs = append(m.msgs, ui.Message{
 		Role: ui.RoleUser, Content: input, Timestamp: time.Now(),
