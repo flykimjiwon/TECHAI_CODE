@@ -905,6 +905,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.companionHub.Emit("stream_done", map[string]interface{}{"content": m.streamBuf, "tokens": m.tokenCount, "elapsed": m.lastElapsed.Seconds()})
 			}
 			config.DebugLog("[APP-STREAM] done reason=normal | elapsed=%v | tokens=%d | bufLen=%d", m.lastElapsed, m.tokenCount, len(m.streamBuf))
+
+			// Empty response detection — likely context overflow. Auto-compact and retry.
+			if m.streamBuf == "" && m.toolIter > 0 && m.streamRetries < 2 {
+				m.streamRetries++
+				config.DebugLog("[APP-EMPTY] empty response after %d tools, compacting and retrying (attempt %d)", m.toolIter, m.streamRetries)
+				// Force compact history
+				model := m.currentModel()
+				ctxWindow := llm.GetCapability(model).ContextWindow
+				target := ctxWindow / 3 // aggressive: target 33%
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				m.history = llm.CompactWithLLM(ctx, m.client, model, m.history, target)
+				cancel()
+				m.msgs = append(m.msgs, ui.Message{
+					Role: ui.RoleSystem, Content: fmt.Sprintf("  Compacting context and retrying... (attempt %d/2)", m.streamRetries), Timestamp: time.Now(), Tag: "stream-warn",
+				})
+				m.updateViewport()
+				m.streaming = true
+				m.streamStart = time.Now()
+				m.lastChunkAt = time.Time{}
+				m.streamWarnShown = false
+				return m, m.startStream()
+			}
+
 			if m.streamBuf != "" {
 				m.msgs = append(m.msgs, ui.Message{
 					Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),

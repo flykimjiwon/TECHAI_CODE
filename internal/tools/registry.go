@@ -681,23 +681,28 @@ func executeInner(name string, argsJSON string) string {
 		if cl, ok := args["context_lines"].(float64); ok {
 			contextLines = int(cl)
 		}
-		// Force-split A.*B patterns — never attempt multi-term single-line search
-		if strings.Contains(pattern, ".*") {
-			parts := strings.Split(pattern, ".*")
+		// Force-split complex patterns (A.*B, A|B, A.*B|B.*A) — extract unique terms
+		if strings.Contains(pattern, ".*") || strings.Contains(pattern, "|") {
+			// Split on both | and .* to extract individual identifiers
+			normalized := strings.ReplaceAll(pattern, "|", " ")
+			normalized = strings.ReplaceAll(normalized, ".*", " ")
+			parts := strings.Fields(normalized)
+			seen := make(map[string]bool)
 			var validTerms []string
 			for _, p := range parts {
 				p = strings.TrimSpace(p)
-				if p != "" && len(p) > 2 {
+				if p != "" && len(p) > 2 && !seen[strings.ToUpper(p)] {
+					seen[strings.ToUpper(p)] = true
 					validTerms = append(validTerms, p)
 				}
 			}
 			if len(validTerms) >= 2 {
-				config.DebugLog("[GREP-FORCE-SPLIT] blocking A.*B, using co_search: %v", validTerms)
+				config.DebugLog("[GREP-FORCE-SPLIT] extracting %d unique terms from pattern: %v", len(validTerms), validTerms)
 				coResult, coErr := CoSearch(validTerms, searchPath, glob, ignoreCase)
 				if coErr == nil && !strings.HasPrefix(coResult, "No files") {
 					return coResult
 				}
-				// co_search no results — search each individually
+				// co_search no intersection — search each individually
 				var sb strings.Builder
 				sb.WriteString("Individual search results:\n\n")
 				for _, term := range validTerms {
