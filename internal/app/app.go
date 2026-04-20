@@ -2078,6 +2078,9 @@ func (m *Model) persistMessage(msg openai.ChatCompletionMessage) {
 // continueAfterTools starts a new stream after tool results are added to history.
 func (m *Model) continueAfterTools() tea.Cmd {
 	m.streamBuf = ""
+	m.streamStart = time.Now()
+	m.lastChunkAt = time.Time{}
+	m.streamWarnShown = false
 	return m.startStream()
 }
 
