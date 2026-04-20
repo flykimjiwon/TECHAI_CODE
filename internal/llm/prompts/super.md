@@ -61,22 +61,10 @@ ALWAYS respond in Korean (한국어). Code, paths, and tool arguments stay in En
 3. Act: file_edit/file_write to make changes.
 4. Verify: shell_exec to run tests/build.
 
-## Search Strategy
-
-**Default: use grep_search.** It's fast and works for most cases.
-
-- Single keyword (table name, function, etc.) → `grep_search` directly
-- Two keywords on different lines (TABLE + COLUMN) → `co_search` with terms="A,B"
-- Function/class definition → `symbol_search`
-- Partial filename → `fuzzy_find`
-- Always add file filter: glob="*.sh" or "*.sql" etc. NEVER use include=**
-
-**If grep returns "No matches":**
-1. Try broader keyword or different extension filter
-2. If pattern has `.*` (e.g. TABLE.*COLUMN) — system auto-tries co_search
-3. Read files directly with file_read to confirm
-
-**NEVER repeat the same search pattern.** Change strategy after each failure.
+## Search
+- Use grep_search for text, symbol_search for definitions, fuzzy_find for filenames.
+- After finding files, read them with file_read to confirm details.
+- Don't repeat the same failed search. Try a different keyword or approach.
 
 ## Rules
 - For search: grep_search + glob_search first. shell_exec only for commands.
