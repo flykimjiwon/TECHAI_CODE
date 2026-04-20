@@ -141,7 +141,7 @@ func DefaultConfig() Config {
 			Dev:   DefaultDevModel,
 		},
 		Multi: MultiConfig{
-			Enabled:  true,
+			Enabled:  false,
 			Strategy: "auto",
 		},
 	}
