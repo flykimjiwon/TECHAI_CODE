@@ -768,6 +768,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case streamChunkMsg:
+		// Remove "processing" indicator when AI starts responding
+		filtered := m.msgs[:0]
+		for _, msg := range m.msgs {
+			if msg.Tag != "processing" {
+				filtered = append(filtered, msg)
+			}
+		}
+		m.msgs = filtered
+
 		if msg.err != nil {
 			m.streaming = false
 			m.streamCh = nil
@@ -974,6 +983,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// File-editing tools likely changed the working tree — refresh
 		// the git snapshot so the HUD dirty indicator stays accurate.
 		m.gitInfo = gitinfo.Fetch(".")
+
+		// Show processing indicator so user knows AI is working
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: fmt.Sprintf("  Processing... (tool %d/20)", m.toolIter), Timestamp: time.Now(), Tag: "processing",
+		})
 		m.updateViewport()
 
 		if m.toolIter >= 20 {

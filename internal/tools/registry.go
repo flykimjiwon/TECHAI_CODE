@@ -270,6 +270,23 @@ func AllTools() []openai.Tool {
 		{
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
+				Name:        "co_search",
+				Description: "Find files containing ALL given terms (co-occurrence). Perfect for multi-line SQL: find files where both TABLE_NAME and COLUMN_NAME appear, even on different lines. Returns file paths with line numbers for each term.",
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"terms":       {Type: "string", Description: "Comma-separated terms to find together (e.g. 'RWA_IBS_DMB_CMN_MAS,DMB_K')"},
+						"path":        {Type: "string", Description: "Directory to search in (default: current directory)"},
+						"glob":        {Type: "string", Description: "File filter glob (e.g. '*.sh', '*.sql')"},
+						"ignore_case": {Type: "string", Description: "Set to 'true' for case-insensitive search"},
+					},
+					Required: []string{"terms"},
+				},
+			},
+		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
 				Name:        "fuzzy_find",
 				Description: "Find files by fuzzy name matching. Type partial names like 'apgo' to find 'app.go', 'regst' to find 'registry.go'. Results sorted by match quality and recency. Use instead of glob_search when you know part of the filename.",
 				Parameters: paramSchema{
@@ -726,6 +743,27 @@ func executeInner(name string, argsJSON string) string {
 		}
 		searchPath, _ := args["path"].(string)
 		result, err := SymbolSearch(query, searchPath)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return result
+
+	case "co_search":
+		termsStr, _ := args["terms"].(string)
+		if termsStr == "" {
+			return "Error: terms is required (comma-separated, e.g. 'TABLE_NAME,COLUMN_NAME')"
+		}
+		terms := strings.Split(termsStr, ",")
+		for i := range terms {
+			terms[i] = strings.TrimSpace(terms[i])
+		}
+		searchPath, _ := args["path"].(string)
+		glob, _ := args["glob"].(string)
+		ignoreCase := false
+		if ic, ok := args["ignore_case"].(string); ok && ic == "true" {
+			ignoreCase = true
+		}
+		result, err := CoSearch(terms, searchPath, glob, ignoreCase)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}

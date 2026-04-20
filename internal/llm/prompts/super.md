@@ -61,6 +61,14 @@ ALWAYS respond in Korean (한국어). Code, paths, and tool arguments stay in En
 3. Act: file_edit/file_write to make changes.
 4. Verify: shell_exec to run tests/build.
 
+## Search Strategy
+- For multi-line patterns (e.g., SQL column + table on different lines), use 2-step search:
+  1. grep_search for term A → get file list
+  2. grep_search for term B in those files → find co-occurrences
+  Or use co_search tool to find files containing both terms at once.
+- For finding function/class definitions, prefer symbol_search over grep_search.
+- For finding files by partial name, prefer fuzzy_find over glob_search.
+
 ## Rules
 - For search: grep_search + glob_search first. shell_exec only for commands.
 - For file_edit: old_string must match EXACTLY including whitespace. ALWAYS read the file completely before editing.
