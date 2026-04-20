@@ -90,6 +90,7 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 
 	var results strings.Builder
 	matchCount := 0
+	filesScanned := 0
 
 	walkErr := filepath.WalkDir(absBase, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -131,6 +132,7 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 			return nil
 		}
 
+		filesScanned++
 		matches, err := searchFile(path, rel, re, contextLines)
 		if err != nil {
 			return nil
@@ -157,12 +159,16 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 		return "No matches found.", nil
 	}
 
-	config.DebugLog("[GREP] pattern=%q path=%s matches=%d bytes=%d gitignore=%v", pattern, basePath, matchCount, results.Len(), gi != nil)
+	config.DebugLog("[GREP] pattern=%q path=%s matches=%d files=%d bytes=%d gitignore=%v", pattern, basePath, matchCount, filesScanned, results.Len(), gi != nil)
+	// Append scan summary
+	results.WriteString(fmt.Sprintf("\n(%d matches in %d files scanned)", matchCount, filesScanned))
 	return results.String(), nil
 }
 
 // searchFile scans a single file for regex matches.
+// Times out after 3 seconds to prevent large files from blocking.
 func searchFile(absPath, relPath string, re *regexp.Regexp, contextLines int) ([]string, error) {
+	start := time.Now()
 	f, err := os.Open(absPath)
 	if err != nil {
 		return nil, err
@@ -177,6 +183,11 @@ func searchFile(absPath, relPath string, re *regexp.Regexp, contextLines int) ([
 	lineNum := 0
 	for scanner.Scan() {
 		lineNum++
+		// Timeout check every 1000 lines (3 second limit per file)
+		if lineNum%1000 == 0 && time.Since(start) > 3*time.Second {
+			config.DebugLog("[GREP] file timeout: %s (%d lines, %.1fs)", relPath, lineNum, time.Since(start).Seconds())
+			break
+		}
 		line := scanner.Text()
 		allLines = append(allLines, line)
 		if re.MatchString(line) {

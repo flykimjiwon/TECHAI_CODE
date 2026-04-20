@@ -839,7 +839,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, func() tea.Msg {
 					var results []toolResult
 					for _, tc := range calls {
-						output := tools.Execute(tc.Name, tc.Arguments)
+						// Per-tool timeout: 30 seconds max
+						ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+						done := make(chan string, 1)
+						go func(name, args string) {
+							done <- tools.Execute(name, args)
+						}(tc.Name, tc.Arguments)
+
+						var output string
+						select {
+						case output = <-done:
+							// Tool completed normally
+						case <-ctx.Done():
+							output = fmt.Sprintf("Error: tool %s timed out after 30s", tc.Name)
+							config.DebugLog("[TOOL-TIMEOUT] %s timed out", tc.Name)
+						}
+						cancel()
+
 						results = append(results, toolResult{
 							callID: tc.ID,
 							name:   tc.Name,
