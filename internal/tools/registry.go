@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -425,6 +426,20 @@ func ToolsForMode(mode int) []openai.Tool {
 	return AllTools()
 }
 
+// failedPatterns tracks grep patterns that already returned no matches.
+// Prevents the model from retrying the same failing pattern in a loop.
+var (
+	failedPatterns   = make(map[string]int) // pattern → fail count
+	failedPatternsMu sync.Mutex
+)
+
+// ResetFailedPatterns clears the cache (call on new user message).
+func ResetFailedPatterns() {
+	failedPatternsMu.Lock()
+	failedPatterns = make(map[string]int)
+	failedPatternsMu.Unlock()
+}
+
 // Execute runs a tool by name with the given JSON arguments and returns the result.
 func Execute(name string, argsJSON string) string {
 	config.DebugLog("[TOOL-CALL] %s | args=%s", name, argsJSON)
@@ -598,6 +613,17 @@ func executeInner(name string, argsJSON string) string {
 		if pattern == "" {
 			return "Error: pattern is required"
 		}
+
+		// Block repeated failed patterns (prevents infinite loop)
+		failedPatternsMu.Lock()
+		cacheKey := pattern
+		if failedPatterns[cacheKey] >= 2 {
+			failedPatternsMu.Unlock()
+			config.DebugLog("[GREP-DEDUP] blocked repeated pattern: %q (failed %d times)", pattern, failedPatterns[cacheKey])
+			return fmt.Sprintf("Already searched %q — no matches found. Try a DIFFERENT keyword or use file_read to examine specific files.", pattern)
+		}
+		failedPatternsMu.Unlock()
+
 		searchPath, _ := args["path"].(string)
 		glob, _ := args["include"].(string)
 		if glob == "" {
@@ -655,6 +681,13 @@ func executeInner(name string, argsJSON string) string {
 				config.DebugLog("[GREP-SPLIT] auto-split search for %d terms", len(validTerms))
 				return sb.String()
 			}
+		}
+
+		// Track failed patterns to prevent loops
+		if strings.HasPrefix(result, "No matches") {
+			failedPatternsMu.Lock()
+			failedPatterns[cacheKey]++
+			failedPatternsMu.Unlock()
 		}
 
 		return result
