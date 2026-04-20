@@ -636,7 +636,7 @@ func executeInner(name string, argsJSON string) string {
 		if ic, ok := args["ignore_case"].(bool); ok && ic {
 			ignoreCase = true
 		}
-		contextLines := 0
+		contextLines := 2 // default: show 2 surrounding lines for context
 		if cl, ok := args["context_lines"].(string); ok {
 			fmt.Sscanf(cl, "%d", &contextLines)
 		}

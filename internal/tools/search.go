@@ -160,19 +160,37 @@ func GrepSearch(pattern, basePath, glob string, ignoreCase bool, contextLines in
 		close(resultsCh)
 	}()
 
-	// Phase 3: Collect results
-	var results strings.Builder
+	// Phase 3: Collect and group results by file
+	type fileMatches struct {
+		file    string
+		lines   []string
+	}
+	fileMap := make(map[string]*fileMatches)
+	var fileOrder []string
 	matchCount := 0
 	filesScanned := len(candidates)
 
 	for fr := range resultsCh {
 		for _, m := range fr.matches {
-			if matchCount >= maxGrepMatches || results.Len() >= maxGrepBytes {
-				results.WriteString(fmt.Sprintf("\n... (truncated, %d+ matches)\n", matchCount))
+			if matchCount >= maxGrepMatches {
 				goto done
 			}
-			results.WriteString(m)
-			results.WriteString("\n")
+			// Parse "file:line:content" format
+			parts := strings.SplitN(m, ":", 3)
+			if len(parts) < 3 {
+				continue
+			}
+			file := parts[0]
+			lineInfo := parts[1] + ": " + strings.TrimSpace(parts[2])
+
+			if _, exists := fileMap[file]; !exists {
+				fileMap[file] = &fileMatches{file: file}
+				fileOrder = append(fileOrder, file)
+			}
+			fm := fileMap[file]
+			if len(fm.lines) < 10 { // max 10 matches per file
+				fm.lines = append(fm.lines, lineInfo)
+			}
 			matchCount++
 		}
 	}
@@ -187,8 +205,23 @@ done:
 		return "No matches found.", nil
 	}
 
-	config.DebugLog("[GREP] pattern=%q path=%s matches=%d files=%d bytes=%d parallel=8 gitignore=%v", pattern, basePath, matchCount, filesScanned, results.Len(), gi != nil)
-	results.WriteString(fmt.Sprintf("\n(%d matches in %d files scanned)", matchCount, filesScanned))
+	// Format grouped output
+	var results strings.Builder
+	matchingFiles := len(fileOrder)
+	for _, file := range fileOrder {
+		if results.Len() >= maxGrepBytes {
+			results.WriteString("\n... (truncated)\n")
+			break
+		}
+		fm := fileMap[file]
+		results.WriteString(fmt.Sprintf("\n%s (%d matches):\n", fm.file, len(fm.lines)))
+		for _, line := range fm.lines {
+			results.WriteString(fmt.Sprintf("  :%s\n", line))
+		}
+	}
+
+	config.DebugLog("[GREP] pattern=%q path=%s matches=%d files=%d/%d parallel=8", pattern, basePath, matchCount, matchingFiles, filesScanned)
+	results.WriteString(fmt.Sprintf("\n(%d matches in %d files, %d files scanned)", matchCount, matchingFiles, filesScanned))
 	return results.String(), nil
 }
 
