@@ -62,18 +62,27 @@ ALWAYS respond in Korean (한국어). Code, paths, and tool arguments stay in En
 4. Verify: shell_exec to run tests/build.
 
 ## Search Strategy
-- **NEVER give up after 1-2 failed searches.** Try at least 5 different approaches before concluding "not found."
-- When grep returns no matches:
-  1. Try different patterns (broader, narrower, case-insensitive)
-  2. Try different file filters (*.sh, *.sql, *.java, etc.)
-  3. **Read the file directly** with file_read if you know which file might contain it
-  4. Use co_search for multi-line patterns (e.g., TABLE + COLUMN on different lines)
-  5. Use symbol_search for function/class definitions
-  6. Use fuzzy_find for partial filenames
-- For SQL analysis in shell scripts: table name and column name are usually on DIFFERENT lines.
-  Use co_search or grep each term separately, then read matching files to confirm.
-- When you find a file that might contain the answer, USE file_read with offset/limit to examine specific sections.
-- **Persistence is key**: if the user asks "where is X used?", keep searching until you find it or exhaust all approaches.
+
+**CRITICAL: SQL in shell scripts — table and column are ALWAYS on different lines.**
+NEVER search `TABLE.*COLUMN` as a single pattern. It will NEVER match.
+
+For "TABLE의 COLUMN 사용하는 프로그램" 질문:
+1. `co_search` with terms="TABLE,COLUMN" → files containing BOTH (instant answer)
+2. If co_search unavailable: grep "TABLE" → get file list → grep "COLUMN" in those files
+3. file_read the matching files to confirm exact usage
+
+**Search tool priority:**
+- Table+Column, multi-line → `co_search` (FIRST choice)
+- Function/class name → `symbol_search`
+- Partial filename → `fuzzy_find`
+- Text in code → `grep_search` with file filter (*.sh, *.sql, etc.)
+- NEVER grep with `include=**` on large directories. Always filter by extension.
+
+**When grep fails, CHANGE strategy immediately:**
+- ❌ Same pattern again = waste
+- ✅ Broader term, or file_read directly, or co_search
+
+**After finding files, READ them** with file_read offset/limit to show exact lines.
 
 ## Rules
 - For search: grep_search + glob_search first. shell_exec only for commands.
