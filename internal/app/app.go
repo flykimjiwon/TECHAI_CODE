@@ -154,6 +154,9 @@ type Model struct {
 	// Custom commands loaded from .tgc/commands/ and ~/.tgc/commands/.
 	customCommands map[string]string
 
+	// Stream warning: shown once when response is slow
+	streamWarnShown bool
+
 	// Mouse mode: toggleable for text selection vs scroll
 	mouseEnabled bool
 
@@ -768,10 +771,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case streamChunkMsg:
-		// Remove "processing" indicator when AI starts responding
+		// Remove transient indicators when AI starts responding
 		filtered := m.msgs[:0]
 		for _, msg := range m.msgs {
-			if msg.Tag != "processing" {
+			if msg.Tag != "processing" && msg.Tag != "stream-warn" {
 				filtered = append(filtered, msg)
 			}
 		}
@@ -1899,6 +1902,13 @@ func (m *Model) streamStatus() string {
 	}
 
 	if m.lastChunkAt.IsZero() {
+		// Show warning in chat area after 15s of no response (once)
+		if elapsed > 15*time.Second && !m.streamWarnShown {
+			m.streamWarnShown = true
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "  Waiting for response... (server may be slow, press Esc to cancel)", Timestamp: time.Now(), Tag: "stream-warn",
+			})
+		}
 		if elapsed > 30*time.Second {
 			return fmt.Sprintf("%s Connecting... (%.0fs — no response)", frame, elapsed.Seconds())
 		}
@@ -1906,6 +1916,14 @@ func (m *Model) streamStatus() string {
 	}
 
 	sinceLastChunk := time.Since(m.lastChunkAt)
+
+	// Show stall warning in chat area after 15s of silence mid-stream (once)
+	if sinceLastChunk > 15*time.Second && !m.streamWarnShown {
+		m.streamWarnShown = true
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: "  Response stalled... (press Esc to cancel and retry)", Timestamp: time.Now(), Tag: "stream-warn",
+		})
+	}
 	tps := float64(0)
 	if elapsed.Seconds() > 0 {
 		tps = float64(m.tokenCount) / elapsed.Seconds()
@@ -2031,6 +2049,7 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.toolIter = 0
 	m.streamStart = time.Now()
 	m.lastChunkAt = time.Time{}
+	m.streamWarnShown = false
 	m.updateViewport()
 	if m.companionHub != nil {
 		m.companionHub.Emit("stream_start", map[string]interface{}{"model": m.currentModel(), "mode": m.activeTab})
