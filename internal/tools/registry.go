@@ -58,11 +58,13 @@ func AllTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "file_read",
-				Description: "Read the contents of a file. Use this to understand existing code before making changes.",
+				Description: "Read the contents of a file. Use offset and limit to read specific sections (e.g. after grep finds a line number).",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{
-						"path": {Type: "string", Description: "File path (relative to cwd or absolute)"},
+						"path":   {Type: "string", Description: "File path (relative to cwd or absolute)"},
+						"offset": {Type: "string", Description: "Line number to start from (1-indexed, default: 1)"},
+						"limit":  {Type: "string", Description: "Max lines to read (default: all, max: 2000)"},
 					},
 					Required: []string{"path"},
 				},
@@ -139,7 +141,7 @@ func AllTools() []openai.Tool {
 					Properties: map[string]propertySchema{
 						"pattern":       {Type: "string", Description: "Regex pattern to search for (required)"},
 						"path":          {Type: "string", Description: "Directory to search in (default: current directory)"},
-						"glob":          {Type: "string", Description: "File filter glob (e.g. '*.go', '*.ts')"},
+						"include":       {Type: "string", Description: "File pattern to include (e.g. '*.go', '*.sh', '*.{ts,tsx}')"},
 						"ignore_case":   {Type: "string", Description: "Set to 'true' for case-insensitive search"},
 						"context_lines": {Type: "string", Description: "Number of context lines around matches (default: 0)"},
 					},
@@ -252,53 +254,9 @@ func AllTools() []openai.Tool {
 				},
 			},
 		},
-		{
-			Type: openai.ToolTypeFunction,
-			Function: &openai.FunctionDefinition{
-				Name:        "symbol_search",
-				Description: "Find code symbols (functions, classes, methods, interfaces) by name. Faster and more precise than grep for finding definitions. Supports Go, JS/TS, Python, Java, Rust, Shell.",
-				Parameters: paramSchema{
-					Type: "object",
-					Properties: map[string]propertySchema{
-						"query": {Type: "string", Description: "Symbol name to search for (partial match supported)"},
-						"path":  {Type: "string", Description: "Directory to search in (default: current directory)"},
-					},
-					Required: []string{"query"},
-				},
-			},
-		},
-		{
-			Type: openai.ToolTypeFunction,
-			Function: &openai.FunctionDefinition{
-				Name:        "co_search",
-				Description: "Find files containing ALL given terms (co-occurrence). Perfect for multi-line SQL: find files where both TABLE_NAME and COLUMN_NAME appear, even on different lines. Returns file paths with line numbers for each term.",
-				Parameters: paramSchema{
-					Type: "object",
-					Properties: map[string]propertySchema{
-						"terms":       {Type: "string", Description: "Comma-separated terms to find together (e.g. 'RWA_IBS_DMB_CMN_MAS,DMB_K')"},
-						"path":        {Type: "string", Description: "Directory to search in (default: current directory)"},
-						"glob":        {Type: "string", Description: "File filter glob (e.g. '*.sh', '*.sql')"},
-						"ignore_case": {Type: "string", Description: "Set to 'true' for case-insensitive search"},
-					},
-					Required: []string{"terms"},
-				},
-			},
-		},
-		{
-			Type: openai.ToolTypeFunction,
-			Function: &openai.FunctionDefinition{
-				Name:        "fuzzy_find",
-				Description: "Find files by fuzzy name matching. Type partial names like 'apgo' to find 'app.go', 'regst' to find 'registry.go'. Results sorted by match quality and recency. Use instead of glob_search when you know part of the filename.",
-				Parameters: paramSchema{
-					Type: "object",
-					Properties: map[string]propertySchema{
-						"query": {Type: "string", Description: "Partial filename to search for (fuzzy match)"},
-						"path":  {Type: "string", Description: "Directory to search in (default: current directory)"},
-					},
-					Required: []string{"query"},
-				},
-			},
-		},
+		// NOTE: symbol_search, co_search, fuzzy_find are kept as internal tools
+		// (execution handlers remain) but hidden from the model to reduce
+		// decision paralysis. co_search is auto-triggered by grep fallback.
 		{
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
@@ -374,7 +332,7 @@ func ReadOnlyTools() []openai.Tool {
 					Properties: map[string]propertySchema{
 						"pattern":       {Type: "string", Description: "Regex pattern to search for (required)"},
 						"path":          {Type: "string", Description: "Directory to search in (default: current directory)"},
-						"glob":          {Type: "string", Description: "File filter glob (e.g. '*.go', '*.ts')"},
+						"include":       {Type: "string", Description: "File pattern to include (e.g. '*.go', '*.sh', '*.{ts,tsx}')"},
 						"ignore_case":   {Type: "string", Description: "Set to 'true' for case-insensitive search"},
 						"context_lines": {Type: "string", Description: "Number of context lines around matches (default: 0)"},
 					},
@@ -493,6 +451,43 @@ func executeInner(name string, argsJSON string) string {
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
+
+		// Apply offset/limit for targeted reading (like OpenCode's read tool)
+		offset := 0
+		limit := 0
+		if os, ok := args["offset"].(string); ok {
+			fmt.Sscanf(os, "%d", &offset)
+		}
+		if os, ok := args["offset"].(float64); ok {
+			offset = int(os)
+		}
+		if ls, ok := args["limit"].(string); ok {
+			fmt.Sscanf(ls, "%d", &limit)
+		}
+		if ls, ok := args["limit"].(float64); ok {
+			limit = int(ls)
+		}
+
+		if offset > 0 || limit > 0 {
+			lines := strings.Split(content, "\n")
+			start := offset - 1 // 1-indexed to 0-indexed
+			if start < 0 {
+				start = 0
+			}
+			if start >= len(lines) {
+				return fmt.Sprintf("Error: offset %d exceeds file length (%d lines)", offset, len(lines))
+			}
+			end := len(lines)
+			if limit > 0 {
+				end = start + limit
+				if end > len(lines) {
+					end = len(lines)
+				}
+			}
+			content = strings.Join(lines[start:end], "\n")
+			content = fmt.Sprintf("[lines %d-%d of %d]\n%s", start+1, end, len(lines), content)
+		}
+
 		if len(content) > 50000 {
 			return content[:50000] + "\n\n... [truncated, file too large]"
 		}
@@ -602,7 +597,10 @@ func executeInner(name string, argsJSON string) string {
 			return "Error: pattern is required"
 		}
 		searchPath, _ := args["path"].(string)
-		glob, _ := args["glob"].(string)
+		glob, _ := args["include"].(string)
+		if glob == "" {
+			glob, _ = args["glob"].(string) // backward compat
+		}
 		ignoreCase := false
 		if ic, ok := args["ignore_case"].(string); ok && ic == "true" {
 			ignoreCase = true
@@ -627,28 +625,6 @@ func executeInner(name string, argsJSON string) string {
 		result, err := GrepSearch(pattern, searchPath, glob, ignoreCase, contextLines)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
-		}
-
-		// Smart fallback: if pattern looks like A.*B (multi-term) and no matches,
-		// auto-try co_search to find files containing both terms on different lines
-		if strings.HasPrefix(result, "No matches") && strings.Contains(pattern, ".*") {
-			parts := strings.Split(pattern, ".*")
-			if len(parts) >= 2 {
-				var terms []string
-				for _, p := range parts {
-					p = strings.TrimSpace(p)
-					if p != "" {
-						terms = append(terms, p)
-					}
-				}
-				if len(terms) >= 2 {
-					config.DebugLog("[GREP-SMART] auto co_search fallback: %v", terms)
-					coResult, coErr := CoSearch(terms, searchPath, glob, ignoreCase)
-					if coErr == nil && !strings.HasPrefix(coResult, "No files") {
-						return "[auto co_search: terms found on different lines]\n\n" + coResult
-					}
-				}
-			}
 		}
 
 		return result
@@ -784,7 +760,10 @@ func executeInner(name string, argsJSON string) string {
 			terms[i] = strings.TrimSpace(terms[i])
 		}
 		searchPath, _ := args["path"].(string)
-		glob, _ := args["glob"].(string)
+		glob, _ := args["include"].(string)
+		if glob == "" {
+			glob, _ = args["glob"].(string) // backward compat
+		}
 		ignoreCase := false
 		if ic, ok := args["ignore_case"].(string); ok && ic == "true" {
 			ignoreCase = true

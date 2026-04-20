@@ -62,9 +62,9 @@ ALWAYS respond in Korean (한국어). Code, paths, and tool arguments stay in En
 4. Verify: shell_exec to run tests/build.
 
 ## Search
-- Use grep_search for text, symbol_search for definitions, fuzzy_find for filenames.
-- After finding files, read them with file_read to confirm details.
-- Don't repeat the same failed search. Try a different keyword or approach.
+- grep_search: Search file contents by regex. Use `include` to filter by file type (e.g. "*.sh").
+- glob_search: Find files by name pattern.
+- After finding matches, use file_read with offset/limit to examine specific sections.
 
 ## Rules
 - For search: grep_search + glob_search first. shell_exec only for commands.
