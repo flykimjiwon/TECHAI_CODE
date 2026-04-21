@@ -23,6 +23,7 @@ import (
 	"github.com/kimjiwon/tgc/internal/companion"
 	"github.com/kimjiwon/tgc/internal/config"
 	"github.com/kimjiwon/tgc/internal/gitinfo"
+	"github.com/kimjiwon/tgc/internal/hooks"
 	"github.com/kimjiwon/tgc/internal/knowledge"
 	"github.com/kimjiwon/tgc/internal/llm"
 	"github.com/kimjiwon/tgc/internal/mcp"
@@ -166,6 +167,9 @@ type Model struct {
 
 	// Memory: persistent project/global facts injected into system prompt.
 	memoryStore *tools.MemoryStore
+
+	// Hooks: lifecycle event handlers (pre/post tool use, session start/stop).
+	hookManager *hooks.Manager
 }
 
 func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
@@ -205,11 +209,15 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	projectCtx += llm.GatherSystemContext()
 	// envCtx and userDocsTOC are appended after env probe runs (below)
 
-	// Initialize knowledge store (built-in embedded docs)
+	// Initialize knowledge store (built-in embedded docs, filtered by project packs)
 	var knowledgeInj *knowledge.Injector
-	if knowledgeStore, err := knowledge.NewStore(tgc.KnowledgeFS); err == nil {
+	packs := parseKnowledgePacks(projectCtx)
+	if len(packs) > 0 {
+		config.DebugLog("[KNOWLEDGE] packs from .techai.md: %v", packs)
+	}
+	if knowledgeStore, err := knowledge.NewStore(tgc.KnowledgeFS, packs...); err == nil {
 		knowledgeInj = knowledge.NewInjector(knowledgeStore, 8192)
-		config.DebugLog("[KNOWLEDGE] loaded %d embedded documents", knowledgeStore.DocCount())
+		config.DebugLog("[KNOWLEDGE] loaded %d embedded documents (packs=%v)", knowledgeStore.DocCount(), packs)
 	} else {
 		config.DebugLog("[KNOWLEDGE] failed to load: %v", err)
 	}
@@ -287,6 +295,9 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		customCommands: customCmds,
 		mouseEnabled:  true,
 	}
+
+	// Initialize lifecycle hooks
+	m.hookManager = hooks.NewManager()
 
 	// Initialize multi-agent config from loaded settings
 	m.multiEnabled = cfg.Multi.Enabled
@@ -868,9 +879,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateViewport()
 
 				calls := msg.toolCalls
+				hookMgr := m.hookManager
 				return m, func() tea.Msg {
 					var results []toolResult
 					for _, tc := range calls {
+						// Pre-tool hook: abort if hook returns exit code 2
+						if hookMgr != nil {
+							if hookMgr.RunPreToolUse(tc.Name, tc.Arguments) == hooks.HookFailAbort {
+								config.DebugLog("[HOOKS] pre_tool_use aborted %s", tc.Name)
+								results = append(results, toolResult{
+									callID: tc.ID,
+									name:   tc.Name,
+									output: "Aborted by pre_tool_use hook",
+								})
+								continue
+							}
+						}
+
 						// Per-tool timeout: 30 seconds max
 						ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 						done := make(chan string, 1)
@@ -887,6 +912,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							config.DebugLog("[TOOL-TIMEOUT] %s timed out", tc.Name)
 						}
 						cancel()
+
+						// Post-tool hook
+						if hookMgr != nil {
+							hookMgr.RunPostToolUse(tc.Name, tc.Arguments, output)
+						}
 
 						results = append(results, toolResult{
 							callID: tc.ID,
@@ -907,18 +937,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			config.DebugLog("[APP-STREAM] done reason=normal | elapsed=%v | tokens=%d | bufLen=%d", m.lastElapsed, m.tokenCount, len(m.streamBuf))
 
 			// Empty response detection — likely context overflow. Auto-compact and retry.
-			if m.streamBuf == "" && m.toolIter > 0 && m.streamRetries < 2 {
+			if m.streamBuf == "" && m.toolIter > 0 && m.streamRetries < 3 {
 				m.streamRetries++
 				config.DebugLog("[APP-EMPTY] empty response after %d tools, compacting and retrying (attempt %d)", m.toolIter, m.streamRetries)
-				// Force compact history
+				// Force compact history — more aggressive each retry
 				model := m.currentModel()
 				ctxWindow := llm.GetCapability(model).ContextWindow
-				target := ctxWindow / 3 // aggressive: target 33%
+				// Retry 1: 33%, Retry 2: 20%, Retry 3: 15%
+				divisor := 2 + m.streamRetries // 3, 4, 5
+				target := ctxWindow / divisor
+				config.DebugLog("[APP-EMPTY] compact target=%d (window/%d)", target, divisor)
 				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 				m.history = llm.CompactWithLLM(ctx, m.client, model, m.history, target)
 				cancel()
 				m.msgs = append(m.msgs, ui.Message{
-					Role: ui.RoleSystem, Content: fmt.Sprintf("  Compacting context and retrying... (attempt %d/2)", m.streamRetries), Timestamp: time.Now(), Tag: "stream-warn",
+					Role: ui.RoleSystem, Content: fmt.Sprintf("  Compacting context and retrying... (attempt %d/3)", m.streamRetries), Timestamp: time.Now(), Tag: "stream-warn",
 				})
 				m.updateViewport()
 				m.streaming = true
@@ -926,6 +959,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.lastChunkAt = time.Time{}
 				m.streamWarnShown = false
 				return m, m.startStream()
+			}
+
+			// All retries exhausted — show failure message so user isn't stuck
+			if m.streamBuf == "" && m.toolIter > 0 {
+				config.DebugLog("[APP-EMPTY] all retries exhausted after %d tools", m.toolIter)
+				m.msgs = append(m.msgs, ui.Message{
+					Role: ui.RoleSystem, Content: "  빈 응답이 반복되었습니다. 다시 시도하거나 질문을 더 구체적으로 입력해주세요.", Timestamp: time.Now(), Tag: "stream-warn",
+				})
+				m.updateViewport()
 			}
 
 			if m.streamBuf != "" {
@@ -1359,66 +1401,10 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		return true, nil
 
 	case "/multi":
-		if arg == "" {
-			// Toggle on/off
-			m.multiEnabled = !m.multiEnabled
-			label := "OFF"
-			if m.multiEnabled {
-				label = "ON"
-			}
-			stratLabel := m.multiStrategy.String()
-			if m.multiAuto {
-				stratLabel = "Auto"
-			}
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: fmt.Sprintf("[MULTI] 멀티 에이전트 %s (전략: %s)", label, stratLabel), Timestamp: time.Now(),
-			})
-			m.updateViewport()
-			return true, nil
-		}
-		switch strings.ToLower(arg) {
-		case "on":
-			m.multiEnabled = true
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[MULTI] 멀티 에이전트 ON", Timestamp: time.Now(),
-			})
-		case "off":
-			m.multiEnabled = false
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[MULTI] 멀티 에이전트 OFF", Timestamp: time.Now(),
-			})
-		case "review":
-			m.multiEnabled = true
-			m.multiAuto = false
-			m.multiStrategy = multi.StrategyReview
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[MULTI] 전략: Review (Agent1 생성 → Agent2 검토)", Timestamp: time.Now(),
-			})
-		case "consensus":
-			m.multiEnabled = true
-			m.multiAuto = false
-			m.multiStrategy = multi.StrategyConsensus
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[MULTI] 전략: Consensus (두 모델 병렬 비교)", Timestamp: time.Now(),
-			})
-		case "scan":
-			m.multiEnabled = true
-			m.multiAuto = false
-			m.multiStrategy = multi.StrategyScan
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[MULTI] 전략: Scan (병렬 파일 탐색)", Timestamp: time.Now(),
-			})
-		case "auto":
-			m.multiEnabled = true
-			m.multiAuto = true
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[MULTI] 전략: Auto (자동 감지)", Timestamp: time.Now(),
-			})
-		default:
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[MULTI] 사용법: /multi [on|off|review|consensus|scan|auto]", Timestamp: time.Now(),
-			})
-		}
+		// ── SUSPENDED: sub-agent system globally disabled until re-open ──
+		m.msgs = append(m.msgs, ui.Message{
+			Role: ui.RoleSystem, Content: "[MULTI] ⏸ 멀티 에이전트 기능이 일시 중단되었습니다. 추후 재오픈 예정.", Timestamp: time.Now(),
+		})
 		m.updateViewport()
 		return true, nil
 
@@ -2222,13 +2208,11 @@ func (m *Model) waitForNextMulti() tea.Cmd {
 
 // shouldUseMulti decides whether to activate multi-agent for this input.
 // Hybrid approach: keyword matching (instant) → LLM fallback (5s timeout).
-func (m *Model) shouldUseMulti(input string) bool {
-	// Multi-agent disabled — causes delays and confusion on slow networks.
-	// Re-enable when Dev model is reliable. Use /multi on to override.
-	if !m.multiEnabled {
-		return false
-	}
-	return false // DISABLED: remove this line when multi is stable
+func (m *Model) shouldUseMulti(input string) bool { //nolint:unparam
+	// ── SUSPENDED: sub-agent system globally disabled until re-open ──
+	// All multi-agent functionality is preserved in code but hard-gated here.
+	// To re-enable: remove this early return and restore the original parameter name.
+	return false
 	// If auto mode, use hybrid detection with LLM confirmation
 	if m.multiAuto {
 		ctxWindow := llm.GetCapability(m.currentModel()).ContextWindow
@@ -2385,4 +2369,36 @@ func truncateArgs(s string, max int) string {
 		return string(runes[:max]) + "..."
 	}
 	return s
+}
+
+// parseKnowledgePacks extracts knowledge_packs from .techai.md content.
+// Looks for a line like: "- **Knowledge packs**: react, database, css"
+// or "knowledge_packs: react, database, css"
+func parseKnowledgePacks(projectCtx string) []string {
+	for _, line := range strings.Split(projectCtx, "\n") {
+		lower := strings.ToLower(strings.TrimSpace(line))
+
+		// Match "knowledge_packs: ..." or "- **Knowledge packs**: ..."
+		var value string
+		if strings.HasPrefix(lower, "knowledge_packs:") {
+			value = strings.TrimSpace(line[len("knowledge_packs:"):])
+		} else if strings.Contains(lower, "knowledge packs") && strings.Contains(line, ":") {
+			idx := strings.LastIndex(line, ":")
+			value = strings.TrimSpace(line[idx+1:])
+		}
+
+		if value != "" {
+			// Strip markdown bold markers
+			value = strings.ReplaceAll(value, "**", "")
+			var packs []string
+			for _, p := range strings.Split(value, ",") {
+				p = strings.TrimSpace(p)
+				if p != "" && p != "none" {
+					packs = append(packs, p)
+				}
+			}
+			return packs
+		}
+	}
+	return nil
 }

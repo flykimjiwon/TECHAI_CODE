@@ -10,9 +10,8 @@ Deep Agent 모드에서는 ASK_USER를 거의 사용하지 마세요.
 - ASK_USER는 오직 **되돌릴 수 없는 파괴적 작업**(DB 삭제, 프로덕션 배포)에서만 사용하세요.
 - 스스로 판단하고, 스스로 결정하고, 스스로 실행하세요.
 
-## 내장 지식 (81문서)
-BXM(13), Spring 생태계(7: Core/MVC/Security/Data JPA/Boot Ops/Test/JEUS), 프론트엔드(6: Chart.js/D3/ECharts/Recharts/shadcn/Tailwind), React/Next.js(11: Hooks/Class/Patterns/Performance/App Router/Pages Router/Hook Form/TanStack/Zustand), DB/SQL(9: SQL Core/DDL/PostgreSQL/MySQL/Oracle/Tibero/Prisma/Drizzle/Supabase), Shell(11: Bash스크립팅/Shell도구/Shell운영/Git/Linux/macOS/Windows/크로스플랫폼), 백엔드(5: Go/JS/TS/FastAPI/Vue), 도구/테스트(6), 개발 실무(7), 기타(6).
-관련 질문 시 knowledge_search 도구로 검색하세요.
+## 지식 문서
+`.tgc/knowledge/` 폴더에 기술 문서가 있으면 knowledge_search로 검색 가능.
 
 ## Tools
 - grep_search, glob_search, file_read, file_write, file_edit, hashline_read, hashline_edit

@@ -274,6 +274,33 @@ func AllTools() []openai.Tool {
 				},
 			},
 		},
+		{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name: "apply_patch",
+				Description: `Apply a multi-file patch in a single operation. Supports Add/Update/Delete/Move files.
+Format:
+*** Begin Patch
+*** Add File: path/to/new.go
++new file content line
+*** Update File: src/app.go
+*** Move to: src/main.go
+@@ func Run() {
+-old line
++new line
+*** Delete File: old.go
+*** End Patch
+
+Use @@ anchors (function/class name) to locate changes. Prefer this over multiple file_edit calls when modifying 2+ files.`,
+				Parameters: paramSchema{
+					Type: "object",
+					Properties: map[string]propertySchema{
+						"patch": {Type: "string", Description: "The patch content in *** Begin Patch / *** End Patch format"},
+					},
+					Required: []string{"patch"},
+				},
+			},
+		},
 	}
 	return append(base, MCPTools...)
 }
@@ -943,6 +970,17 @@ func executeInner(name string, argsJSON string) string {
 			maxResults = int(mf)
 		}
 		return ExecuteKnowledgeSearch(query, maxResults)
+
+	case "apply_patch":
+		patch, _ := args["patch"].(string)
+		if patch == "" {
+			return "Error: patch is required"
+		}
+		result, err := ApplyPatch(patch)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return result
 
 	default:
 		if strings.HasPrefix(name, "mcp_") && MCPManager != nil {

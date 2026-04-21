@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os/user"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -66,6 +67,17 @@ func RenderLogo() string {
 	}
 	b.WriteString("\n")
 	b.WriteString(versionStyle.Render(fmt.Sprintf("   %s", ver)))
+
+	// Username greeting — prefer display name (Name), fall back to login (Username)
+	if u, err := user.Current(); err == nil {
+		displayName := u.Name
+		if displayName == "" {
+			displayName = u.Username
+		}
+		greetStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#38BDF8")).Bold(true)
+		b.WriteString("  ")
+		b.WriteString(greetStyle.Render(fmt.Sprintf("👋 반갑습니다 %s님", displayName)))
+	}
 
 	return b.String()
 }

@@ -47,9 +47,18 @@ type Store struct {
 // NewStore creates a new Store by walking the given fs.FS under
 // the "knowledge/" prefix, loading all .md files, and building
 // a keyword index from index.json (if present) or inferred from path.
-func NewStore(fsys fs.FS) (*Store, error) {
+// If allowedPacks is non-empty, only documents under those subdirectories
+// are loaded (e.g. ["react", "database"] loads knowledge/docs/react/* and
+// knowledge/docs/database/*). An empty slice loads everything.
+func NewStore(fsys fs.FS, allowedPacks ...string) (*Store, error) {
 	s := &Store{
 		kwIndex: make(map[string][]*Doc),
+	}
+
+	// Build pack filter set
+	packFilter := make(map[string]bool)
+	for _, p := range allowedPacks {
+		packFilter[strings.ToLower(strings.TrimSpace(p))] = true
 	}
 
 	// Try to load index.json for explicit metadata
@@ -73,6 +82,18 @@ func NewStore(fsys fs.FS) (*Store, error) {
 		}
 		if !strings.HasSuffix(path, ".md") {
 			return nil
+		}
+
+		// Pack filter: check if this doc belongs to an allowed pack.
+		// Path format: "knowledge/docs/<pack>/file.md" or "knowledge/skills/<pack>/file.md"
+		if len(packFilter) > 0 {
+			parts := strings.Split(path, "/")
+			if len(parts) >= 3 {
+				pack := strings.ToLower(parts[2]) // e.g. "react", "database"
+				if !packFilter[pack] {
+					return nil // skip this doc
+				}
+			}
 		}
 
 		data, err := fs.ReadFile(fsys, path)

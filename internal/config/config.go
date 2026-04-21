@@ -178,18 +178,9 @@ func Load() (Config, error) {
 	if v := os.Getenv("TGC_MODEL_DEV"); v != "" {
 		cfg.Models.Dev = v
 	}
-	if v := os.Getenv("TGC_MULTI"); v != "" {
-		switch strings.ToLower(v) {
-		case "on", "true", "1":
-			cfg.Multi.Enabled = true
-		case "off", "false", "0":
-			cfg.Multi.Enabled = false
-		default:
-			// Treat as strategy name: "review", "consensus", "scan"
-			cfg.Multi.Enabled = true
-			cfg.Multi.Strategy = strings.ToLower(v)
-		}
-	}
+	// ── SUSPENDED: TGC_MULTI env var ignored until sub-agent re-open ──
+	// if v := os.Getenv("TGC_MULTI"); v != "" { ... }
+	cfg.Multi.Enabled = false
 
 	return cfg, nil
 }

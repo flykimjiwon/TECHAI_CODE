@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kimjiwon/tgc/internal/app"
 	"github.com/kimjiwon/tgc/internal/config"
+	execpkg "github.com/kimjiwon/tgc/internal/exec"
 	"github.com/kimjiwon/tgc/internal/llm"
 )
 
@@ -28,6 +30,19 @@ func printDebugBanner(cfg config.Config) {
 var version = "dev"
 
 func main() {
+	// Check for "exec" subcommand before flag parsing.
+	// Scan all args (not just Args[1]) so "techai --debug exec" also works.
+	for i, arg := range os.Args[1:] {
+		if arg == "exec" {
+			runExec(os.Args[i+2:])
+			return
+		}
+		// Stop scanning at first non-flag argument that isn't "exec"
+		if !strings.HasPrefix(arg, "-") {
+			break
+		}
+	}
+
 	modeFlag := flag.String("mode", "super", "시작 모드: super, dev, plan")
 	multiFlag := flag.String("multi", "", "멀티 에이전트: on, off, review, consensus, scan, auto")
 	versionFlag := flag.Bool("version", false, "버전 출력")
@@ -97,6 +112,71 @@ func main() {
 
 	if config.IsDebug() {
 		fmt.Printf("\n  [DEBUG] 로그 파일: %s\n\n", config.DebugLogPath())
+	}
+}
+
+// runExec handles the "techai exec" headless subcommand.
+func runExec(args []string) {
+	execFlags := flag.NewFlagSet("exec", flag.ExitOnError)
+	ephemeral := execFlags.Bool("ephemeral", false, "세션 저장 안 함 (일회성)")
+	model := execFlags.String("model", "", "사용할 모델 (기본: config의 super 모델)")
+	maxTurns := execFlags.Int("max-turns", 20, "최대 도구 실행 반복 횟수")
+	execFlags.Parse(args)
+
+	prompt := strings.Join(execFlags.Args(), " ")
+	if prompt == "" {
+		fmt.Fprintln(os.Stderr, "Usage: techai exec [--ephemeral] [--model MODEL] \"prompt\"")
+		fmt.Fprintln(os.Stderr, "       echo input | techai exec \"prompt\"")
+		os.Exit(1)
+	}
+
+	config.AppVersion = version
+
+	cfg, err := config.Load()
+	if err != nil {
+		cfg = config.DefaultConfig()
+	}
+
+	config.InitDebugLog()
+	defer config.CloseDebugLog()
+
+	if cfg.API.APIKey == "" {
+		fmt.Fprintln(os.Stderr, "Error: API key not configured. Run 'techai --setup' first.")
+		os.Exit(1)
+	}
+
+	opts := execpkg.Options{
+		Prompt:    prompt,
+		Model:     *model,
+		Mode:      llm.ModeSuper,
+		MaxTurns:  *maxTurns,
+		Ephemeral: *ephemeral,
+	}
+
+	// Read piped stdin
+	stat, _ := os.Stdin.Stat()
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		data := make([]byte, 0, 4096)
+		buf := make([]byte, 4096)
+		for {
+			n, readErr := os.Stdin.Read(buf)
+			if n > 0 {
+				data = append(data, buf[:n]...)
+			}
+			if readErr != nil {
+				break
+			}
+			if len(data) > 100000 {
+				data = append(data[:100000], []byte("\n\n... [truncated]")...)
+				break
+			}
+		}
+		opts.Stdin = string(data)
+	}
+
+	if err := execpkg.Run(cfg, opts); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 }
 
