@@ -111,7 +111,16 @@ list_files → file_read → file_read → file_read → grep_search
 
 ## 향후 개선
 
+- [ ] **타임라인 로그** — 각 단계(thinking, 도구 호출, writing)를 타임스탬프 포함 한 줄씩 누적 표시
+  ```
+  ⏱ 00:00  💭 분석 시작
+  ⏱ 00:03  📂 파일 읽기 — HomePage.tsx (115줄)
+  ⏱ 00:07  💭 코드 설계 중
+  ⏱ 00:12  ✍️ 파일 작성 — HomePage.tsx (5,034 bytes)
+  ⏱ 00:14  ✅ 완료
+  ```
 - [ ] 모델 capability 기반 자동 도구 선택 (CodingTier에 따라)
 - [ ] apply_patch 성공률 모니터링 (모델별 통계)
 - [ ] 300줄 초과 파일에 대한 apply_patch 자동 fallback → file_write
 - [ ] temperature=0 모드 추가 (시연용 결정적 출력)
+- [ ] thinking 텍스트 접기/펼치기 (Bubble Tea 메시지별 상태 관리)
