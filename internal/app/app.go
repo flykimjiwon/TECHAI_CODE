@@ -1097,7 +1097,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Show processing indicator so user knows AI is working
 		m.msgs = append(m.msgs, ui.Message{
-			Role: ui.RoleSystem, Content: fmt.Sprintf("  Processing... (tool %d/20)", m.toolIter), Timestamp: time.Now(), Tag: "processing",
+			Role: ui.RoleSystem, Content: fmt.Sprintf("  🔧 도구 실행 완료 (%d/20) — 다음 단계 진행중...", m.toolIter), Timestamp: time.Now(), Tag: "processing",
 		})
 		m.updateViewport()
 
@@ -1997,7 +1997,10 @@ func (m *Model) streamStatus() string {
 	if sinceLastChunk > 2*time.Second {
 		return fmt.Sprintf("%s Thinking... (%.0fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 	}
-	return fmt.Sprintf("%s Streaming (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
+	if m.wasThinking {
+		return fmt.Sprintf("%s 💭 Reasoning (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
+	}
+	return fmt.Sprintf("%s ✍️ Writing (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 }
 
 func (m *Model) updateViewport() {
