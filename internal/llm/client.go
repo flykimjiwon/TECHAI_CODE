@@ -25,10 +25,11 @@ type ToolCallInfo struct {
 
 // StreamChunk represents one piece of a streaming response.
 type StreamChunk struct {
-	Content   string
-	Done      bool
-	Err       error
-	ToolCalls []ToolCallInfo // non-nil when AI wants to call tools
+	Content    string
+	IsThinking bool   // true when content came from reasoning_content (thinking phase)
+	Done       bool
+	Err        error
+	ToolCalls  []ToolCallInfo // non-nil when AI wants to call tools
 	// Usage is populated on the final Done chunk when the provider supports
 	// stream_options.include_usage (OpenAI, most compatible gateways). It is
 	// nil when the provider does not return usage statistics, in which case
@@ -325,20 +326,22 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 				config.DebugLog("[CHUNK#%d] finishReason=%s", chunkNum, finishReason)
 			}
 
-			// Stream text content — check both content and reasoning_content.
-			// Some models (e.g. GPT-OSS-120B via Novita) send thinking tokens
-			// in reasoning_content and the final answer in content. We merge both.
-			text := delta.Content
-			if text == "" && delta.ReasoningContent != "" {
-				text = delta.ReasoningContent
-			}
-			if text != "" {
-				totalContentLen += len(text)
+			// Stream text content — handle both content and reasoning_content.
+			// Some models (e.g. GPT-OSS-120B via Novita) send thinking in
+			// reasoning_content first, then the final answer in content.
+			if delta.Content != "" {
+				totalContentLen += len(delta.Content)
 				hasTC := len(delta.ToolCalls) > 0
 				if chunkNum <= 5 || chunkNum%50 == 0 {
-					config.DebugLog("[CHUNK#%d] content len=%d | toolCall=%v | gap=%v | preview=%q", chunkNum, len(text), hasTC, gap, truncateForLog(text, 100))
+					config.DebugLog("[CHUNK#%d] content len=%d | toolCall=%v | gap=%v | preview=%q", chunkNum, len(delta.Content), hasTC, gap, truncateForLog(delta.Content, 100))
 				}
-				ch <- StreamChunk{Content: text}
+				ch <- StreamChunk{Content: delta.Content, IsThinking: false}
+			} else if delta.ReasoningContent != "" {
+				totalContentLen += len(delta.ReasoningContent)
+				if chunkNum <= 5 || chunkNum%50 == 0 {
+					config.DebugLog("[CHUNK#%d] reasoning len=%d | gap=%v | preview=%q", chunkNum, len(delta.ReasoningContent), gap, truncateForLog(delta.ReasoningContent, 100))
+				}
+				ch <- StreamChunk{Content: delta.ReasoningContent, IsThinking: true}
 			} else if len(delta.ToolCalls) == 0 && delta.Role == "" {
 				config.DebugLog("[CHUNK#%d] EMPTY (no content, no toolCalls) | gap=%v", chunkNum, gap)
 			}

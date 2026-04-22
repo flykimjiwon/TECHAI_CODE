@@ -34,11 +34,12 @@ import (
 )
 
 type streamChunkMsg struct {
-	content   string
-	done      bool
-	err       error
-	toolCalls []llm.ToolCallInfo
-	usage     *openai.Usage
+	content    string
+	isThinking bool // true = reasoning_content (thinking phase)
+	done       bool
+	err        error
+	toolCalls  []llm.ToolCallInfo
+	usage      *openai.Usage
 }
 
 type toolResultMsg struct {
@@ -160,6 +161,7 @@ type Model struct {
 
 	// Stream warning and retry
 	streamWarnShown  bool
+	wasThinking      bool   // tracks thinking→content transition in stream
 	pendingPrefetch  string // auto-prefetched file contents, injected once then cleared
 	streamRetries   int
 
@@ -1046,6 +1048,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.sendMessage(next)
 			}
 			return m, nil
+		}
+		// Track thinking → content transition
+		if msg.isThinking && !m.wasThinking && m.streamBuf == "" {
+			// First thinking chunk — add marker
+			m.streamBuf += "💭 "
+			m.wasThinking = true
+		} else if !msg.isThinking && m.wasThinking {
+			// Transition from thinking to actual content — add separator
+			m.streamBuf += "\n\n---\n\n"
+			m.wasThinking = false
 		}
 		m.streamBuf += msg.content
 		if m.companionHub != nil {
@@ -2141,6 +2153,7 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.tokenCount = 0
 	m.toolIter = 0
 	m.streamRetries = 0
+	m.wasThinking = false
 	m.streamStart = time.Now()
 	m.lastChunkAt = time.Time{}
 	m.streamWarnShown = false
@@ -2192,11 +2205,12 @@ func (m *Model) waitForNextChunk() tea.Cmd {
 				return streamChunkMsg{done: true}
 			}
 			return streamChunkMsg{
-				content:   chunk.Content,
-				done:      chunk.Done,
-				err:       chunk.Err,
-				toolCalls: chunk.ToolCalls,
-				usage:     chunk.Usage,
+				content:    chunk.Content,
+				isThinking: chunk.IsThinking,
+				done:       chunk.Done,
+				err:        chunk.Err,
+				toolCalls:  chunk.ToolCalls,
+				usage:      chunk.Usage,
 			}
 		case <-time.After(45 * time.Second):
 			return streamChunkMsg{
