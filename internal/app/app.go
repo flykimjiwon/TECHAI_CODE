@@ -2568,6 +2568,29 @@ func truncateArgs(s string, max int) string {
 	return s
 }
 
+// stripTrailingNonPath truncates anything after a recognized file extension.
+// Korean particles, punctuation, or any non-path characters are stripped.
+// "src/views/HomePage.tsx의" → "src/views/HomePage.tsx"
+// "src/data/mock.ts를"      → "src/data/mock.ts"
+// "README.md에서"           → "README.md"
+func stripTrailingNonPath(s string) string {
+	exts := []string{
+		".tsx", ".ts", ".jsx", ".js", ".mjs", ".cjs",
+		".go", ".py", ".java", ".rs", ".rb", ".php",
+		".css", ".scss", ".html", ".vue", ".svelte",
+		".json", ".yaml", ".yml", ".toml", ".xml",
+		".md", ".txt", ".sql", ".sh", ".env",
+		".prisma", ".graphql", ".proto",
+	}
+	for _, ext := range exts {
+		idx := strings.Index(s, ext)
+		if idx >= 0 {
+			return s[:idx+len(ext)]
+		}
+	}
+	return s
+}
+
 // autoPrefetchFiles detects file paths in user input (e.g. "src/views/HomePage.tsx")
 // and auto-reads them, injecting the contents into the prompt so the model can
 // skip file_read tool calls and go straight to editing.
@@ -2580,6 +2603,9 @@ func autoPrefetchFiles(input string) string {
 	for _, word := range words {
 		// Clean punctuation from word edges
 		w := strings.Trim(word, ".,;:!?\"'`()[]{}")
+		// Truncate after file extension — strips Korean particles or any trailing text.
+		// "src/views/HomePage.tsx의" → "src/views/HomePage.tsx"
+		w = stripTrailingNonPath(w)
 		// Must contain / and look like a file path
 		if !strings.Contains(w, "/") {
 			continue
@@ -2618,7 +2644,31 @@ func autoPrefetchFiles(input string) string {
 	for _, p := range paths {
 		data, err := os.ReadFile(p)
 		if err != nil {
-			continue
+			// Fallback: search by filename in common directories
+			basename := filepath.Base(p)
+			found := false
+			for _, dir := range []string{"src", ".", "app", "lib", "components", "pages", "views"} {
+				matches, _ := filepath.Glob(filepath.Join(dir, "**", basename))
+				if len(matches) == 0 {
+					// Try one-level deeper
+					matches, _ = filepath.Glob(filepath.Join(dir, "*", basename))
+				}
+				if len(matches) == 0 {
+					matches, _ = filepath.Glob(filepath.Join(dir, "*", "*", basename))
+				}
+				if len(matches) > 0 {
+					data, err = os.ReadFile(matches[0])
+					if err == nil {
+						p = matches[0]
+						found = true
+						config.DebugLog("[PREFETCH] fallback found %s at %s", basename, p)
+						break
+					}
+				}
+			}
+			if !found {
+				continue
+			}
 		}
 		content := string(data)
 		lines := strings.Split(content, "\n")
