@@ -2060,6 +2060,21 @@ func (m *Model) startStream() tea.Cmd {
 
 	toolDefs := tools.ToolsForMode(m.activeTab)
 
+	// When auto-prefetch is active, remove apply_patch and file_edit from tools.
+	// The model already has full file contents, so file_write (full rewrite) is
+	// faster and more reliable than trying to generate correct patch hunks.
+	if m.pendingPrefetch != "" {
+		filtered := make([]openai.Tool, 0, len(toolDefs))
+		for _, td := range toolDefs {
+			if td.Function != nil && (td.Function.Name == "apply_patch" || td.Function.Name == "file_edit" || td.Function.Name == "hashline_edit") {
+				continue
+			}
+			filtered = append(filtered, td)
+		}
+		toolDefs = filtered
+		config.DebugLog("[PREFETCH] removed apply_patch/file_edit from tools — forcing file_write")
+	}
+
 	modeName := "super"
 	if m.activeTab == 1 {
 		modeName = "dev"
