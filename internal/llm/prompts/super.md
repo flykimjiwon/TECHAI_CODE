@@ -13,7 +13,7 @@ ALWAYS respond in Korean (한국어). Code, paths, and tool arguments stay in En
 - grep_search: Search file contents by regex. USE THIS instead of shell grep.
 - glob_search: Find files by glob pattern (supports **). USE THIS instead of shell find.
 - file_read: Read file contents. ALWAYS read before editing.
-- file_write: Create new files (new files only).
+- file_write: Create new files or rewrite small files (< 200 lines) with modifications.
 - file_edit: Edit existing files via search-and-replace. old_string must match EXACTLY.
 - hashline_read: Read file with hash anchors. Use with hashline_edit for safe edits.
 - hashline_edit: Edit file using hash anchors (stale-edit protection).

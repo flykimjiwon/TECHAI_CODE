@@ -66,6 +66,9 @@ type slashResultMsg struct {
 	content string
 }
 
+// spinnerTickMsg triggers periodic UI re-renders so the spinner stays animated.
+type spinnerTickMsg struct{}
+
 type Model struct {
 	cfg       config.Config
 	client    *llm.Client
@@ -156,7 +159,8 @@ type Model struct {
 	customCommands map[string]string
 
 	// Stream warning and retry
-	streamWarnShown bool
+	streamWarnShown  bool
+	pendingPrefetch  string // auto-prefetched file contents, injected once then cleared
 	streamRetries   int
 
 	// Mouse mode: toggleable for text selection vs scroll
@@ -418,7 +422,14 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return textarea.Blink
+	return tea.Batch(textarea.Blink, spinnerTick())
+}
+
+// spinnerTick sends a tick every 200ms to keep the spinner animated.
+func spinnerTick() tea.Cmd {
+	return tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg {
+		return spinnerTickMsg{}
+	})
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -943,7 +954,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Force compact history — more aggressive each retry
 				model := m.currentModel()
 				ctxWindow := llm.GetCapability(model).ContextWindow
-				// Retry 1: 33%, Retry 2: 20%, Retry 3: 15%
+				// Retry 1: 33% (window/3), Retry 2: 25% (window/4), Retry 3: 20% (window/5)
 				divisor := 2 + m.streamRetries // 3, 4, 5
 				target := ctxWindow / divisor
 				config.DebugLog("[APP-EMPTY] compact target=%d (window/%d)", target, divisor)
@@ -1056,9 +1067,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.history = append(m.history, toolMsg)
 			m.persistMessage(toolMsg)
-			preview := truncateArgs(r.output, 100)
+			preview := formatToolResultPreview(r.name, r.output)
 			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleTool, Content: fmt.Sprintf("<< %s: %s", r.name, preview), Timestamp: time.Now(),
+				Role: ui.RoleTool, Content: preview, Timestamp: time.Now(),
 			})
 		}
 		if m.companionHub != nil {
@@ -1090,6 +1101,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, m.continueAfterTools()
+
+	case spinnerTickMsg:
+		// Re-render to animate spinner during streaming/tool execution.
+		if m.streaming {
+			m.updateViewport()
+		}
+		// Always keep the tick chain alive. When not streaming, the tick
+		// is cheap (no updateViewport) and ensures the spinner starts
+		// immediately when the next stream begins — no restart needed.
+		return m, spinnerTick()
 
 	case multiProgressMsg:
 		p := msg.progress
@@ -1961,8 +1982,8 @@ func (m *Model) streamStatus() string {
 	if sinceLastChunk > 15*time.Second {
 		return fmt.Sprintf("%s Stalled (%.0fs waiting · %dtok)", frame, sinceLastChunk.Seconds(), m.tokenCount)
 	}
-	if sinceLastChunk > 5*time.Second {
-		return fmt.Sprintf("%s Slow... (%.0fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
+	if sinceLastChunk > 2*time.Second {
+		return fmt.Sprintf("%s Thinking... (%.0fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 	}
 	return fmt.Sprintf("%s Streaming (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 }
@@ -2024,6 +2045,19 @@ func (m *Model) startStream() tea.Cmd {
 		history[0].Content += agents.AutoPromptSuffix
 	}
 
+	// Inject auto-prefetched file contents into the last user message
+	// in the COPY only — original history stays clean to prevent bloat.
+	if m.pendingPrefetch != "" && len(history) > 0 {
+		for i := len(history) - 1; i >= 0; i-- {
+			if history[i].Role == openai.ChatMessageRoleUser {
+				history[i].Content += m.pendingPrefetch
+				break
+			}
+		}
+		// Clear after first use — retry/tool-continue won't re-inject
+		m.pendingPrefetch = ""
+	}
+
 	toolDefs := tools.ToolsForMode(m.activeTab)
 
 	modeName := "super"
@@ -2062,6 +2096,17 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 			config.DebugLog("[KNOWLEDGE] injected %d chars for query: %s",
 				len(knowledgeCtx), truncate(input, 50))
 		}
+	}
+
+	// Auto-prefetch: detect file paths in user input and inject file contents.
+	// Contents are stored as a separate "prefetch" message that is excluded
+	// from persistent history — this prevents context bloat across turns.
+	prefetched := autoPrefetchFiles(input)
+	if prefetched != "" {
+		config.DebugLog("[PREFETCH] injected %d chars of file contents", len(prefetched))
+		m.pendingPrefetch = prefetched
+	} else {
+		m.pendingPrefetch = ""
 	}
 
 	userMsg := openai.ChatCompletionMessage{
@@ -2308,6 +2353,7 @@ func formatToolCallPreview(name, argsJSON string) string {
 		"file_read":        "reading",
 		"file_write":       "writing",
 		"file_edit":        "editing",
+		"apply_patch":      "patching",
 		"list_files":       "listing",
 		"shell_exec":       "running",
 		"grep_search":      "searching",
@@ -2362,6 +2408,142 @@ func formatToolCallPreview(name, argsJSON string) string {
 	return fmt.Sprintf(">> %s", action)
 }
 
+// formatToolResultPreview returns a rich preview of tool execution results.
+// Shows code snippets for file reads, diff for edits, match lines for grep.
+func formatToolResultPreview(name, output string) string {
+	if strings.HasPrefix(output, "Error:") {
+		return fmt.Sprintf("<< %s: %s", name, truncateArgs(output, 120))
+	}
+
+	switch name {
+	case "file_read", "hashline_read":
+		return formatFileReadPreview(output)
+
+	case "grep_search":
+		return formatGrepPreview(output)
+
+	case "glob_search":
+		return formatGlobPreview(output)
+
+	case "file_edit", "hashline_edit":
+		return formatEditPreview(output)
+
+	case "apply_patch":
+		return formatPatchPreview(output)
+
+	case "list_files":
+		return formatListPreview(output)
+
+	case "shell_exec":
+		lines := strings.Split(strings.TrimSpace(output), "\n")
+		if len(lines) <= 4 {
+			return "<< " + name + ":\n" + indentPreview(output, 3)
+		}
+		preview := strings.Join(lines[:3], "\n") + fmt.Sprintf("\n... (%d lines total)", len(lines))
+		return "<< " + name + ":\n" + indentPreview(preview, 3)
+
+	default:
+		return fmt.Sprintf("<< %s: %s", name, truncateArgs(output, 120))
+	}
+}
+
+func formatFileReadPreview(output string) string {
+	lines := strings.Split(output, "\n")
+	total := len(lines)
+
+	// Show first 5 lines + total count
+	showLines := 5
+	if total < showLines {
+		showLines = total
+	}
+	preview := strings.Join(lines[:showLines], "\n")
+	if total > showLines {
+		preview += fmt.Sprintf("\n... (%d lines)", total)
+	}
+	return "<< file_read:\n" + indentPreview(preview, 3)
+}
+
+func formatGrepPreview(output string) string {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
+		return "<< grep_search: No matches found."
+	}
+
+	// Show up to 6 match lines
+	showLines := 6
+	if len(lines) < showLines {
+		showLines = len(lines)
+	}
+	preview := strings.Join(lines[:showLines], "\n")
+	if len(lines) > showLines {
+		preview += fmt.Sprintf("\n... (%d matches total)", len(lines))
+	}
+	return "<< grep_search:\n" + indentPreview(preview, 3)
+}
+
+func formatGlobPreview(output string) string {
+	files := strings.Split(strings.TrimSpace(output), "\n")
+	if len(files) == 0 || (len(files) == 1 && files[0] == "") {
+		return "<< glob_search: No files matched."
+	}
+	if len(files) <= 5 {
+		return "<< glob_search: " + strings.Join(files, " ")
+	}
+	return fmt.Sprintf("<< glob_search: %s ... (%d files)", strings.Join(files[:4], " "), len(files))
+}
+
+func formatEditPreview(output string) string {
+	if strings.Contains(output, "applied successfully") || strings.Contains(output, "OK") {
+		// Try to show what changed
+		return "<< file_edit: " + truncateArgs(output, 150)
+	}
+	return "<< file_edit: " + truncateArgs(output, 150)
+}
+
+func formatPatchPreview(output string) string {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	// Show summary line + first few diff lines (bounded)
+	var summary []string
+	var diffLines []string
+	for _, line := range lines {
+		if (strings.HasPrefix(line, "~") || strings.HasPrefix(line, "Errors:")) && len(summary) < 5 {
+			summary = append(summary, line)
+		} else if strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "@@") {
+			if len(diffLines) < 12 {
+				diffLines = append(diffLines, line)
+			}
+		} else if (strings.HasPrefix(line, "-") || strings.HasPrefix(line, "+")) && len(diffLines) < 12 {
+			diffLines = append(diffLines, line)
+		}
+	}
+	result := "<< apply_patch: " + strings.Join(summary, " ")
+	if len(diffLines) > 0 {
+		showLines := 8
+		if len(diffLines) < showLines {
+			showLines = len(diffLines)
+		}
+		result += "\n" + indentPreview(strings.Join(diffLines[:showLines], "\n"), 3)
+	}
+	return result
+}
+
+func formatListPreview(output string) string {
+	items := strings.Split(strings.TrimSpace(output), "\n")
+	if len(items) <= 8 {
+		return "<< list_files: " + strings.Join(items, " ")
+	}
+	return fmt.Sprintf("<< list_files: %s ... (%d items)", strings.Join(items[:6], " "), len(items))
+}
+
+func indentPreview(s string, spaces int) string {
+	prefix := strings.Repeat(" ", spaces)
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
+}
+
 func truncateArgs(s string, max int) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	runes := []rune(s)
@@ -2369,6 +2551,80 @@ func truncateArgs(s string, max int) string {
 		return string(runes[:max]) + "..."
 	}
 	return s
+}
+
+// autoPrefetchFiles detects file paths in user input (e.g. "src/views/HomePage.tsx")
+// and auto-reads them, injecting the contents into the prompt so the model can
+// skip file_read tool calls and go straight to editing.
+func autoPrefetchFiles(input string) string {
+	// Match patterns like src/..., ./..., or any path with / and a file extension
+	words := strings.Fields(input)
+	var paths []string
+	seen := make(map[string]bool)
+
+	for _, word := range words {
+		// Clean punctuation from word edges
+		w := strings.Trim(word, ".,;:!?\"'`()[]{}")
+		// Must contain / and look like a file path
+		if !strings.Contains(w, "/") {
+			continue
+		}
+		// Must have a file extension
+		if !strings.Contains(filepath.Base(w), ".") {
+			continue
+		}
+		// Skip URLs
+		if strings.HasPrefix(w, "http") {
+			continue
+		}
+		// Normalize: remove leading ./
+		w = strings.TrimPrefix(w, "./")
+		if !seen[w] {
+			seen[w] = true
+			paths = append(paths, w)
+		}
+	}
+
+	if len(paths) == 0 {
+		return ""
+	}
+
+	// Limit to 4 files max to prevent context overflow
+	if len(paths) > 4 {
+		paths = paths[:4]
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n\n---\n[자동 첨부된 파일 내용 — 도구 호출 없이 바로 수정하세요]\n\n")
+
+	totalBytes := 0
+	const maxTotalBytes = 50000 // 50KB cap to prevent context overflow
+
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		lines := strings.Split(content, "\n")
+		// Skip files > 300 lines
+		if len(lines) > 300 {
+			sb.WriteString(fmt.Sprintf("### %s (%d lines — 너무 길어 생략, file_read로 읽으세요)\n\n", p, len(lines)))
+			continue
+		}
+		// Cumulative byte cap
+		if totalBytes+len(content) > maxTotalBytes {
+			sb.WriteString(fmt.Sprintf("### %s (용량 초과 — file_read로 읽으세요)\n\n", p))
+			continue
+		}
+		totalBytes += len(content)
+		sb.WriteString(fmt.Sprintf("### %s (%d lines)\n```\n%s\n```\n\n", p, len(lines), content))
+	}
+
+	// Add instruction to use file_write for the edit
+	sb.WriteString("[중요: 위 파일을 수정할 때 file_write로 전체 파일을 한 번에 교체하세요. apply_patch보다 안전합니다.]\n")
+
+	return sb.String()
 }
 
 // parseKnowledgePacks extracts knowledge_packs from .techai.md content.

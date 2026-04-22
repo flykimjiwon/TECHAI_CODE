@@ -76,7 +76,7 @@ func AllTools() []openai.Tool {
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
 				Name:        "file_write",
-				Description: "Create a new file or completely overwrite an existing file. Use for new files only. For modifying existing files, prefer file_edit.",
+				Description: "Create a new file or completely overwrite an existing file. For small files (under 200 lines), you may use this to rewrite the entire file with modifications. For partial edits on larger files, prefer file_edit.",
 				Parameters: paramSchema{
 					Type: "object",
 					Properties: map[string]propertySchema{

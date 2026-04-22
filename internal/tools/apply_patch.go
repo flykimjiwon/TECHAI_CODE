@@ -309,6 +309,31 @@ func applyUpdate(op PatchOperation) (string, error) {
 		return fmt.Sprintf("~ %s: no changes (all hunks matched but content identical)", op.Path), nil
 	}
 
+	// Sanity check: detect broken top-of-file insertions where code (JSX, HTML)
+	// gets inserted above a directive ("use client", "package main", import, etc.)
+	// Only reject if the original first line was a directive AND the new first line
+	// is clearly code (not another directive). This allows legitimate changes like
+	// "use client" → "use server" while catching broken patches.
+	origFirstLine := strings.TrimSpace(strings.SplitN(originalContent, "\n", 2)[0])
+	newFirstLine := strings.TrimSpace(strings.SplitN(content, "\n", 2)[0])
+	if origFirstLine != newFirstLine && strings.Contains(content, origFirstLine) {
+		// Original first line still exists but something was inserted above it.
+		isOrigDirective := strings.HasPrefix(origFirstLine, "\"use ") ||
+			strings.HasPrefix(origFirstLine, "import ") ||
+			strings.HasPrefix(origFirstLine, "package ") ||
+			strings.HasPrefix(origFirstLine, "#!")
+		isNewDirective := strings.HasPrefix(newFirstLine, "\"use ") ||
+			strings.HasPrefix(newFirstLine, "import ") ||
+			strings.HasPrefix(newFirstLine, "package ") ||
+			strings.HasPrefix(newFirstLine, "#!") ||
+			strings.HasPrefix(newFirstLine, "//") ||
+			strings.HasPrefix(newFirstLine, "/*")
+		if isOrigDirective && !isNewDirective {
+			config.DebugLog("[PATCH-SANITY] code inserted above %q directive — rejecting", origFirstLine)
+			return "", fmt.Errorf("patch rejected: code was inserted above %q in %s — this would break the file", origFirstLine, op.Path)
+		}
+	}
+
 	// Generate diff before writing
 	diff := GenerateUnifiedDiff(op.Path, originalContent, content)
 
@@ -379,8 +404,14 @@ func applyHunk(content string, hunk PatchHunk) (string, bool) {
 		}
 	}
 
-	// If no remove lines, it's a pure insertion after the context anchor
+	// If no remove lines, it's a pure insertion after the context anchor.
+	// Require a valid anchor to prevent accidental insertion at file top,
+	// unless the file is empty (in which case insertion at top is expected).
 	if len(hunk.RemoveLines) == 0 {
+		if hunk.Context == "" && len(lines) > 1 {
+			config.DebugLog("[PATCH-HUNK] pure insertion without @@ anchor on non-empty file — rejecting")
+			return "", false
+		}
 		// Insert add lines after the context anchor line
 		insertIdx := startIdx + 1
 		newLines := make([]string, 0, len(lines)+len(hunk.AddLines))
@@ -389,6 +420,10 @@ func applyHunk(content string, hunk PatchHunk) (string, bool) {
 		newLines = append(newLines, lines[insertIdx:]...)
 		return strings.Join(newLines, "\n"), true
 	}
+
+	// When no anchor is given and remove lines exist, search from the top.
+	// But warn if the match is suspiciously at the very beginning (line 0-1)
+	// which often indicates the model forgot the anchor.
 
 	// Find the remove lines starting from startIdx
 	matchIdx := -1

@@ -55,10 +55,13 @@ func NewStore(fsys fs.FS, allowedPacks ...string) (*Store, error) {
 		kwIndex: make(map[string][]*Doc),
 	}
 
-	// Build pack filter set
+	// Build pack filter set (skip empty strings)
 	packFilter := make(map[string]bool)
 	for _, p := range allowedPacks {
-		packFilter[strings.ToLower(strings.TrimSpace(p))] = true
+		trimmed := strings.ToLower(strings.TrimSpace(p))
+		if trimmed != "" {
+			packFilter[trimmed] = true
+		}
 	}
 
 	// Try to load index.json for explicit metadata
