@@ -325,17 +325,21 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 				config.DebugLog("[CHUNK#%d] finishReason=%s", chunkNum, finishReason)
 			}
 
-			// Stream text content
-			if delta.Content != "" {
-				totalContentLen += len(delta.Content)
+			// Stream text content — check both content and reasoning_content.
+			// Some models (e.g. GPT-OSS-120B via Novita) send thinking tokens
+			// in reasoning_content and the final answer in content. We merge both.
+			text := delta.Content
+			if text == "" && delta.ReasoningContent != "" {
+				text = delta.ReasoningContent
+			}
+			if text != "" {
+				totalContentLen += len(text)
 				hasTC := len(delta.ToolCalls) > 0
-				// Log content preview for first few chunks and then periodically
 				if chunkNum <= 5 || chunkNum%50 == 0 {
-					config.DebugLog("[CHUNK#%d] content len=%d | toolCall=%v | gap=%v | preview=%q", chunkNum, len(delta.Content), hasTC, gap, truncateForLog(delta.Content, 100))
+					config.DebugLog("[CHUNK#%d] content len=%d | toolCall=%v | gap=%v | preview=%q", chunkNum, len(text), hasTC, gap, truncateForLog(text, 100))
 				}
-				ch <- StreamChunk{Content: delta.Content}
+				ch <- StreamChunk{Content: text}
 			} else if len(delta.ToolCalls) == 0 && delta.Role == "" {
-				// Empty chunk — might indicate buffering
 				config.DebugLog("[CHUNK#%d] EMPTY (no content, no toolCalls) | gap=%v", chunkNum, gap)
 			}
 
@@ -389,5 +393,10 @@ func (c *Client) Chat(ctx context.Context, model string, messages []openai.ChatC
 	if len(resp.Choices) == 0 {
 		return "", errors.New("no response choices")
 	}
-	return resp.Choices[0].Message.Content, nil
+	content := resp.Choices[0].Message.Content
+	// Fallback to reasoning_content if content is empty (e.g. GPT-OSS-120B)
+	if content == "" && resp.Choices[0].Message.ReasoningContent != "" {
+		content = resp.Choices[0].Message.ReasoningContent
+	}
+	return content, nil
 }
