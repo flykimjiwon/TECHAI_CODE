@@ -294,15 +294,21 @@ func applyUpdate(op PatchOperation) (string, error) {
 	originalContent := content
 
 	hunksApplied := 0
-	for _, hunk := range op.Hunks {
+	var failedHunks []string
+	for i, hunk := range op.Hunks {
 		newContent, applied := applyHunk(content, hunk)
 		if applied {
 			content = newContent
 			hunksApplied++
 		} else {
-			config.DebugLog("[PATCH-UPDATE] hunk failed to apply in %s (context=%q)", op.Path, hunk.Context)
-			return "", fmt.Errorf("hunk failed to apply in %s — context %q not found, removed lines not matched", op.Path, hunk.Context)
+			config.DebugLog("[PATCH-UPDATE] hunk %d/%d failed in %s (context=%q)", i+1, len(op.Hunks), op.Path, hunk.Context)
+			failedHunks = append(failedHunks, fmt.Sprintf("hunk %d (context=%q)", i+1, hunk.Context))
 		}
+	}
+
+	// If ALL hunks failed, return error
+	if hunksApplied == 0 && len(failedHunks) > 0 {
+		return "", fmt.Errorf("all hunks failed in %s: %s", op.Path, strings.Join(failedHunks, ", "))
 	}
 
 	if content == originalContent {
@@ -365,8 +371,11 @@ func applyUpdate(op PatchOperation) (string, error) {
 		return result, nil
 	}
 
-	config.DebugLog("[PATCH-UPDATE] %s (%d hunks applied)", op.Path, hunksApplied)
+	config.DebugLog("[PATCH-UPDATE] %s (%d/%d hunks applied, %d failed)", op.Path, hunksApplied, len(op.Hunks), len(failedHunks))
 	result := fmt.Sprintf("~ Updated %s (%d hunks)", op.Path, hunksApplied)
+	if len(failedHunks) > 0 {
+		result += fmt.Sprintf("\nWARNING: %d hunk(s) failed: %s. Use file_write to rewrite the full file instead.", len(failedHunks), strings.Join(failedHunks, ", "))
+	}
 	if diff != "" {
 		result += "\n" + diff
 	}

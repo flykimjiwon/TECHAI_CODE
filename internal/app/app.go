@@ -2047,6 +2047,8 @@ func (m *Model) startStream() tea.Cmd {
 
 	// Inject auto-prefetched file contents into the last user message
 	// in the COPY only — original history stays clean to prevent bloat.
+	// Keep pendingPrefetch alive across tool iterations so the model always
+	// sees the file contents. It gets replaced on the next sendMessage call.
 	if m.pendingPrefetch != "" && len(history) > 0 {
 		for i := len(history) - 1; i >= 0; i-- {
 			if history[i].Role == openai.ChatMessageRoleUser {
@@ -2054,8 +2056,6 @@ func (m *Model) startStream() tea.Cmd {
 				break
 			}
 		}
-		// Clear after first use — retry/tool-continue won't re-inject
-		m.pendingPrefetch = ""
 	}
 
 	toolDefs := tools.ToolsForMode(m.activeTab)
