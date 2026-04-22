@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>택가이코드 IDE-lite TUI Prototype</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0e1a;
+    font-family: 'JetBrains Mono', 'Menlo', monospace;
+    color: #e2e8f0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* === MAIN LAYOUT === */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* === FILE TREE === */
+  .file-tree {
+    width: 260px;
+    min-width: 260px;
+    border-right: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    background: #0c1021;
+  }
+
+  .file-tree-header {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .file-tree-header .hint {
+    font-size: 10px;
+    color: #475569;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .file-tree-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+
+  .tree-item {
+    padding: 3px 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    font-size: 12.5px;
+    color: #94a3b8;
+    transition: background 0.1s;
+  }
+
+  .tree-item:hover { background: #1e293b; }
+
+  .tree-item.selected {
+    background: #1e3a5f;
+    color: #e2e8f0;
+  }
+
+  .tree-item.dir { color: #60a5fa; }
+  .tree-item .icon { width: 16px; text-align: center; flex-shrink: 0; }
+  .tree-item .git-badge {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+  .git-m { color: #fbbf24; }
+  .git-a { color: #34d399; }
+  .git-u { color: #f87171; }
+
+  .tree-indent { display: inline-block; width: 16px; }
+
+  /* === RIGHT PANEL === */
+  .right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* === EDITOR === */
+  .editor-panel {
+    flex: 6;
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid #1e293b;
+    min-height: 0;
+  }
+
+  .editor-tab-bar {
+    display: flex;
+    background: #0c1021;
+    border-bottom: 1px solid #1e293b;
+    min-height: 32px;
+    align-items: stretch;
+  }
+
+  .editor-tab {
+    padding: 6px 16px;
+    font-size: 12px;
+    color: #64748b;
+    border-right: 1px solid #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .editor-tab.active {
+    color: #e2e8f0;
+    background: #0f172a;
+    border-bottom: 2px solid #60a5fa;
+  }
+
+  .editor-tab .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #fbbf24;
+  }
+
+  .editor-tab .close {
+    font-size: 14px;
+    color: #475569;
+    margin-left: 8px;
+  }
+
+  .editor-content {
+    flex: 1;
+    overflow: auto;
+    padding: 0;
+    background: #0f172a;
+    display: flex;
+  }
+
+  .line-numbers {
+    padding: 12px 0;
+    text-align: right;
+    color: #334155;
+    font-size: 12px;
+    line-height: 1.65;
+    user-select: none;
+    min-width: 48px;
+    padding-right: 12px;
+    border-right: 1px solid #1e293b;
+    background: #0c1021;
+  }
+
+  .code-area {
+    flex: 1;
+    padding: 12px 16px;
+    font-size: 12.5px;
+    line-height: 1.65;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* Syntax colors */
+  .kw { color: #c084fc; }      /* keyword: purple */
+  .fn { color: #60a5fa; }      /* function: blue */
+  .str { color: #34d399; }     /* string: green */
+  .cmt { color: #475569; font-style: italic; }  /* comment: gray */
+  .typ { color: #38bdf8; }     /* type: sky blue */
+  .num { color: #fbbf24; }     /* number: amber */
+  .op { color: #94a3b8; }      /* operator: gray */
+  .pkg { color: #fb923c; }     /* package/import: orange */
+  .cur-line { background: #1e293b44; display: block; }
+
+  /* === CHAT PANEL === */
+  .chat-panel {
+    flex: 4;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: #0f172a;
+  }
+
+  .chat-header {
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .msg {
+    max-width: 100%;
+  }
+
+  .msg-user {
+    border-left: 3px solid #38bdf8;
+    padding: 8px 12px;
+    background: #38bdf808;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .msg-user .msg-label {
+    color: #38bdf8;
+    font-weight: 700;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .msg-assistant {
+    border-left: 3px solid #34d399;
+    padding: 8px 12px;
+    background: #34d39908;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .msg-assistant .msg-label {
+    color: #34d399;
+    font-weight: 700;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .msg-tool {
+    padding: 4px 12px;
+    font-size: 11.5px;
+    color: #fbbf24;
+    opacity: 0.8;
+  }
+
+  .msg-content {
+    color: #cbd5e1;
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+
+  .msg-content code {
+    background: #1e293b;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #f0abfc;
+  }
+
+  .msg-content .code-block {
+    display: block;
+    background: #0c1021;
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 8px 0;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .chat-input-area {
+    padding: 8px 12px;
+    border-top: 1px solid #1e293b;
+  }
+
+  .chat-input-box {
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: border-color 0.2s;
+  }
+
+  .chat-input-box:focus-within {
+    border-color: #60a5fa;
+  }
+
+  .chat-input-box .prompt-icon {
+    color: #60a5fa;
+    font-weight: 700;
+  }
+
+  .chat-input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #e2e8f0;
+    font-family: inherit;
+    font-size: 12.5px;
+    outline: none;
+  }
+
+  .chat-input::placeholder { color: #475569; }
+
+  .chat-input-hint {
+    font-size: 10px;
+    color: #475569;
+    padding: 4px 12px 2px;
+  }
+
+  /* === STATUS BAR === */
+  .status-bar {
+    background: #1e293b;
+    padding: 4px 14px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+    color: #64748b;
+    min-height: 28px;
+  }
+
+  .status-item { display: flex; align-items: center; gap: 4px; }
+  .status-git { color: #34d399; }
+  .status-git.dirty { color: #fbbf24; }
+  .status-model { color: #fbbf24; font-weight: 600; }
+  .status-tokens { color: #34d399; }
+  .status-cwd { color: #94a3b8; }
+  .status-sep { color: #334155; }
+  .status-right { margin-left: auto; display: flex; gap: 12px; }
+  .status-key {
+    background: #0f172a;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: #94a3b8;
+  }
+
+  /* === FOCUS INDICATORS === */
+  .panel-focused { box-shadow: inset 0 0 0 1px #60a5fa40; }
+
+  /* === STREAMING ANIMATION === */
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  .cursor-blink {
+    display: inline-block;
+    width: 7px;
+    height: 14px;
+    background: #60a5fa;
+    animation: blink 1s infinite;
+    vertical-align: middle;
+    margin-left: 1px;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  .streaming-dot {
+    color: #34d399;
+    animation: pulse-dot 1.5s infinite;
+    font-weight: 700;
+  }
+
+  /* === SCROLLBAR === */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+  /* === INTERACTIVE STATE TABS === */
+  .state-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 16px;
+    background: #0a0e1a;
+    border-bottom: 1px solid #1e293b;
+  }
+
+  .state-tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #64748b;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+
+  .state-tab:hover { border-color: #334155; color: #94a3b8; }
+  .state-tab.active {
+    background: #1e3a5f;
+    border-color: #60a5fa;
+    color: #e2e8f0;
+  }
+
+  /* === DIFF VIEW === */
+  .diff-add { color: #34d399; background: #34d39910; }
+  .diff-del { color: #f87171; background: #f8717110; }
+  .diff-hunk { color: #60a5fa; }
+</style>
+</head>
+<body>
+
+<!-- State Tabs (interactive prototype control) -->
+<div class="state-tabs">
+  <button class="state-tab active" onclick="showState('normal')">Normal View</button>
+  <button class="state-tab" onclick="showState('editing')">Editing Mode</button>
+  <button class="state-tab" onclick="showState('streaming')">AI Streaming</button>
+  <button class="state-tab" onclick="showState('diff')">Git Diff View</button>
+</div>
+
+<div class="main">
+  <!-- FILE TREE -->
+  <div class="file-tree">
+    <div class="file-tree-header">
+      Explorer
+      <span class="hint">Tab: 전환</span>
+    </div>
+    <div class="file-tree-list" id="fileTree">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <!-- EDITOR -->
+    <div class="editor-panel" id="editorPanel">
+      <div class="editor-tab-bar" id="editorTabs">
+        <div class="editor-tab active">
+          <span id="tabDot" class="dot" style="display:none"></span>
+          <span id="tabName">app.go</span>
+          <span class="close">&times;</span>
+        </div>
+      </div>
+      <div class="editor-content">
+        <div class="line-numbers" id="lineNumbers"></div>
+        <div class="code-area" id="codeArea"></div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="chat-panel panel-focused">
+      <div class="chat-header">
+        Chat
+        <span style="font-size:10px;text-transform:none;letter-spacing:0;color:#475569">Ctrl+3 focus</span>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <!-- populated by JS -->
+      </div>
+      <div class="chat-input-area">
+        <div class="chat-input-box">
+          <span class="prompt-icon">&gt;</span>
+          <input class="chat-input" id="chatInput" placeholder="메시지를 입력하세요... (Enter 전송, /help 도움말)" />
+        </div>
+        <div class="chat-input-hint">Enter 전송 &middot; Shift+Enter 줄바꿈 &middot; /clear /git /diff /undo /open</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <div class="status-item status-git dirty" id="statusGit">main*</div>
+  <div class="status-sep">|</div>
+  <div class="status-item status-model" id="statusModel">gpt-4o-mini</div>
+  <div class="status-item status-tokens" id="statusTokens">1,247 tok</div>
+  <div class="status-sep">|</div>
+  <div class="status-item status-cwd">~/projects/myapp</div>
+  <div class="status-sep">|</div>
+  <div class="status-item" id="statusTools">Tool:ON(12)</div>
+  <div class="status-right">
+    <span><span class="status-key">Tab</span> 패널전환</span>
+    <span><span class="status-key">Esc</span> 메뉴</span>
+    <span><span class="status-key">Ctrl+C</span> 종료</span>
+  </div>
+</div>
+
+<script>
+// === FILE TREE DATA ===
+const fileTreeData = [
+  { name: 'cmd/', isDir: true, expanded: true, children: [
+    { name: 'tgc/', isDir: true, expanded: true, children: [
+      { name: 'main.go', git: '' },
+    ]},
+  ]},
+  { name: 'internal/', isDir: true, expanded: true, children: [
+    { name: 'app/', isDir: true, expanded: true, children: [
+      { name: 'app.go', git: 'M', selected: true },
+    ]},
+    { name: 'config/', isDir: true, children: [
+      { name: 'config.go', git: '' },
+    ]},
+    { name: 'llm/', isDir: true, children: [
+      { name: 'client.go', git: '' },
+      { name: 'prompt.go', git: '' },
+    ]},
+    { name: 'tools/', isDir: true, expanded: true, children: [
+      { name: 'file.go', git: 'M' },
+      { name: 'git.go', git: '' },
+      { name: 'registry.go', git: '' },
+      { name: 'search.go', git: '' },
+      { name: 'shell.go', git: '' },
+      { name: 'snapshot.go', git: 'A' },
+    ]},
+    { name: 'ui/', isDir: true, expanded: true, children: [
+      { name: 'chat.go', git: '' },
+      { name: 'editor.go', git: 'A' },
+      { name: 'filetree.go', git: 'A' },
+      { name: 'layout.go', git: 'A' },
+      { name: 'styles.go', git: '' },
+    ]},
+    { name: 'gitinfo/', isDir: true, children: [
+      { name: 'gitinfo.go', git: '' },
+    ]},
+    { name: 'session/', isDir: true, children: [
+      { name: 'store.go', git: '' },
+    ]},
+  ]},
+  { name: 'go.mod', git: '' },
+  { name: 'go.sum', git: '' },
+  { name: 'Makefile', git: '' },
+  { name: 'README.md', git: 'M' },
+];
+
+function renderTree(items, depth = 0) {
+  let html = '';
+  for (const item of items) {
+    const indent = '<span class="tree-indent"></span>'.repeat(depth);
+    const isDir = item.isDir;
+    const icon = isDir ? (item.expanded ? '&#9660;' : '&#9654;') : '&#9643;';
+    const cls = [
+      'tree-item',
+      isDir ? 'dir' : '',
+      item.selected ? 'selected' : ''
+    ].filter(Boolean).join(' ');
+
+    let gitBadge = '';
+    if (item.git === 'M') gitBadge = '<span class="git-badge git-m">M</span>';
+    else if (item.git === 'A') gitBadge = '<span class="git-badge git-a">A</span>';
+    else if (item.git === '?') gitBadge = '<span class="git-badge git-u">?</span>';
+
+    html += `<div class="${cls}">${indent}<span class="icon">${icon}</span>${item.name}${gitBadge}</div>`;
+
+    if (isDir && item.expanded && item.children) {
+      html += renderTree(item.children, depth + 1);
+    }
+  }
+  return html;
+}
+
+// === CODE CONTENT ===
+const normalCode = `<span class="kw">package</span> <span class="pkg">app</span>
+
+<span class="kw">import</span> (
+	<span class="str">"context"</span>
+	<span class="str">"fmt"</span>
+	<span class="str">"os"</span>
+	<span class="str">"time"</span>
+
+	<span class="str">"charm.land/bubbles/v2/textarea"</span>
+	<span class="str">"charm.land/bubbles/v2/viewport"</span>
+	<span class="typ">tea</span> <span class="str">"charm.land/bubbletea/v2"</span>
+	<span class="str">"charm.land/lipgloss/v2"</span>
+)
+
+<span class="cmt">// Model is the main application state.</span>
+<span class="kw">type</span> <span class="typ">Model</span> <span class="kw">struct</span> {
+	cfg       config.Config
+	client    <span class="op">*</span>llm.Client
+	cwd       <span class="typ">string</span>
+
+	<span class="cmt">// Layout & panels</span>
+	layout    ui.Layout
+	fileTree  ui.FileTree
+	editor    ui.Editor
+	focus     ui.Panel
+
+	<span class="cmt">// Chat state</span>
+<span class="cur-line">	history   []openai.ChatCompletionMessage</span>
+	msgs      []ui.Message
+	textarea  textarea.Model
+	viewport  viewport.Model
+
+	<span class="cmt">// Streaming</span>
+	streaming bool
+	streamBuf <span class="typ">string</span>
+	streamCh  <span class="op">&lt;-</span><span class="kw">chan</span> llm.StreamChunk
+
+	<span class="cmt">// Git</span>
+	gitInfo   gitinfo.Info
+
+	width  <span class="typ">int</span>
+	height <span class="typ">int</span>
+	ready  <span class="typ">bool</span>
+}
+
+<span class="kw">func</span> <span class="fn">NewModel</span>(cfg config.Config) Model {
+	ta <span class="op">:=</span> textarea.<span class="fn">New</span>()
+	ta.<span class="fn">SetHeight</span>(<span class="num">1</span>)
+	ta.<span class="fn">Focus</span>()
+
+	cwd, _ <span class="op">:=</span> os.<span class="fn">Getwd</span>()
+
+	<span class="kw">return</span> Model{
+		cfg:      cfg,
+		cwd:      cwd,
+		fileTree: ui.<span class="fn">NewFileTree</span>(cwd),
+		editor:   ui.<span class="fn">NewEditor</span>(),
+		layout:   ui.<span class="fn">NewLayout</span>(<span class="num">80</span>, <span class="num">24</span>),
+		focus:    ui.PanelChat,
+		textarea: ta,
+		gitInfo:  gitinfo.<span class="fn">Fetch</span>(<span class="str">"."</span>),
+	}
+}`;
+
+const editingCode = `<span class="kw">package</span> <span class="pkg">app</span>
+
+<span class="kw">import</span> (
+	<span class="str">"context"</span>
+	<span class="str">"fmt"</span>
+	<span class="str">"os"</span>
+	<span class="str">"time"</span>
+
+	<span class="str">"charm.land/bubbles/v2/textarea"</span>
+	<span class="str">"charm.land/bubbles/v2/viewport"</span>
+	<span class="typ">tea</span> <span class="str">"charm.land/bubbletea/v2"</span>
+	<span class="str">"charm.land/lipgloss/v2"</span>
+)
+
+<span class="cmt">// Model is the main application state.</span>
+<span class="kw">type</span> <span class="typ">Model</span> <span class="kw">struct</span> {
+	cfg       config.Config
+	client    <span class="op">*</span>llm.Client
+	cwd       <span class="typ">string</span>
+
+	<span class="cmt">// Layout & panels</span>
+	layout    ui.Layout
+	fileTree  ui.FileTree
+	editor    ui.Editor
+	focus     ui.Panel
+
+	<span class="cmt">// Chat state</span>
+	history   []openai.ChatCompletionMessage
+	msgs      []ui.Message
+	textarea  textarea.Model
+	viewport  viewport.Model
+<span class="cur-line">
+	<span class="cmt">// Session persistence</span>
+	store     *session.Store<span class="cursor-blink"></span></span>
+
+	<span class="cmt">// Streaming</span>
+	streaming bool
+	streamBuf <span class="typ">string</span>
+	streamCh  <span class="op">&lt;-</span><span class="kw">chan</span> llm.StreamChunk
+
+	<span class="cmt">// Git</span>
+	gitInfo   gitinfo.Info
+
+	width  <span class="typ">int</span>
+	height <span class="typ">int</span>
+	ready  <span class="typ">bool</span>
+}`;
+
+const diffCode = `<span class="diff-hunk">@@ -18,6 +18,7 @@ type Model struct {</span>
+ 	cfg       config.Config
+ 	client    *llm.Client
+ 	cwd       string
+<span class="diff-add">+	projectDir string  // absolute path to project root</span>
+
+ 	// Layout & panels
+ 	layout    ui.Layout
+<span class="diff-hunk">@@ -35,8 +36,10 @@ type Model struct {</span>
+ 	streaming bool
+ 	streamBuf string
+ 	streamCh  &lt;-chan llm.StreamChunk
+<span class="diff-del">-	streamCancel context.CancelFunc</span>
+<span class="diff-add">+	streamCancel context.CancelFunc</span>
+<span class="diff-add">+	streamStart  time.Time</span>
+<span class="diff-add">+	lastElapsed  time.Duration</span>
+
+ 	// Git
+ 	gitInfo   gitinfo.Info
+<span class="diff-hunk">@@ -58,6 +61,15 @@ func NewModel(cfg config.Config) Model {</span>
+ 	}
+ }
+
+<span class="diff-add">+// Save persists the current editor content to disk.</span>
+<span class="diff-add">+func (m *Model) saveEditor() error {</span>
+<span class="diff-add">+	if m.editor.FilePath == "" {</span>
+<span class="diff-add">+		return fmt.Errorf("no file open")</span>
+<span class="diff-add">+	}</span>
+<span class="diff-add">+	return tools.FileWrite(m.editor.FilePath, m.editor.Content())</span>
+<span class="diff-add">+}</span>
+<span class="diff-add">+</span>
+ func (m Model) Init() tea.Cmd {
+ 	return textarea.Blink
+ }`;
+
+// === CHAT MESSAGES ===
+const normalMessages = `
+<div class="msg msg-user">
+  <div class="msg-label">You</div>
+  <div class="msg-content">app.go에서 Model 구조체 보여줘</div>
+</div>
+<div class="msg msg-tool">&gt;&gt; file_read(path: "internal/app/app.go")</div>
+<div class="msg msg-tool">&lt;&lt; file_read: OK (1,717 bytes)</div>
+<div class="msg msg-assistant">
+  <div class="msg-label">AI</div>
+  <div class="msg-content"><code>Model</code> 구조체입니다. 주요 필드:
+<div class="code-block"><span class="kw">type</span> <span class="typ">Model</span> <span class="kw">struct</span> {
+    layout    ui.Layout     <span class="cmt">// 3-panel layout</span>
+    fileTree  ui.FileTree   <span class="cmt">// file browser</span>
+    editor    ui.Editor     <span class="cmt">// code viewer/editor</span>
+    focus     ui.Panel      <span class="cmt">// active panel</span>
+}</div>
+기존 멀티에이전트/컴패니언 필드는 제거되었고, 레이아웃 관련 필드가 추가되었습니다.</div>
+</div>`;
+
+const streamingMessages = `
+<div class="msg msg-user">
+  <div class="msg-label">You</div>
+  <div class="msg-content">editor.go에 Save 함수 추가해줘. Ctrl+S로 현재 파일 저장하는 기능</div>
+</div>
+<div class="msg msg-tool">&gt;&gt; file_read(path: "internal/ui/editor.go")</div>
+<div class="msg msg-tool">&lt;&lt; file_read: OK (2,340 bytes)</div>
+<div class="msg msg-tool">&gt;&gt; file_edit(path: "internal/ui/editor.go", old_string: "...", new_string: "...")</div>
+<div class="msg msg-tool">&lt;&lt; file_edit: OK, replaced 1 occurrence</div>
+<div class="msg msg-assistant">
+  <div class="msg-label">AI <span class="streaming-dot">●</span></div>
+  <div class="msg-content"><code>Save()</code> 함수를 추가했습니다:
+
+<div class="code-block"><span class="kw">func</span> (e <span class="op">*</span><span class="typ">Editor</span>) <span class="fn">Save</span>() <span class="typ">error</span> {
+    <span class="kw">if</span> e.FilePath == <span class="str">""</span> {
+        <span class="kw">return</span> fmt.<span class="fn">Errorf</span>(<span class="str">"no file open"</span>)
+    }
+    content <span class="op">:=</span> e.TextArea.<span class="fn">Value</span>()
+    <span class="kw">if</span> err <span class="op">:=</span> tools.<span class="fn">FileWrite</span>(e.FilePath, content); err <span class="op">!=</span> <span class="kw">nil</span> {
+        <span class="kw">return</span> err
+    }
+    e.Dirty <span class="op">=</span> <span class="kw">false</span>
+    e.<span class="fn">ExitEditMode</span>()
+    <span class="kw">return</span> <span class="kw">nil</span>
+}</div>
+
+<code>Ctrl+S</code> 키 바인딩은 <code>app.go</code>의 <code>Update()</code>에서 처리됩니다. 에디터 패널에 포커스가 있을 때<span class="cursor-blink"></span></div>
+</div>`;
+
+const diffMessages = `
+<div class="msg msg-user">
+  <div class="msg-label">You</div>
+  <div class="msg-content">/diff</div>
+</div>
+<div class="msg msg-assistant">
+  <div class="msg-label">AI</div>
+  <div class="msg-content">현재 작업 트리 변경사항:
+
+<strong>3 files changed</strong>, 24 insertions(+), 3 deletions(-)
+
+<code>internal/app/app.go</code> (M) — Model에 projectDir, streamStart 필드 추가
+<code>internal/ui/editor.go</code> (A) — 새 에디터 컴포넌트
+<code>internal/tools/snapshot.go</code> (A) — 스냅샷 시스템
+
+에디터 패널에 diff가 표시되어 있습니다.</div>
+</div>`;
+
+// === STATE MANAGEMENT ===
+let currentState = 'normal';
+
+function showState(state) {
+  currentState = state;
+  document.querySelectorAll('.state-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const codeArea = document.getElementById('codeArea');
+  const lineNumbers = document.getElementById('lineNumbers');
+  const chatMessages = document.getElementById('chatMessages');
+  const tabDot = document.getElementById('tabDot');
+  const tabName = document.getElementById('tabName');
+  const statusTokens = document.getElementById('statusTokens');
+
+  switch(state) {
+    case 'normal':
+      codeArea.innerHTML = normalCode;
+      chatMessages.innerHTML = normalMessages;
+      tabDot.style.display = 'none';
+      tabName.textContent = 'app.go';
+      statusTokens.textContent = '1,247 tok';
+      break;
+    case 'editing':
+      codeArea.innerHTML = editingCode;
+      chatMessages.innerHTML = normalMessages;
+      tabDot.style.display = 'inline-block';
+      tabName.textContent = 'app.go [EDIT]';
+      statusTokens.textContent = '1,247 tok';
+      break;
+    case 'streaming':
+      codeArea.innerHTML = normalCode;
+      chatMessages.innerHTML = streamingMessages;
+      tabDot.style.display = 'none';
+      tabName.textContent = 'editor.go';
+      statusTokens.textContent = '2,891 tok';
+      break;
+    case 'diff':
+      codeArea.innerHTML = diffCode;
+      chatMessages.innerHTML = diffMessages;
+      tabDot.style.display = 'none';
+      tabName.textContent = 'app.go [DIFF]';
+      statusTokens.textContent = '1,247 tok';
+      break;
+  }
+
+  updateLineNumbers();
+}
+
+function updateLineNumbers() {
+  const codeArea = document.getElementById('codeArea');
+  const lineNumbers = document.getElementById('lineNumbers');
+  const lines = codeArea.innerText.split('\n').length;
+  let nums = '';
+  for (let i = 1; i <= lines; i++) {
+    nums += i + '\n';
+  }
+  lineNumbers.textContent = nums;
+}
+
+// === INIT ===
+document.getElementById('fileTree').innerHTML = renderTree(fileTreeData);
+showState('normal');
+
+// Simulate chat input
+document.getElementById('chatInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const val = this.value.trim();
+    if (!val) return;
+    const chatMessages = document.getElementById('chatMessages');
+    chatMessages.innerHTML += `
+      <div class="msg msg-user">
+        <div class="msg-label">You</div>
+        <div class="msg-content">${val}</div>
+      </div>
+      <div class="msg msg-assistant">
+        <div class="msg-label">AI <span class="streaming-dot">\u25cf</span></div>
+        <div class="msg-content">\ub124, \ud655\uc778\ud558\uaca0\uc2b5\ub2c8\ub2e4<span class="cursor-blink"></span></div>
+      </div>`;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    this.value = '';
+  }
+});
+
+// Click on tree items
+document.getElementById('fileTree').addEventListener('click', function(e) {
+  const item = e.target.closest('.tree-item');
+  if (!item) return;
+  document.querySelectorAll('.tree-item.selected').forEach(i => i.classList.remove('selected'));
+  item.classList.add('selected');
+});
+</script>
+</body>
+</html>

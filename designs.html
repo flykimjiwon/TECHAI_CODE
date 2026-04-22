@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>택가이코드 — 5 Design Themes</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Geist+Mono&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    /* Theme variables — overridden per theme */
+    --bg-deep: #0f172a;
+    --bg-panel: #0c1021;
+    --bg-surface: #1e293b;
+    --bg-hover: #1e3a5f;
+    --bg-code: #0f172a;
+    --border: #1e293b;
+    --border-focus: #60a5fa;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-dim: #475569;
+    --text-faint: #334155;
+    --accent: #60a5fa;
+    --accent-secondary: #38bdf8;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --error: #f87171;
+    --keyword: #c084fc;
+    --function: #60a5fa;
+    --string: #34d399;
+    --comment: #475569;
+    --type: #38bdf8;
+    --number: #fbbf24;
+    --status-bg: #1e293b;
+    --input-border: #334155;
+    --msg-user-border: #38bdf8;
+    --msg-user-bg: rgba(56, 189, 248, 0.03);
+    --msg-ai-border: #34d399;
+    --msg-ai-bg: rgba(52, 211, 153, 0.03);
+    --scrollbar: #334155;
+    --font-main: 'JetBrains Mono', 'Menlo', monospace;
+    --font-code: 'JetBrains Mono', monospace;
+    --tree-dir: var(--accent);
+    --tree-selected-bg: var(--bg-hover);
+    --diff-add: #34d399;
+    --diff-del: #f87171;
+  }
+
+  body {
+    font-family: var(--font-main);
+    color: var(--text-primary);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-size: 13px;
+    line-height: 1.5;
+    background: var(--bg-deep);
+    transition: all 0.3s ease;
+  }
+
+  /* === THEME PICKER === */
+  .theme-picker {
+    display: flex;
+    gap: 0;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    min-height: 44px;
+    align-items: stretch;
+  }
+
+  .theme-btn {
+    flex: 1;
+    padding: 10px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-family: var(--font-main);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .theme-btn:hover { color: var(--text-secondary); background: var(--bg-surface); }
+  .theme-btn.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
+    background: var(--bg-surface);
+  }
+
+  .theme-btn .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  /* === MAIN LAYOUT === */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* === FILE TREE === */
+  .file-tree {
+    width: 250px; min-width: 250px;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    background: var(--bg-panel);
+  }
+
+  .panel-header {
+    padding: 10px 14px;
+    font-size: 11px; font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .panel-header .hint { font-size: 10px; color: var(--text-dim); text-transform: none; letter-spacing: 0; }
+
+  .file-tree-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+  .tree-item {
+    padding: 3px 14px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap; font-size: 12.5px;
+    color: var(--text-secondary); transition: background 0.1s;
+  }
+  .tree-item:hover { background: var(--bg-surface); }
+  .tree-item.selected { background: var(--tree-selected-bg); color: var(--text-primary); }
+  .tree-item.dir { color: var(--tree-dir); }
+  .tree-item .icon { width: 16px; text-align: center; flex-shrink: 0; }
+  .tree-item .git-badge { margin-left: auto; font-size: 10px; font-weight: 700; padding: 0 4px; border-radius: 2px; }
+  .git-m { color: var(--warning); }
+  .git-a { color: var(--success); }
+  .tree-indent { display: inline-block; width: 16px; }
+
+  /* === RIGHT PANEL === */
+  .right-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* === EDITOR === */
+  .editor-panel { flex: 6; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); min-height: 0; }
+
+  .editor-tab-bar {
+    display: flex; background: var(--bg-panel);
+    border-bottom: 1px solid var(--border); min-height: 32px; align-items: stretch;
+  }
+  .editor-tab {
+    padding: 6px 16px; font-size: 12px; color: var(--text-muted);
+    border-right: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+  }
+  .editor-tab.active {
+    color: var(--text-primary); background: var(--bg-deep);
+    border-bottom: 2px solid var(--accent);
+  }
+  .editor-tab .close { font-size: 14px; color: var(--text-dim); margin-left: 8px; }
+
+  .editor-content { flex: 1; overflow: auto; padding: 0; background: var(--bg-code); display: flex; }
+
+  .line-numbers {
+    padding: 12px 0; text-align: right; color: var(--text-faint);
+    font-size: 12px; line-height: 1.65; user-select: none;
+    min-width: 48px; padding-right: 12px;
+    border-right: 1px solid var(--border); background: var(--bg-panel);
+  }
+
+  .code-area {
+    flex: 1; padding: 12px 16px; font-size: 12.5px;
+    line-height: 1.65; overflow-x: auto; white-space: pre;
+    font-family: var(--font-code);
+  }
+
+  .kw { color: var(--keyword); }
+  .fn { color: var(--function); }
+  .str { color: var(--string); }
+  .cmt { color: var(--comment); font-style: italic; }
+  .typ { color: var(--type); }
+  .num { color: var(--number); }
+  .op { color: var(--text-secondary); }
+  .pkg { color: var(--warning); }
+  .cur-line { background: rgba(255,255,255,0.03); display: block; }
+
+  /* === CHAT === */
+  .chat-panel { flex: 4; display: flex; flex-direction: column; min-height: 0; background: var(--bg-code); }
+
+  .chat-messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  .msg-user {
+    border-left: 3px solid var(--msg-user-border); padding: 8px 12px;
+    background: var(--msg-user-bg); border-radius: 0 6px 6px 0;
+  }
+  .msg-user .msg-label { color: var(--msg-user-border); font-weight: 700; font-size: 11px; margin-bottom: 4px; }
+
+  .msg-assistant {
+    border-left: 3px solid var(--msg-ai-border); padding: 8px 12px;
+    background: var(--msg-ai-bg); border-radius: 0 6px 6px 0;
+  }
+  .msg-assistant .msg-label { color: var(--msg-ai-border); font-weight: 700; font-size: 11px; margin-bottom: 4px; }
+
+  .msg-tool { padding: 4px 12px; font-size: 11.5px; color: var(--warning); opacity: 0.8; }
+
+  .msg-content { color: var(--text-secondary); font-size: 12.5px; line-height: 1.6; }
+  .msg-content code {
+    background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;
+    font-size: 12px; color: var(--keyword);
+  }
+  .msg-content .code-block {
+    display: block; background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px; margin: 8px 0;
+    font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre;
+  }
+
+  .chat-input-area { padding: 8px 12px; border-top: 1px solid var(--border); }
+
+  .chat-input-box {
+    border: 1px solid var(--input-border); border-radius: 8px;
+    padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+    transition: border-color 0.2s;
+  }
+  .chat-input-box:focus-within { border-color: var(--border-focus); }
+  .chat-input-box .prompt-icon { color: var(--accent); font-weight: 700; }
+
+  .chat-input {
+    flex: 1; background: none; border: none; color: var(--text-primary);
+    font-family: inherit; font-size: 12.5px; outline: none;
+  }
+  .chat-input::placeholder { color: var(--text-dim); }
+
+  .chat-input-hint { font-size: 10px; color: var(--text-dim); padding: 4px 12px 2px; }
+
+  /* === STATUS BAR === */
+  .status-bar {
+    background: var(--status-bg); padding: 4px 14px;
+    display: flex; align-items: center; gap: 16px;
+    font-size: 11px; color: var(--text-muted); min-height: 28px;
+  }
+  .status-git { color: var(--success); }
+  .status-git.dirty { color: var(--warning); }
+  .status-model { color: var(--warning); font-weight: 600; }
+  .status-tokens { color: var(--success); }
+  .status-cwd { color: var(--text-secondary); }
+  .status-sep { color: var(--text-faint); }
+  .status-right { margin-left: auto; display: flex; gap: 12px; }
+  .status-key {
+    background: var(--bg-deep); padding: 1px 5px; border-radius: 3px;
+    font-size: 10px; color: var(--text-secondary);
+  }
+
+  @keyframes blink { 0%,50%{opacity:1} 51%,100%{opacity:0} }
+  .cursor-blink {
+    display: inline-block; width: 7px; height: 14px;
+    background: var(--accent); animation: blink 1s infinite;
+    vertical-align: middle; margin-left: 1px;
+  }
+
+  @keyframes pulse-dot { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  .streaming-dot { color: var(--success); animation: pulse-dot 1.5s infinite; font-weight: 700; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+
+  /* ============================================
+     THEME 1: DEFAULT (current 택가이코드)
+     ============================================ */
+  /* Already defined in :root */
+
+  /* ============================================
+     THEME 2: CURSOR — Warm cream, orange accent
+     ============================================ */
+  body.theme-cursor {
+    --bg-deep: #f2f1ed;
+    --bg-panel: #ebeae5;
+    --bg-surface: #e6e5e0;
+    --bg-hover: #dddcd6;
+    --bg-code: #f7f7f4;
+    --border: rgba(38, 37, 30, 0.12);
+    --border-focus: #f54e00;
+    --text-primary: #26251e;
+    --text-secondary: #4a493f;
+    --text-muted: #6b6a60;
+    --text-dim: #8a897f;
+    --text-faint: #b5b4ab;
+    --accent: #f54e00;
+    --accent-secondary: #c08532;
+    --success: #1f8a65;
+    --warning: #c08532;
+    --error: #cf2d56;
+    --keyword: #7928ca;
+    --function: #0070f3;
+    --string: #1f8a65;
+    --comment: #8a897f;
+    --type: #0070f3;
+    --number: #c08532;
+    --status-bg: #e6e5e0;
+    --input-border: rgba(38, 37, 30, 0.2);
+    --msg-user-border: #f54e00;
+    --msg-user-bg: rgba(245, 78, 0, 0.04);
+    --msg-ai-border: #1f8a65;
+    --msg-ai-bg: rgba(31, 138, 101, 0.04);
+    --scrollbar: #c5c4bf;
+    --tree-dir: #f54e00;
+    --tree-selected-bg: #dddcd6;
+    --diff-add: #1f8a65;
+    --diff-del: #cf2d56;
+  }
+
+  /* ============================================
+     THEME 3: WARP — Warm dark earth tones
+     ============================================ */
+  body.theme-warp {
+    --bg-deep: #1a1a19;
+    --bg-panel: #222221;
+    --bg-surface: #2c2c2b;
+    --bg-hover: #353534;
+    --bg-code: #1a1a19;
+    --border: rgba(226, 226, 226, 0.12);
+    --border-focus: #faf9f6;
+    --text-primary: #faf9f6;
+    --text-secondary: #afaeac;
+    --text-muted: #868584;
+    --text-dim: #666469;
+    --text-faint: #454545;
+    --accent: #faf9f6;
+    --accent-secondary: #afaeac;
+    --success: #7fba8a;
+    --warning: #d4a76a;
+    --error: #cf6679;
+    --keyword: #d4a0d0;
+    --function: #faf9f6;
+    --string: #7fba8a;
+    --comment: #666469;
+    --type: #afaeac;
+    --number: #d4a76a;
+    --status-bg: #222221;
+    --input-border: rgba(226, 226, 226, 0.2);
+    --msg-user-border: #faf9f6;
+    --msg-user-bg: rgba(250, 249, 246, 0.03);
+    --msg-ai-border: #7fba8a;
+    --msg-ai-bg: rgba(127, 186, 138, 0.03);
+    --scrollbar: #454545;
+    --tree-dir: #faf9f6;
+    --tree-selected-bg: #353534;
+    --diff-add: #7fba8a;
+    --diff-del: #cf6679;
+  }
+
+  /* ============================================
+     THEME 4: LINEAR — Near-black, indigo accent
+     ============================================ */
+  body.theme-linear {
+    --bg-deep: #08090a;
+    --bg-panel: #0f1011;
+    --bg-surface: #191a1b;
+    --bg-hover: #28282c;
+    --bg-code: #0f1011;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-focus: #7170ff;
+    --text-primary: #f7f8f8;
+    --text-secondary: #d0d6e0;
+    --text-muted: #8a8f98;
+    --text-dim: #62666d;
+    --text-faint: #3e3e44;
+    --accent: #7170ff;
+    --accent-secondary: #828fff;
+    --success: #27a644;
+    --warning: #f0b429;
+    --error: #e5484d;
+    --keyword: #828fff;
+    --function: #7170ff;
+    --string: #27a644;
+    --comment: #62666d;
+    --type: #828fff;
+    --number: #f0b429;
+    --status-bg: #0f1011;
+    --input-border: rgba(255, 255, 255, 0.08);
+    --msg-user-border: #7170ff;
+    --msg-user-bg: rgba(113, 112, 255, 0.04);
+    --msg-ai-border: #27a644;
+    --msg-ai-bg: rgba(39, 166, 68, 0.04);
+    --scrollbar: #3e3e44;
+    --tree-dir: #7170ff;
+    --tree-selected-bg: #28282c;
+    --diff-add: #27a644;
+    --diff-del: #e5484d;
+  }
+
+  /* ============================================
+     THEME 5: CLAUDE — Warm parchment, terracotta
+     ============================================ */
+  body.theme-claude {
+    --bg-deep: #f5f4ed;
+    --bg-panel: #efeee6;
+    --bg-surface: #e8e6dc;
+    --bg-hover: #dddbd0;
+    --bg-code: #faf9f5;
+    --border: #e0dec4;
+    --border-focus: #c96442;
+    --text-primary: #141413;
+    --text-secondary: #4d4c48;
+    --text-muted: #5e5d59;
+    --text-dim: #87867f;
+    --text-faint: #b0aea5;
+    --accent: #c96442;
+    --accent-secondary: #d97757;
+    --success: #2d7a4f;
+    --warning: #a67c37;
+    --error: #b53333;
+    --keyword: #7928ca;
+    --function: #c96442;
+    --string: #2d7a4f;
+    --comment: #87867f;
+    --type: #3a6ea5;
+    --number: #a67c37;
+    --status-bg: #efeee6;
+    --input-border: #d1cfc5;
+    --msg-user-border: #c96442;
+    --msg-user-bg: rgba(201, 100, 66, 0.04);
+    --msg-ai-border: #2d7a4f;
+    --msg-ai-bg: rgba(45, 122, 79, 0.04);
+    --scrollbar: #c2c0b6;
+    --tree-dir: #c96442;
+    --tree-selected-bg: #dddbd0;
+    --diff-add: #2d7a4f;
+    --diff-del: #b53333;
+  }
+
+  /* ============================================
+     THEME 6: VERCEL — Monochrome black & white
+     ============================================ */
+  body.theme-vercel {
+    --bg-deep: #ffffff;
+    --bg-panel: #fafafa;
+    --bg-surface: #f5f5f5;
+    --bg-hover: #ebebeb;
+    --bg-code: #fafafa;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-focus: #171717;
+    --text-primary: #171717;
+    --text-secondary: #4d4d4d;
+    --text-muted: #666666;
+    --text-dim: #808080;
+    --text-faint: #d4d4d4;
+    --accent: #171717;
+    --accent-secondary: #4d4d4d;
+    --success: #17a34a;
+    --warning: #f59e0b;
+    --error: #ff5b4f;
+    --keyword: #7928ca;
+    --function: #0a72ef;
+    --string: #17a34a;
+    --comment: #808080;
+    --type: #0a72ef;
+    --number: #f59e0b;
+    --status-bg: #fafafa;
+    --input-border: rgba(0, 0, 0, 0.12);
+    --msg-user-border: #171717;
+    --msg-user-bg: rgba(23, 23, 23, 0.03);
+    --msg-ai-border: #17a34a;
+    --msg-ai-bg: rgba(23, 163, 74, 0.03);
+    --scrollbar: #d4d4d4;
+    --tree-dir: #0a72ef;
+    --tree-selected-bg: #ebebeb;
+    --diff-add: #17a34a;
+    --diff-del: #ff5b4f;
+  }
+</style>
+</head>
+<body>
+
+<!-- THEME PICKER -->
+<div class="theme-picker">
+  <button class="theme-btn active" onclick="setTheme('', this)">
+    <span class="dot" style="background:linear-gradient(135deg,#60a5fa,#34d399)"></span>
+    Default (Slate)
+  </button>
+  <button class="theme-btn" onclick="setTheme('theme-cursor', this)">
+    <span class="dot" style="background:#f54e00"></span>
+    Cursor
+  </button>
+  <button class="theme-btn" onclick="setTheme('theme-warp', this)">
+    <span class="dot" style="background:linear-gradient(135deg,#353534,#faf9f6)"></span>
+    Warp
+  </button>
+  <button class="theme-btn" onclick="setTheme('theme-linear', this)">
+    <span class="dot" style="background:#7170ff"></span>
+    Linear
+  </button>
+  <button class="theme-btn" onclick="setTheme('theme-claude', this)">
+    <span class="dot" style="background:#c96442"></span>
+    Claude
+  </button>
+  <button class="theme-btn" onclick="setTheme('theme-vercel', this)">
+    <span class="dot" style="background:linear-gradient(135deg,#000,#fff)"></span>
+    Vercel
+  </button>
+</div>
+
+<div class="main">
+  <!-- FILE TREE -->
+  <div class="file-tree">
+    <div class="panel-header">
+      Explorer
+      <span class="hint">Tab: panel</span>
+    </div>
+    <div class="file-tree-list" id="fileTree"></div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <!-- EDITOR -->
+    <div class="editor-panel">
+      <div class="editor-tab-bar">
+        <div class="editor-tab active">
+          <span>app.go</span>
+          <span class="close">&times;</span>
+        </div>
+      </div>
+      <div class="editor-content">
+        <div class="line-numbers" id="lineNumbers"></div>
+        <div class="code-area" id="codeArea"></div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="chat-panel">
+      <div class="panel-header">
+        Chat
+        <span class="hint">Ctrl+3</span>
+      </div>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-area">
+        <div class="chat-input-box">
+          <span class="prompt-icon">&gt;</span>
+          <input class="chat-input" id="chatInput" placeholder="메시지 입력... (Enter 전송)" />
+        </div>
+        <div class="chat-input-hint">Enter 전송 &middot; Shift+Enter 줄바꿈 &middot; /clear /git /diff /undo /open</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <div class="status-git dirty">main*</div>
+  <div class="status-sep">|</div>
+  <div class="status-model">gpt-4o-mini</div>
+  <div class="status-tokens">1,247 tok</div>
+  <div class="status-sep">|</div>
+  <div class="status-cwd">~/projects/myapp</div>
+  <div class="status-sep">|</div>
+  <div>Tool:ON(12)</div>
+  <div class="status-right">
+    <span><span class="status-key">Tab</span> panel</span>
+    <span><span class="status-key">Esc</span> menu</span>
+    <span><span class="status-key">Ctrl+C</span> quit</span>
+  </div>
+</div>
+
+<script>
+// === THEME SWITCH ===
+function setTheme(cls, btn) {
+  document.body.className = cls;
+  document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// === FILE TREE ===
+const tree = [
+  { n: 'cmd/', d: true, x: true, c: [
+    { n: 'tgc/', d: true, x: true, c: [
+      { n: 'main.go' },
+    ]},
+  ]},
+  { n: 'internal/', d: true, x: true, c: [
+    { n: 'app/', d: true, x: true, c: [
+      { n: 'app.go', g: 'M', sel: true },
+    ]},
+    { n: 'config/', d: true, c: [{ n: 'config.go' }] },
+    { n: 'llm/', d: true, c: [{ n: 'client.go' }, { n: 'prompt.go' }] },
+    { n: 'tools/', d: true, x: true, c: [
+      { n: 'file.go', g: 'M' },
+      { n: 'git.go' },
+      { n: 'registry.go' },
+      { n: 'search.go' },
+      { n: 'snapshot.go', g: 'A' },
+    ]},
+    { n: 'ui/', d: true, x: true, c: [
+      { n: 'chat.go' },
+      { n: 'editor.go', g: 'A' },
+      { n: 'filetree.go', g: 'A' },
+      { n: 'layout.go', g: 'A' },
+      { n: 'styles.go' },
+    ]},
+    { n: 'gitinfo/', d: true, c: [{ n: 'gitinfo.go' }] },
+    { n: 'session/', d: true, c: [{ n: 'store.go' }] },
+  ]},
+  { n: 'go.mod' },
+  { n: 'go.sum' },
+  { n: 'Makefile' },
+  { n: 'README.md', g: 'M' },
+];
+
+function renderTree(items, depth) {
+  let h = '';
+  for (const i of items) {
+    const ind = '<span class="tree-indent"></span>'.repeat(depth);
+    const ico = i.d ? (i.x ? '\u25be' : '\u25b8') : '\u25ab';
+    const cls = ['tree-item', i.d?'dir':'', i.sel?'selected':''].filter(Boolean).join(' ');
+    let gb = '';
+    if (i.g==='M') gb='<span class="git-badge git-m">M</span>';
+    else if (i.g==='A') gb='<span class="git-badge git-a">A</span>';
+    h += `<div class="${cls}">${ind}<span class="icon">${ico}</span>${i.n}${gb}</div>`;
+    if (i.d && i.x && i.c) h += renderTree(i.c, depth+1);
+  }
+  return h;
+}
+
+// === CODE ===
+const code = `<span class="kw">package</span> <span class="pkg">app</span>
+
+<span class="kw">import</span> (
+	<span class="str">"context"</span>
+	<span class="str">"fmt"</span>
+	<span class="str">"os"</span>
+	<span class="str">"time"</span>
+
+	<span class="str">"charm.land/bubbles/v2/textarea"</span>
+	<span class="str">"charm.land/bubbles/v2/viewport"</span>
+	<span class="typ">tea</span> <span class="str">"charm.land/bubbletea/v2"</span>
+	<span class="str">"charm.land/lipgloss/v2"</span>
+)
+
+<span class="cmt">// Model is the main application state.</span>
+<span class="kw">type</span> <span class="typ">Model</span> <span class="kw">struct</span> {
+	cfg       config.Config
+	client    <span class="op">*</span>llm.Client
+	cwd       <span class="typ">string</span>
+
+	<span class="cmt">// Layout & panels</span>
+	layout    ui.Layout
+	fileTree  ui.FileTree
+	editor    ui.Editor
+	focus     ui.Panel
+
+	<span class="cmt">// Chat state</span>
+<span class="cur-line">	history   []openai.ChatCompletionMessage</span>
+	msgs      []ui.Message
+	textarea  textarea.Model
+	viewport  viewport.Model
+
+	<span class="cmt">// Streaming</span>
+	streaming <span class="typ">bool</span>
+	streamBuf <span class="typ">string</span>
+	streamCh  <span class="op">&lt;-</span><span class="kw">chan</span> llm.StreamChunk
+
+	<span class="cmt">// Git</span>
+	gitInfo   gitinfo.Info
+
+	width  <span class="typ">int</span>
+	height <span class="typ">int</span>
+	ready  <span class="typ">bool</span>
+}
+
+<span class="kw">func</span> <span class="fn">NewModel</span>(cfg config.Config) Model {
+	ta <span class="op">:=</span> textarea.<span class="fn">New</span>()
+	ta.<span class="fn">SetHeight</span>(<span class="num">1</span>)
+	ta.<span class="fn">Focus</span>()
+
+	cwd, _ <span class="op">:=</span> os.<span class="fn">Getwd</span>()
+
+	<span class="kw">return</span> Model{
+		cfg:      cfg,
+		cwd:      cwd,
+		fileTree: ui.<span class="fn">NewFileTree</span>(cwd),
+		editor:   ui.<span class="fn">NewEditor</span>(),
+		layout:   ui.<span class="fn">NewLayout</span>(<span class="num">80</span>, <span class="num">24</span>),
+		focus:    ui.PanelChat,
+		textarea: ta,
+		gitInfo:  gitinfo.<span class="fn">Fetch</span>(<span class="str">"."</span>),
+	}
+}`;
+
+// === CHAT ===
+const chatHTML = `
+<div class="msg msg-user">
+  <div class="msg-label">You</div>
+  <div class="msg-content">app.go Model 구조체 보여줘</div>
+</div>
+<div class="msg msg-tool">&gt;&gt; file_read("internal/app/app.go")</div>
+<div class="msg msg-tool">&lt;&lt; OK (1,717 bytes)</div>
+<div class="msg msg-assistant">
+  <div class="msg-label">AI</div>
+  <div class="msg-content"><code>Model</code> 구조체의 핵심 필드입니다:
+<div class="code-block"><span class="kw">type</span> <span class="typ">Model</span> <span class="kw">struct</span> {
+    layout    ui.Layout     <span class="cmt">// 3-panel layout</span>
+    fileTree  ui.FileTree   <span class="cmt">// file browser</span>
+    editor    ui.Editor     <span class="cmt">// code viewer/editor</span>
+    focus     ui.Panel      <span class="cmt">// active panel</span>
+}</div>
+멀티에이전트/컴패니언은 제거되고 레이아웃 필드가 추가되었습니다.</div>
+</div>
+<div class="msg msg-user">
+  <div class="msg-label">You</div>
+  <div class="msg-content">editor.go에 Save 함수 추가해줘</div>
+</div>
+<div class="msg msg-tool">&gt;&gt; file_edit("internal/ui/editor.go")</div>
+<div class="msg msg-tool">&lt;&lt; OK, replaced 1 occurrence</div>
+<div class="msg msg-assistant">
+  <div class="msg-label">AI <span class="streaming-dot">&#9679;</span></div>
+  <div class="msg-content"><code>Save()</code> 함수를 추가했습니다. <code>Ctrl+S</code>로 현재 편집 중인 파일을 저장합니다.<span class="cursor-blink"></span></div>
+</div>`;
+
+// === INIT ===
+document.getElementById('fileTree').innerHTML = renderTree(tree, 0);
+document.getElementById('codeArea').innerHTML = code;
+document.getElementById('chatMessages').innerHTML = chatHTML;
+
+// Line numbers
+const lines = document.getElementById('codeArea').innerText.split('\n').length;
+let nums = '';
+for (let i = 1; i <= lines; i++) nums += i + '\n';
+document.getElementById('lineNumbers').textContent = nums;
+
+// Tree click
+document.getElementById('fileTree').addEventListener('click', e => {
+  const item = e.target.closest('.tree-item');
+  if (!item) return;
+  document.querySelectorAll('.tree-item.selected').forEach(i => i.classList.remove('selected'));
+  item.classList.add('selected');
+});
+
+// Chat input
+document.getElementById('chatInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const v = this.value.trim();
+    if (!v) return;
+    const cm = document.getElementById('chatMessages');
+    cm.innerHTML += `
+      <div class="msg msg-user"><div class="msg-label">You</div><div class="msg-content">${v}</div></div>
+      <div class="msg msg-assistant"><div class="msg-label">AI <span class="streaming-dot">\u25cf</span></div>
+      <div class="msg-content">\ub124, \ud655\uc778\ud558\uaca0\uc2b5\ub2c8\ub2e4<span class="cursor-blink"></span></div></div>`;
+    cm.scrollTop = cm.scrollHeight;
+    this.value = '';
+  }
+});
+</script>
+</body>
+</html>
