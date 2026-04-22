@@ -918,7 +918,7 @@
     ██║   ██╔══╝  ██║     ██╔══██║██╔══██║██║
     ██║   ███████╗╚██████╗██║  ██║██║  ██║██║
     ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  CODE</pre>
-      <div class="a tag">v0.9.0</div>
+      <div class="a tag">v0.9.4</div>
       <h1 class="a">AI 코딩 어시스턴트</h1>
       <p class="a subtitle">Single Binary &middot; Any Model &middot; Any Network</p>
       <div class="tag-row a">
@@ -961,7 +961,7 @@
     <!-- Slide 3: Key Differentiators -->
     <div class="slide"
          data-notes="6가지 핵심 차별점입니다. 특히 단일 바이너리라 USB에 복사해서 바로 실행 가능하고, 어떤 LLM이든 연결할 수 있습니다. 멀티 에이전트는 두 모델이 동시에 작동해서 코드 품질을 높입니다.">
-      <h2 class="a" style="margin-bottom: 22px;">핵심 <span class="hi">차별점</span></h2>
+      <h2 class="a" style="margin-bottom: 22px;">핵심 <span class="hi">기능</span></h2>
       <div class="diff-grid">
         <div class="diff-card a">
           <span class="diff-card-icon">&#128190;</span>
@@ -1077,17 +1077,17 @@
     <!-- Slide 5: Screenshot - Terminal -->
     <div class="slide"
          data-notes="실제 택가이코드를 터미널에서 실행한 모습입니다. macOS, Windows, Linux 어디서든 동일한 화면입니다.">
-      <h2 class="a" style="margin-bottom: 28px;">실제 화면 &mdash; <span class="hi">터미널</span></h2>
-      <div class="a" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
-        <div style="padding: 10px 16px; background: var(--code-bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px;">
+      <h2 class="a" style="margin-bottom: 16px;">실제 화면 &mdash; <span class="hi">터미널</span></h2>
+      <div class="a" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; width: 100%; max-height: 80vh; box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
+        <div style="padding: 8px 16px; background: var(--code-bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px;">
           <span class="code-dot red"></span>
           <span class="code-dot yellow"></span>
           <span class="code-dot green"></span>
           <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); margin-left: 8px;">Terminal &mdash; ./techai</span>
         </div>
         <!-- screenshot1.png: 터미널에서 techai 실행 캡처 -->
-        <div style="display: flex; align-items: center; justify-content: center; background: var(--code-bg);">
-          <img src="screenshot1.png" alt="TECHAI in Terminal" style="width: 100%; display: block;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\'aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; color:var(--hint-color); font-family:var(--font-mono); font-size:14px; text-align:center; padding:40px;\'>screenshot1.png<br><br>터미널에서 techai 실행 스크린샷을<br>이 폴더에 넣어주세요</div>'">
+        <div style="display: flex; align-items: center; justify-content: center; background: var(--code-bg); overflow: hidden;">
+          <img src="screenshot1.png" alt="TECHAI in Terminal" style="width: 100%; max-height: 72vh; object-fit: cover; object-position: top; display: block;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\'aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; color:var(--hint-color); font-family:var(--font-mono); font-size:14px; text-align:center; padding:40px;\'>screenshot1.png<br><br>터미널에서 techai 실행 스크린샷을<br>이 폴더에 넣어주세요</div>'">
         </div>
       </div>
     </div>
@@ -1134,7 +1134,7 @@
     <!-- Slide: Knowledge -->
     <div class="slide"
          data-notes="81개의 전문 지식 문서가 바이너리에 내장되어 있습니다. 사용자가 질문하면 관련 문서를 자동으로 찾아서 AI에게 주입합니다. 벡터 DB 없이 1ms 이내로 동작합니다.">
-      <h2 class="a" style="margin-bottom: 22px;">내장 지식 <span class="hi">81문서</span> <span style="font-size:1rem; color:var(--text-secondary);">&mdash; 벡터 DB 없이 ~1ms 검색</span></h2>
+      <h2 class="a" style="margin-bottom: 22px;">지식 문서 <span class="hi">시스템</span> <span style="font-size:1rem; color:var(--text-secondary);">&mdash; 사용자 추가 가능 · 81개 기본 제공 · ON/OFF 선택</span></h2>
       <div class="diff-grid" style="grid-template-columns: repeat(3, 1fr); gap: 16px;">
         <div class="diff-card a">
           <div class="diff-icon"><i data-lucide="layers" style="width:24px;height:24px;color:var(--accent);"></i></div>
@@ -1168,7 +1168,7 @@
         </div>
       </div>
       <p class="a" style="margin-top: 24px; text-align: center; color: var(--text-secondary); font-size: 1.05rem;">
-        3단계 검색: <span style="color:var(--accent);">키워드 추출</span> &#8594; <span style="color:var(--accent);">본문 전체 검색</span> &#8594; <span style="color:var(--accent);">LLM 판단</span> &nbsp;|&nbsp; 사용자 지식 문서 추가 가능 (.tgc/knowledge/)
+        <span style="color:var(--accent);">사용자 지식 문서 추가 가능</span> (.tgc/knowledge/) &nbsp;|&nbsp; 81개 기본 내장 &nbsp;|&nbsp; 프로젝트별 필요한 팩만 <span style="color:var(--accent);">ON/OFF</span> 선택 &nbsp;|&nbsp; 벡터 DB 없이 ~1ms 검색
       </p>
     </div>
 
@@ -1231,11 +1231,68 @@
       <p class="a" style="margin-top: 12px; text-align: center; color: var(--accent); font-size: 1.1rem;">사내망에서도 지금 바로 사용 가능합니다</p>
     </div>
 
+    <!-- Slide: Demo Video -->
+    <div class="slide"
+         data-notes="시연 영상을 재생합니다. 택가이코드가 실제로 SuperSOL 데모 프로젝트의 UI를 수정하는 과정입니다.">
+      <h2 class="a" style="margin-bottom: 20px;">시연 <span class="hi">영상</span></h2>
+      <div class="a" style="width: 100%; max-width: 960px; border-radius: 16px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 8px 32px rgba(0,0,0,0.4); background: #000;">
+        <video controls style="width: 100%; display: block;" poster="">
+          <source src="" type="video/mp4">
+          <!-- 렌더링된 영상 파일을 이 폴더에 넣고 src에 경로를 지정하세요 -->
+        </video>
+        <div style="display: flex; align-items: center; justify-content: center; aspect-ratio: 16/9; color: var(--hint-color); font-family: var(--font-mono); font-size: 14px; text-align: center; padding: 40px;">
+          시연 영상 파일 (techai-demo.mp4)을<br>이 폴더에 넣고 source src를 지정하세요
+        </div>
+      </div>
+      <p class="a" style="margin-top: 16px; text-align: center; color: var(--text-secondary); font-size: 1rem;">
+        SuperSOL 데모 프로젝트 · GPT-OSS-120B · 시나리오 3개
+      </p>
+    </div>
+
+    <!-- Slide: Real-World Effectiveness -->
+    <div class="slide"
+         data-notes="폐쇄망 환경에서의 실효성을 정리한 슬라이드입니다.">
+      <h2 class="a" style="margin-bottom: 24px;">폐쇄망에서의 <span class="hi">실효성</span></h2>
+      <div class="diff-grid" style="grid-template-columns: 1fr 1fr; gap: 20px; max-width: 900px;">
+        <div class="diff-card a">
+          <span class="diff-card-icon">&#128269;</span>
+          <div class="diff-card-body">
+            <h3>단일 파일 찾아서 수정</h3>
+            <p>프로젝트 전체를 검색해서 대상 파일을 찾고, 수정까지 자동 수행.<br>멀티 에이전트로 <span style="color:var(--accent);">여러 파일 병렬 탐색</span>도 가능합니다.</p>
+          </div>
+        </div>
+        <div class="diff-card a">
+          <span class="diff-card-icon">&#128218;</span>
+          <div class="diff-card-body">
+            <h3>지식 문서 선택 참조</h3>
+            <p>81개 기본 내장 + 사용자 문서 추가 가능.<br>프로젝트에 필요한 팩만 <span style="color:var(--accent);">ON/OFF</span>해서 컨텍스트에 주입.</p>
+          </div>
+        </div>
+        <div class="diff-card a">
+          <span class="diff-card-icon">&#9989;</span>
+          <div class="diff-card-body">
+            <h3>충분한 실사용 효과</h3>
+            <p>단순 UI 수정부터 코드 분석까지 <span style="color:var(--accent);">오픈소스 모델만으로 실무 활용</span> 가능.<br>모델 업그레이드 시 성능이 자동으로 향상됩니다.</p>
+          </div>
+        </div>
+        <div class="diff-card a">
+          <span class="diff-card-icon">&#128274;</span>
+          <div class="diff-card-body">
+            <h3>폐쇄망 현실 인정 + 대비</h3>
+            <p>외부 프론티어 모델만큼은 아니지만,<br><span style="color:var(--accent);">사내 모델이 발전하면 코드 수정 없이 즉시 반영</span>.<br>최선의 성능으로 동작하게 설계했습니다.</p>
+          </div>
+        </div>
+      </div>
+      <p class="a" style="margin-top: 24px; text-align: center; font-size: 1.1rem; color: var(--text-secondary);">
+        <span style="color: var(--accent); font-weight: 700;">config.yaml 한 줄</span> 수정으로 모델 교체 &rarr; 도구 전체가 자동으로 업그레이드
+      </p>
+    </div>
+
     <!-- Slide: Model Comparison -->
     <div class="slide"
          data-notes="현재 사내망에서 쓸 수 있는 최선의 모델로 개발했습니다. 참고로 택가이웹 초기 버전은 gpt-oss-120b와 Gemini 무료 버전만으로 제작했습니다. Gemma 4로 교체하면 성능이 크게 향상될 것으로 예상합니다.">
       <h2 class="a" style="margin-bottom: 8px;">모델 <span class="hi">비교</span> & 기대효과</h2>
-      <p class="a" style="color: var(--text-secondary); margin-bottom: 20px; font-size: 1rem;">현재 사내망 최선 모델 사용 중 &mdash; 모델 교체만으로 성능 향상 가능</p>
+      <p class="a" style="color: var(--text-secondary); margin-bottom: 20px; font-size: 1rem;">2026년 4월 22일 기준 · 사내망 모델 중심 &mdash; 모델 교체만으로 성능 향상 가능</p>
       <div class="a" style="width: 100%; max-width: 1000px; overflow-x: auto;">
         <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
           <thead>
@@ -1248,43 +1305,29 @@
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom: 1px solid var(--border); opacity: 0.5;">
-              <td style="padding: 10px 12px; color: var(--hint-color);">1</td>
-              <td style="padding: 10px 12px; color: var(--hint-color);">Claude Opus 4.6 <span style="font-size:0.75rem;">(closed)</span></td>
-              <td style="text-align: center; padding: 10px 12px; color: var(--hint-color);">52</td>
-              <td style="text-align: center; padding: 10px 12px; color: var(--hint-color);">~75%</td>
-              <td style="padding: 10px 12px; color: var(--hint-color); font-size:0.85rem;">비공개 모델 1위</td>
-            </tr>
-            <tr style="border-bottom: 1px solid var(--border); opacity: 0.5;">
-              <td style="padding: 10px 12px; color: var(--hint-color);">2</td>
-              <td style="padding: 10px 12px; color: var(--hint-color);">Claude Sonnet 4.6 <span style="font-size:0.75rem;">(closed)</span></td>
-              <td style="text-align: center; padding: 10px 12px; color: var(--hint-color);">52</td>
-              <td style="text-align: center; padding: 10px 12px; color: var(--hint-color);">59%</td>
-              <td style="padding: 10px 12px; color: var(--hint-color); font-size:0.85rem;">비공개 모델 2위</td>
-            </tr>
             <tr style="border-bottom: 1px solid var(--border); background: rgba(59,130,246,0.08);">
-              <td style="padding: 10px 12px; color: var(--accent); font-weight: 700;">3</td>
+              <td style="padding: 10px 12px; color: var(--accent); font-weight: 700;">1</td>
               <td style="padding: 10px 12px; color: var(--accent); font-weight: 600;">Gemma 4 31B <span style="font-size:0.75rem; color: var(--accent-hover);">OPEN &#x2191;</span></td>
               <td style="text-align: center; padding: 10px 12px; color: var(--accent); font-weight: 700;">39</td>
               <td style="text-align: center; padding: 10px 12px; color: var(--accent);">36%</td>
               <td style="padding: 10px 12px; color: var(--accent); font-size:0.85rem;">오픈 최강. 교체 예정</td>
             </tr>
             <tr style="border-bottom: 1px solid var(--border); background: rgba(52,211,153,0.06);">
-              <td style="padding: 10px 12px; font-weight: 600;">4</td>
+              <td style="padding: 10px 12px; font-weight: 600;">2</td>
               <td style="padding: 10px 12px; font-weight: 600;">GPT-OSS-120B <span style="font-size:0.75rem; color: var(--text-secondary);">현재 Super</span></td>
               <td style="text-align: center; padding: 10px 12px; font-weight: 700;">33</td>
               <td style="text-align: center; padding: 10px 12px;">24%</td>
               <td style="padding: 10px 12px; font-size:0.85rem; color: var(--text-secondary);">현재 사내망 메인 모델</td>
             </tr>
             <tr style="border-bottom: 1px solid var(--border); background: rgba(59,130,246,0.05);">
-              <td style="padding: 10px 12px; color: var(--accent);">5</td>
+              <td style="padding: 10px 12px; color: var(--accent);">3</td>
               <td style="padding: 10px 12px; color: var(--accent);">Gemma 4 26B MoE <span style="font-size:0.75rem; color: var(--accent-hover);">OPEN &#x2191;</span></td>
               <td style="text-align: center; padding: 10px 12px; color: var(--accent);">31</td>
               <td style="text-align: center; padding: 10px 12px; color: var(--accent);">14%</td>
               <td style="padding: 10px 12px; color: var(--accent); font-size:0.85rem;">300+ tok/s. Dev 교체 예정</td>
             </tr>
             <tr style="background: rgba(52,211,153,0.06);">
-              <td style="padding: 10px 12px; font-weight: 600;">6</td>
+              <td style="padding: 10px 12px; font-weight: 600;">4</td>
               <td style="padding: 10px 12px; font-weight: 600;">Qwen3-Coder-30B <span style="font-size:0.75rem; color: var(--text-secondary);">현재 Dev</span></td>
               <td style="text-align: center; padding: 10px 12px; font-weight: 700;">20</td>
               <td style="text-align: center; padding: 10px 12px;">미공개</td>
@@ -1296,7 +1339,7 @@
       <div class="a" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1000px; width: 100%; margin-top: 20px;">
         <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px;">
           <h3 style="font-size: 1rem; color: var(--accent); margin-bottom: 6px;">기대효과: 모델 교체 시</h3>
-          <p style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.6;">Super: GPT-OSS-120B(33) &#8594; <span style="color:var(--accent);">Gemma 4 31B(39)</span> &nbsp;<span style="color:var(--accent);">+18%</span><br>Dev: Qwen3-Coder(20) &#8594; <span style="color:var(--accent);">Gemma 4 26B MoE(31)</span> &nbsp;<span style="color:var(--accent);">+55%</span></p>
+          <p style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.6;">Super: GPT-OSS-120B(AA:33) &#8594; <span style="color:var(--accent);">Gemma 4 31B(AA:39)</span> &nbsp;<span style="color:var(--accent);">+18%</span><br>Dev: Qwen3-Coder-30B(AA:20) &#8594; <span style="color:var(--accent);">Gemma 4 26B MoE(AA:31)</span> &nbsp;<span style="color:var(--accent);">+55%</span></p>
         </div>
         <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px;">
           <h3 style="font-size: 1rem; color: var(--text-secondary); margin-bottom: 6px; font-style: italic;">참고</h3>
@@ -1309,7 +1352,7 @@
     <div class="slide"
          data-notes="현재 4위+6위 조합에서 3위+5위 조합으로 교체하면 이 정도 성능 향상이 예상됩니다. 막대가 길수록 좋은 겁니다.">
       <h2 class="a" style="margin-bottom: 8px;">모델 교체 <span class="hi">기대효과</span></h2>
-      <p class="a" style="color: var(--text-secondary); margin-bottom: 32px; font-size: 1.05rem;">현재 4위 + 6위 조합 &#8594; <span style="color:var(--accent);">3위 + 5위</span> 조합으로 업그레이드</p>
+      <p class="a" style="color: var(--text-secondary); margin-bottom: 32px; font-size: 1.05rem;">현재 GPT-OSS-120B + Qwen3-Coder-30B &#8594; <span style="color:var(--accent);">Gemma 4 31B + Gemma 4 26B MoE</span></p>
 
       <div class="a" style="width: 100%; max-width: 900px;">
         <!-- Super Model -->
@@ -1370,8 +1413,8 @@
           <div class="roadmap-item">
             <div class="roadmap-dot now">NOW</div>
             <div class="roadmap-content">
-              <h3>v0.9.0 &mdash; 현재</h3>
-              <p>CLI, 멀티 에이전트, MCP, 81개 지식 문서, 온프레미스 빌드 완성</p>
+              <h3>v0.9.4 &mdash; 현재</h3>
+              <p>CLI, 멀티 에이전트, MCP, Knowledge Packs, auto-prefetch, 온프레미스 빌드 완성</p>
             </div>
           </div>
           <div class="roadmap-item">
