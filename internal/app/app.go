@@ -2293,30 +2293,11 @@ func (m *Model) waitForNextMulti() tea.Cmd {
 
 // shouldUseMulti decides whether to activate multi-agent for this input.
 // Hybrid approach: keyword matching (instant) → LLM fallback (5s timeout).
-func (m *Model) shouldUseMulti(input string) bool { //nolint:unparam
+func (m *Model) shouldUseMulti(_ string) bool {
 	// ── SUSPENDED: sub-agent system globally disabled until re-open ──
 	// All multi-agent functionality is preserved in code but hard-gated here.
-	// To re-enable: remove this early return and restore the original parameter name.
+	// To re-enable: restore the original logic from git history.
 	return false
-	// If auto mode, use hybrid detection with LLM confirmation
-	if m.multiAuto {
-		ctxWindow := llm.GetCapability(m.currentModel()).ContextWindow
-		// 1st: keyword + heuristic (instant, 0ms)
-		keywordMatch := multi.AutoDetect(input, m.history, m.tokenCount, ctxWindow)
-		if keywordMatch {
-			// Keyword matched — confirm with LLM to avoid false positives
-			// Use Super model (Dev model may be unavailable)
-			if !multi.AutoDetectWithLLM(m.client, m.cfg.Models.Super, input) {
-				config.DebugLog("[MULTI-AUTO] keyword matched but LLM said NO, skipping")
-				return false
-			}
-			return true
-		}
-		// 2nd: No keyword match — try LLM classification (max 5s)
-		return multi.AutoDetectWithLLM(m.client, m.cfg.Models.Super, input)
-	}
-	// Non-auto: always use multi when enabled
-	return true
 }
 
 // startMultiStream launches the multi-agent orchestrator in a background goroutine.

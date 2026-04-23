@@ -121,3 +121,83 @@ func ModeColor(mode int) color.Color {
 		return SuperColor
 	}
 }
+
+// Theme represents a color theme preset.
+type Theme struct {
+	Name      string
+	Primary   color.Color
+	Secondary color.Color
+	Accent    color.Color
+	Bg        color.Color
+	Text      color.Color
+}
+
+// Themes contains all available theme presets.
+var Themes = map[string]Theme{
+	"navy": {
+		Name:      "Navy (기본)",
+		Primary:   lipgloss.Color("#60A5FA"),
+		Secondary: lipgloss.Color("#38BDF8"),
+		Accent:    lipgloss.Color("#FBBF24"),
+		Bg:        lipgloss.Color("#0F172A"),
+		Text:      lipgloss.Color("#E2E8F0"),
+	},
+	"honey": {
+		Name:      "Honey Gold",
+		Primary:   lipgloss.Color("#F9E2AF"),
+		Secondary: lipgloss.Color("#FAB387"),
+		Accent:    lipgloss.Color("#CBA6F7"),
+		Bg:        lipgloss.Color("#1E1E2E"),
+		Text:      lipgloss.Color("#CDD6F4"),
+	},
+	"ocean": {
+		Name:      "Ocean",
+		Primary:   lipgloss.Color("#7AA2F7"),
+		Secondary: lipgloss.Color("#7DCFFF"),
+		Accent:    lipgloss.Color("#BB9AF7"),
+		Bg:        lipgloss.Color("#1A1B26"),
+		Text:      lipgloss.Color("#C0CAF5"),
+	},
+	"dracula": {
+		Name:      "Dracula",
+		Primary:   lipgloss.Color("#FF79C6"),
+		Secondary: lipgloss.Color("#BD93F9"),
+		Accent:    lipgloss.Color("#50FA7B"),
+		Bg:        lipgloss.Color("#282A36"),
+		Text:      lipgloss.Color("#F8F8F2"),
+	},
+	"nord": {
+		Name:      "Nord",
+		Primary:   lipgloss.Color("#88C0D0"),
+		Secondary: lipgloss.Color("#81A1C1"),
+		Accent:    lipgloss.Color("#B48EAD"),
+		Bg:        lipgloss.Color("#2E3440"),
+		Text:      lipgloss.Color("#ECEFF4"),
+	},
+	"forest": {
+		Name:      "Forest",
+		Primary:   lipgloss.Color("#A5D6A7"),
+		Secondary: lipgloss.Color("#81C784"),
+		Accent:    lipgloss.Color("#FFD54F"),
+		Bg:        lipgloss.Color("#1B2A1B"),
+		Text:      lipgloss.Color("#E0E0E0"),
+	},
+}
+
+// CurrentTheme holds the active theme name.
+var CurrentTheme = "navy"
+
+// ApplyTheme switches the global color variables to the given theme.
+func ApplyTheme(name string) bool {
+	t, ok := Themes[name]
+	if !ok {
+		return false
+	}
+	CurrentTheme = name
+	ColorPrimary = t.Primary
+	ColorSecondary = t.Secondary
+	ColorAccent = t.Accent
+	ColorBg = t.Bg
+	ColorText = t.Text
+	return true
+}
