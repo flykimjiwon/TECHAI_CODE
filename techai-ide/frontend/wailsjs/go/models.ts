@@ -14,6 +14,24 @@ export namespace main {
 	        this.content = source["content"];
 	    }
 	}
+	export class ChatSession {
+	    id: string;
+	    title: string;
+	    createdAt: string;
+	    messages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChatSession(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.createdAt = source["createdAt"];
+	        this.messages = source["messages"];
+	    }
+	}
 	export class FileEntry {
 	    name: string;
 	    path: string;

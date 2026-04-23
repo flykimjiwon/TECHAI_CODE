@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Sparkles, Send, Trash2, BookOpen, Download } from 'lucide-react'
-import { SendMessage, ClearChat, GetModel, GetKnowledgePacks, ToggleKnowledgePack, ExportChat } from '../../wailsjs/go/main/App'
+import { SendMessage, ClearChat, GetModel, GetKnowledgePacks, ToggleKnowledgePack, ExportChat, SaveSession, ListSessions, LoadSession } from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 
 interface Message {
@@ -112,10 +112,30 @@ export default function ChatPanel() {
           setMessages(prev => [...prev, { role: 'tool', content: `Current model: ${m}` }])
         })
         break
+      case '/save':
+        SaveSession(parts.slice(1).join(' ')).then(id => {
+          setMessages(prev => [...prev, { role: 'tool', content: `Session saved: ${id}` }])
+        }).catch(e => setMessages(prev => [...prev, { role: 'tool', content: `Error: ${e}` }]))
+        break
+      case '/sessions':
+        ListSessions().then(sessions => {
+          const list = sessions.length > 0
+            ? sessions.map(s => `${s.id} — ${s.title} (${s.messages} msgs)`).join('\n')
+            : 'No saved sessions'
+          setMessages(prev => [...prev, { role: 'tool', content: list }])
+        })
+        break
+      case '/load':
+        if (parts[1]) {
+          LoadSession(parts[1]).then(() => {
+            setMessages(prev => [...prev, { role: 'tool', content: `Loaded session: ${parts[1]}` }])
+          }).catch(e => setMessages(prev => [...prev, { role: 'tool', content: `Error: ${e}` }]))
+        }
+        break
       case '/help':
         setMessages(prev => [...prev, {
           role: 'tool',
-          content: 'Commands: /clear /export /model /help'
+          content: 'Commands: /clear /export /save [title] /sessions /load [id] /model /help'
         }])
         break
       default:

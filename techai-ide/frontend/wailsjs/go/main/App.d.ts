@@ -6,6 +6,8 @@ export function ClearChat():Promise<void>;
 
 export function DeleteFile(arg1:string):Promise<void>;
 
+export function DeleteSession(arg1:string):Promise<void>;
+
 export function ExportChat():Promise<string>;
 
 export function FileExists(arg1:string):Promise<boolean>;
@@ -46,6 +48,10 @@ export function GitUnstage(arg1:string):Promise<void>;
 
 export function ListFiles(arg1:string,arg2:number):Promise<Array<main.FileEntry>>;
 
+export function ListSessions():Promise<Array<main.ChatSession>>;
+
+export function LoadSession(arg1:string):Promise<void>;
+
 export function OpenFolder():Promise<string>;
 
 export function OpenInBrowser(arg1:string):Promise<void>;
@@ -55,6 +61,8 @@ export function ReadFile(arg1:string):Promise<string>;
 export function RenameFile(arg1:string,arg2:string):Promise<void>;
 
 export function ResizeTerminal(arg1:number,arg2:number):Promise<void>;
+
+export function SaveSession(arg1:string):Promise<string>;
 
 export function SaveSettings(arg1:string,arg2:string,arg3:string):Promise<void>;
 

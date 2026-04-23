@@ -23,6 +23,80 @@ const kbd: CSSProperties = {
   display: 'inline-block',
 }
 
+function isMarkdown(name: string): boolean {
+  const ext = name.split('.').pop()?.toLowerCase() || ''
+  return ['md', 'mdx'].includes(ext)
+}
+
+function renderMarkdown(text: string) {
+  const parts: JSX.Element[] = []
+  let key = 0
+  const lines = text.split('\n')
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    // Code block
+    if (line.startsWith('```')) {
+      const lang = line.slice(3).trim()
+      const codeLines: string[] = []
+      i++
+      while (i < lines.length && !lines[i].startsWith('```')) {
+        codeLines.push(lines[i])
+        i++
+      }
+      i++ // skip closing ```
+      parts.push(
+        <pre key={key++} style={{
+          background: 'var(--bg-base)', padding: '10px 12px', borderRadius: 6,
+          margin: '8px 0', overflow: 'auto', border: '1px solid var(--border)',
+          fontFamily: 'var(--font-code)', fontSize: 12, lineHeight: 1.5,
+        }}>
+          {lang && <div style={{ fontSize: 10, color: 'var(--fg-dim)', marginBottom: 4 }}>{lang}</div>}
+          {codeLines.join('\n')}
+        </pre>
+      )
+      continue
+    }
+    // Headings
+    if (line.startsWith('### ')) {
+      parts.push(<h3 key={key++} style={{ fontSize: 15, fontWeight: 600, margin: '16px 0 6px', color: 'var(--fg-primary)' }}>{line.slice(4)}</h3>)
+    } else if (line.startsWith('## ')) {
+      parts.push(<h2 key={key++} style={{ fontSize: 17, fontWeight: 700, margin: '20px 0 8px', color: 'var(--fg-primary)' }}>{line.slice(3)}</h2>)
+    } else if (line.startsWith('# ')) {
+      parts.push(<h1 key={key++} style={{ fontSize: 20, fontWeight: 700, margin: '24px 0 10px', color: 'var(--fg-primary)' }}>{line.slice(2)}</h1>)
+    }
+    // List
+    else if (line.startsWith('- ') || line.startsWith('* ')) {
+      parts.push(<div key={key++} style={{ paddingLeft: 16 }}>&#8226; {line.slice(2)}</div>)
+    }
+    // Horizontal rule
+    else if (line.match(/^-{3,}$/) || line.match(/^\*{3,}$/)) {
+      parts.push(<hr key={key++} style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '12px 0' }} />)
+    }
+    // Empty line
+    else if (line.trim() === '') {
+      parts.push(<div key={key++} style={{ height: 8 }} />)
+    }
+    // Regular text
+    else {
+      // Inline code
+      const rendered = line.split(/(`[^`]+`)/g).map((part, j) => {
+        if (part.startsWith('`') && part.endsWith('`')) {
+          return <code key={j} style={{ fontFamily: 'var(--font-code)', fontSize: 12, background: 'var(--bg-active)', padding: '1px 5px', borderRadius: 3, color: 'var(--accent)' }}>{part.slice(1, -1)}</code>
+        }
+        // Bold
+        return part.split(/(\*\*[^*]+\*\*)/g).map((p2, k) => {
+          if (p2.startsWith('**') && p2.endsWith('**')) return <strong key={k}>{p2.slice(2, -2)}</strong>
+          return <span key={k}>{p2}</span>
+        })
+      })
+      parts.push(<div key={key++}>{rendered}</div>)
+    }
+    i++
+  }
+  return <>{parts}</>
+}
+
 function isImage(name: string): boolean {
   const ext = name.split('.').pop()?.toLowerCase() || ''
   return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico'].includes(ext)
@@ -45,6 +119,9 @@ export default function Editor({ filePath, onCursorChange }: Props) {
   const [saveFlash, setSaveFlash] = useState(false)
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
+  const [autoSave, setAutoSave] = useState(() => localStorage.getItem('techai-autosave') === 'true')
+  const [mdPreview, setMdPreview] = useState(false)
+  const autoSaveTimer = useRef<number>(0)
   const findRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -120,6 +197,18 @@ export default function Editor({ filePath, onCursorChange }: Props) {
     setTabs(prev => prev.map(t =>
       t.path === activeTab ? { ...t, content: value, modified: true } : t
     ))
+    // Auto-save with debounce
+    if (autoSave && activeTab) {
+      clearTimeout(autoSaveTimer.current)
+      autoSaveTimer.current = window.setTimeout(() => {
+        const tab = tabs.find(t => t.path === activeTab)
+        if (tab) {
+          WriteFile(tab.path, value).then(() => {
+            setTabs(prev => prev.map(t => t.path === activeTab ? { ...t, modified: false } : t))
+          }).catch(() => {})
+        }
+      }, 1500)
+    }
   }
 
   function closeTab(path: string, e: React.MouseEvent) {
@@ -163,6 +252,30 @@ export default function Editor({ filePath, onCursorChange }: Props) {
             </span>
           </div>
         ))}
+        {/* MD Preview toggle */}
+        {current && isMarkdown(current.name) && (
+          <button onClick={() => setMdPreview(p => !p)} style={{
+            padding: '0 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer',
+            background: mdPreview ? 'var(--accent-glow)' : 'transparent',
+            color: mdPreview ? 'var(--accent)' : 'var(--fg-dim)',
+            border: 'none', fontFamily: 'var(--font-ui)',
+          }}>
+            {mdPreview ? 'Edit' : 'Preview'}
+          </button>
+        )}
+        {/* Auto-save toggle */}
+        <button onClick={() => {
+          const next = !autoSave
+          setAutoSave(next)
+          localStorage.setItem('techai-autosave', String(next))
+        }} style={{
+          padding: '0 8px', fontSize: 10, cursor: 'pointer',
+          background: autoSave ? 'rgba(16,185,129,0.15)' : 'transparent',
+          color: autoSave ? 'var(--success)' : 'var(--fg-dim)',
+          border: 'none', fontFamily: 'var(--font-ui)',
+        }}>
+          {autoSave ? 'Auto' : 'Manual'}
+        </button>
         {saveFlash && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 12px', fontSize: 11, color: 'var(--success)' }}>
             <Save size={12} /> Saved
@@ -220,6 +333,14 @@ export default function Editor({ filePath, onCursorChange }: Props) {
               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
             />
             <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{current.name}</span>
+          </div>
+        ) : current && isMarkdown(current.name) && mdPreview ? (
+          <div style={{
+            height: '100%', overflow: 'auto', padding: '16px 24px',
+            fontFamily: 'var(--font-ui)', fontSize: 13, lineHeight: 1.8,
+            color: 'var(--fg-secondary)',
+          }}>
+            {renderMarkdown(current.content)}
           </div>
         ) : current ? (
           <CodeEditor

@@ -555,6 +555,10 @@ func (a *App) runShell(name string, args ...string) (string, error) {
 	return string(out), err
 }
 
+func openaiMsg(role, content string) openai.ChatCompletionMessage {
+	return openai.ChatCompletionMessage{Role: role, Content: content}
+}
+
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

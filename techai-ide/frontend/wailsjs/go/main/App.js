@@ -10,6 +10,10 @@ export function DeleteFile(arg1) {
   return window['go']['main']['App']['DeleteFile'](arg1);
 }
 
+export function DeleteSession(arg1) {
+  return window['go']['main']['App']['DeleteSession'](arg1);
+}
+
 export function ExportChat() {
   return window['go']['main']['App']['ExportChat']();
 }
@@ -90,6 +94,14 @@ export function ListFiles(arg1, arg2) {
   return window['go']['main']['App']['ListFiles'](arg1, arg2);
 }
 
+export function ListSessions() {
+  return window['go']['main']['App']['ListSessions']();
+}
+
+export function LoadSession(arg1) {
+  return window['go']['main']['App']['LoadSession'](arg1);
+}
+
 export function OpenFolder() {
   return window['go']['main']['App']['OpenFolder']();
 }
@@ -108,6 +120,10 @@ export function RenameFile(arg1, arg2) {
 
 export function ResizeTerminal(arg1, arg2) {
   return window['go']['main']['App']['ResizeTerminal'](arg1, arg2);
+}
+
+export function SaveSession(arg1) {
+  return window['go']['main']['App']['SaveSession'](arg1);
 }
 
 export function SaveSettings(arg1, arg2, arg3) {
