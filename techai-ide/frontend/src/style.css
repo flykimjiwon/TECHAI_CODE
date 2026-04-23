@@ -24,6 +24,15 @@
   --error: #ef4444;
   --status-bg: #3b82f6;
   --status-fg: #ffffff;
+  --code-keyword: #b07cd8;
+  --code-function: #7ba8d4;
+  --code-string: #8eb573;
+  --code-number: #c9956a;
+  --code-comment: #636d83;
+  --code-type: #d4b76a;
+  --code-variable: #d4868c;
+  --code-operator: #89b8c2;
+  --code-text: #8b929e;
   --font-ui: 'Geist', 'Pretendard', -apple-system, system-ui, sans-serif;
   --font-code: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
 }

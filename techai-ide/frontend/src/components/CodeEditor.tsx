@@ -35,28 +35,28 @@ const techaiTheme = EditorView.theme({
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(255,200,0,0.5)' },
   '.cm-foldGutter .cm-gutterElement': { color: 'var(--fg-dim)', cursor: 'pointer', fontSize: '11px' },
   '.cm-scroller': { overflow: 'auto' },
-  // One Dark syntax colors
-  '.cm-keyword': { color: '#c678dd' },
-  '.cm-atom': { color: '#d19a66' },
-  '.cm-number': { color: '#d19a66' },
-  '.cm-string, .cm-string2': { color: '#98c379' },
-  '.cm-comment': { color: '#5c6370', fontStyle: 'italic' },
-  '.cm-variableName': { color: '#e06c75' },
-  '.cm-variableName.cm-definition': { color: '#61afef' },
-  '.cm-typeName': { color: '#e5c07b' },
-  '.cm-className': { color: '#e5c07b' },
-  '.cm-definition': { color: '#61afef' },
-  '.cm-function': { color: '#61afef' },
-  '.cm-propertyName': { color: '#e06c75' },
-  '.cm-operator': { color: '#56b6c2' },
-  '.cm-punctuation': { color: '#abb2bf' },
-  '.cm-meta': { color: '#abb2bf' },
-  '.cm-tagName': { color: '#e06c75' },
-  '.cm-attributeName': { color: '#d19a66' },
-  '.cm-bool': { color: '#d19a66' },
-  '.cm-null': { color: '#d19a66' },
-  '.cm-regexp': { color: '#98c379' },
-  '.cm-link': { color: '#61afef', textDecoration: 'underline' },
+  // Muted One Dark — designs-v3 기준 (채도 낮춤)
+  '.cm-keyword': { color: '#b07cd8' },       // 부드러운 퍼플
+  '.cm-atom': { color: '#c9956a' },           // 따뜻한 오렌지
+  '.cm-number': { color: '#c9956a' },
+  '.cm-string, .cm-string2': { color: '#8eb573' }, // 차분한 초록
+  '.cm-comment': { color: '#636d83', fontStyle: 'italic' }, // 좀 더 밝은 회색
+  '.cm-variableName': { color: '#d4868c' },   // 부드러운 레드
+  '.cm-variableName.cm-definition': { color: '#7ba8d4' }, // 차분한 파랑
+  '.cm-typeName': { color: '#d4b76a' },       // 부드러운 옐로
+  '.cm-className': { color: '#d4b76a' },
+  '.cm-definition': { color: '#7ba8d4' },
+  '.cm-function': { color: '#7ba8d4' },       // 차분한 파랑
+  '.cm-propertyName': { color: '#d4868c' },
+  '.cm-operator': { color: '#89b8c2' },       // 부드러운 시안
+  '.cm-punctuation': { color: '#8b929e' },    // 중간 회색
+  '.cm-meta': { color: '#8b929e' },
+  '.cm-tagName': { color: '#d4868c' },
+  '.cm-attributeName': { color: '#c9956a' },
+  '.cm-bool': { color: '#c9956a' },
+  '.cm-null': { color: '#8b929e' },
+  '.cm-regexp': { color: '#8eb573' },
+  '.cm-link': { color: '#7ba8d4', textDecoration: 'underline' },
   '.cm-heading': { color: '#e06c75', fontWeight: 'bold' },
   '.cm-emphasis': { fontStyle: 'italic' },
   '.cm-strong': { fontWeight: 'bold' },

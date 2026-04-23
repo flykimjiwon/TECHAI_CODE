@@ -123,6 +123,7 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
   const [autoSave, setAutoSave] = useState(() => localStorage.getItem('techai-autosave') === 'true')
   const [mdPreview, setMdPreview] = useState(false)
   const [recentProjects, setRecentProjects] = useState<string[]>([])
+  const [dragTab, setDragTab] = useState<string | null>(null)
   const autoSaveTimer = useRef<number>(0)
   const findRef = useRef<HTMLInputElement>(null)
 
@@ -238,13 +239,34 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
         borderBottom: '1px solid var(--border)', overflowX: 'auto', alignItems: 'stretch',
       }}>
         {tabs.map(tab => (
-          <div key={tab.path} onClick={() => setActiveTab(tab.path)} style={{
-            padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7,
-            fontSize: 12.5, color: activeTab === tab.path ? 'var(--fg-primary)' : 'var(--fg-muted)',
-            background: activeTab === tab.path ? 'var(--bg-editor)' : 'var(--bg-activity)',
-            borderRight: '1px solid var(--border)', cursor: 'pointer',
-            minWidth: 110, position: 'relative',
-          }}>
+          <div key={tab.path}
+            onClick={() => setActiveTab(tab.path)}
+            draggable
+            onDragStart={() => setDragTab(tab.path)}
+            onDragOver={e => e.preventDefault()}
+            onDrop={() => {
+              if (dragTab && dragTab !== tab.path) {
+                setTabs(prev => {
+                  const from = prev.findIndex(t => t.path === dragTab)
+                  const to = prev.findIndex(t => t.path === tab.path)
+                  if (from < 0 || to < 0) return prev
+                  const next = [...prev]
+                  const [moved] = next.splice(from, 1)
+                  next.splice(to, 0, moved)
+                  return next
+                })
+              }
+              setDragTab(null)
+            }}
+            onDragEnd={() => setDragTab(null)}
+            style={{
+              padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7,
+              fontSize: 12.5, color: activeTab === tab.path ? 'var(--fg-primary)' : 'var(--fg-muted)',
+              background: activeTab === tab.path ? 'var(--bg-editor)' : dragTab === tab.path ? 'var(--bg-active)' : 'var(--bg-activity)',
+              borderRight: '1px solid var(--border)', cursor: 'grab',
+              minWidth: 110, position: 'relative',
+              opacity: dragTab === tab.path ? 0.5 : 1,
+            }}>
             {activeTab === tab.path && <span style={{
               position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--accent)'
             }} />}
