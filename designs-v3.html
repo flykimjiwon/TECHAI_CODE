@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TECHAI CODE IDE — Design v3</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  :root {
+    /* ── Slate (Default) ── */
+    --bg-base: #0a0a0c;
+    --bg-activity: #08080a;
+    --bg-sidebar: #0e0e11;
+    --bg-editor: #0d0d10;
+    --bg-panel: #111115;
+    --bg-terminal: #08080a;
+    --bg-hover: rgba(255,255,255,0.04);
+    --bg-active: rgba(255,255,255,0.07);
+    --bg-input: #0a0a0c;
+    --border: rgba(255,255,255,0.07);
+    --border-focus: #3b82f6;
+    --fg-primary: #e4e4e7;
+    --fg-secondary: #a1a1aa;
+    --fg-muted: #71717a;
+    --fg-dim: #3f3f46;
+    --accent: #3b82f6;
+    --accent-glow: rgba(59,130,246,0.25);
+    --accent-text: #fff;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --syn-kw: #c678dd;
+    --syn-fn: #61afef;
+    --syn-str: #98c379;
+    --syn-num: #d19a66;
+    --syn-cmt: #5c6370;
+    --syn-typ: #e5c07b;
+    --syn-op: #abb2bf;
+    --status-bg: #3b82f6;
+    --status-fg: #ffffff;
+    --bubble-user-bg: rgba(255,255,255,0.06);
+    --bubble-ai-bg: rgba(255,255,255,0.02);
+    --bubble-ai-border: rgba(255,255,255,0.08);
+    --font-ui: 'Geist', 'Pretendard', -apple-system, system-ui, sans-serif;
+    --font-code: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  }
+
+  /* ── Cursor ── */
+  body.t-cursor {
+    --accent:#f54e00; --accent-glow:rgba(245,78,0,0.25); --border-focus:#f54e00;
+    --status-bg:#f54e00; --syn-kw:#f54e00; --syn-fn:#61afef;
+  }
+  /* ── Linear ── */
+  body.t-linear {
+    --bg-base:#0c0c14; --bg-activity:#08080f; --bg-sidebar:#0e0e18; --bg-editor:#0b0b14;
+    --bg-panel:#12121e; --bg-terminal:#08080f;
+    --accent:#7c3aed; --accent-glow:rgba(124,58,237,0.25); --border-focus:#7c3aed;
+    --status-bg:#7c3aed; --syn-kw:#c4a7e7; --syn-fn:#7c3aed; --syn-str:#56d49e; --syn-typ:#9ccfd8;
+  }
+  /* ── GitHub Dark ── */
+  body.t-github {
+    --bg-base:#0d1117; --bg-activity:#010409; --bg-sidebar:#0d1117; --bg-editor:#0d1117;
+    --bg-panel:#161b22; --bg-terminal:#010409; --border:rgba(48,54,61,0.8);
+    --accent:#58a6ff; --accent-glow:rgba(88,166,255,0.2); --border-focus:#58a6ff;
+    --status-bg:#1f6feb; --syn-kw:#ff7b72; --syn-fn:#d2a8ff; --syn-str:#a5d6ff; --syn-typ:#79c0ff; --syn-num:#d29922;
+  }
+  /* ── Dracula ── */
+  body.t-dracula {
+    --bg-base:#282a36; --bg-activity:#21222c; --bg-sidebar:#282a36; --bg-editor:#282a36;
+    --bg-panel:#343746; --bg-terminal:#1e1f29; --border:rgba(98,114,164,0.3);
+    --accent:#bd93f9; --accent-glow:rgba(189,147,249,0.2); --border-focus:#bd93f9;
+    --status-bg:#6272a4; --syn-kw:#ff79c6; --syn-fn:#50fa7b; --syn-str:#f1fa8c; --syn-typ:#8be9fd; --syn-num:#bd93f9;
+    --fg-primary:#f8f8f2; --fg-secondary:#bfbfbf;
+  }
+  /* ── Nord ── */
+  body.t-nord {
+    --bg-base:#2e3440; --bg-activity:#272c36; --bg-sidebar:#2e3440; --bg-editor:#2e3440;
+    --bg-panel:#3b4252; --bg-terminal:#272c36; --border:rgba(76,86,106,0.5);
+    --accent:#88c0d0; --accent-glow:rgba(136,192,208,0.2); --border-focus:#88c0d0;
+    --status-bg:#5e81ac; --syn-kw:#81a1c1; --syn-fn:#88c0d0; --syn-str:#a3be8c; --syn-typ:#8fbcbb; --syn-num:#b48ead;
+    --fg-primary:#eceff4; --fg-secondary:#d8dee9;
+  }
+  /* ── One Dark ── */
+  body.t-onedark {
+    --bg-base:#282c34; --bg-activity:#21252b; --bg-sidebar:#282c34; --bg-editor:#282c34;
+    --bg-panel:#2c313a; --bg-terminal:#1e2127; --border:rgba(62,68,82,0.7);
+    --accent:#61afef; --accent-glow:rgba(97,175,239,0.2); --border-focus:#61afef;
+    --status-bg:#4d78cc; --syn-kw:#c678dd; --syn-fn:#61afef; --syn-str:#98c379; --syn-typ:#e5c07b; --syn-num:#d19a66;
+    --fg-primary:#abb2bf; --fg-secondary:#8b929e;
+  }
+  /* ── Monokai ── */
+  body.t-monokai {
+    --bg-base:#2d2a2e; --bg-activity:#221f22; --bg-sidebar:#2d2a2e; --bg-editor:#2d2a2e;
+    --bg-panel:#383539; --bg-terminal:#221f22; --border:rgba(64,62,65,0.7);
+    --accent:#ffd866; --accent-glow:rgba(255,216,102,0.2); --border-focus:#ffd866;
+    --accent-text:#000; --status-bg:#423f44; --status-fg:#fcfcfa;
+    --syn-kw:#ff6188; --syn-fn:#a9dc76; --syn-str:#ffd866; --syn-typ:#78dce8; --syn-num:#ab9df2;
+    --fg-primary:#fcfcfa; --fg-secondary:#c1c0c0;
+  }
+  /* ── Solarized ── */
+  body.t-solarized {
+    --bg-base:#002b36; --bg-activity:#001e27; --bg-sidebar:#002b36; --bg-editor:#002b36;
+    --bg-panel:#073642; --bg-terminal:#001e27; --border:rgba(7,54,66,0.8);
+    --accent:#268bd2; --accent-glow:rgba(38,139,210,0.2); --border-focus:#268bd2;
+    --status-bg:#073642; --syn-kw:#859900; --syn-fn:#268bd2; --syn-str:#2aa198; --syn-typ:#b58900; --syn-num:#d33682;
+    --fg-primary:#fdf6e3; --fg-secondary:#93a1a1;
+  }
+  /* ── Claude (Light) ── */
+  body.t-claude {
+    --bg-base:#faf9f5; --bg-activity:#efeee6; --bg-sidebar:#f5f4ed; --bg-editor:#faf9f5;
+    --bg-panel:#f0efe7; --bg-terminal:#efeee6; --bg-input:#faf9f5;
+    --border:rgba(0,0,0,0.08); --border-focus:#c96442;
+    --fg-primary:#141413; --fg-secondary:#4d4c48; --fg-muted:#5e5d59; --fg-dim:#b0aea5;
+    --accent:#c96442; --accent-glow:rgba(201,100,66,0.2); --accent-text:#fff;
+    --success:#2d7a4f; --warning:#a67c37; --error:#b53333;
+    --status-bg:#c96442; --syn-kw:#7928ca; --syn-fn:#c96442; --syn-str:#2d7a4f; --syn-typ:#3a6ea5; --syn-num:#a67c37; --syn-cmt:#87867f;
+    --bubble-user-bg:rgba(0,0,0,0.04); --bubble-ai-bg:rgba(0,0,0,0.02); --bubble-ai-border:rgba(0,0,0,0.06);
+    --bg-hover:rgba(0,0,0,0.04); --bg-active:rgba(0,0,0,0.07);
+  }
+  /* ── Vercel (Light) ── */
+  body.t-vercel {
+    --bg-base:#ffffff; --bg-activity:#fafafa; --bg-sidebar:#fafafa; --bg-editor:#ffffff;
+    --bg-panel:#f5f5f5; --bg-terminal:#fafafa; --bg-input:#ffffff;
+    --border:rgba(0,0,0,0.06); --border-focus:#171717;
+    --fg-primary:#171717; --fg-secondary:#4d4d4d; --fg-muted:#666; --fg-dim:#d4d4d4;
+    --accent:#171717; --accent-glow:rgba(0,0,0,0.1); --accent-text:#fff;
+    --success:#17a34a; --warning:#f59e0b; --error:#ff5b4f;
+    --status-bg:#171717; --syn-kw:#7928ca; --syn-fn:#0a72ef; --syn-str:#17a34a; --syn-typ:#0a72ef; --syn-num:#f59e0b; --syn-cmt:#808080;
+    --bubble-user-bg:rgba(0,0,0,0.04); --bubble-ai-bg:rgba(0,0,0,0.02); --bubble-ai-border:rgba(0,0,0,0.06);
+    --bg-hover:rgba(0,0,0,0.04); --bg-active:rgba(0,0,0,0.06);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:var(--font-ui); background:var(--bg-base); color:var(--fg-primary);
+    height:100vh; display:flex; flex-direction:column; overflow:hidden; -webkit-font-smoothing:antialiased; }
+
+  /* ── Theme Picker (sticky top) ── */
+  .theme-bar { display:flex; gap:0; background:var(--bg-activity); border-bottom:1px solid var(--border); min-height:30px; overflow-x:auto; }
+  .tb { padding:5px 10px; font-size:10.5px; font-weight:500; font-family:var(--font-ui); cursor:pointer;
+    color:var(--fg-muted); background:transparent; border:none; border-bottom:2px solid transparent;
+    display:flex; align-items:center; gap:5px; transition:all .15s; white-space:nowrap; }
+  .tb:hover { color:var(--fg-secondary); background:var(--bg-hover); }
+  .tb.on { color:var(--fg-primary); border-bottom-color:var(--accent); }
+  .tb .d { width:7px; height:7px; border-radius:50%; }
+
+  /* ── App Container ── */
+  .app { display:flex; flex:1; overflow:hidden; }
+
+  /* ── Activity Bar ── */
+  .act { width:48px; background:var(--bg-activity); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:2px; }
+  .ai { color:var(--fg-muted); cursor:pointer; padding:10px; border-radius:8px; position:relative; transition:all .15s; }
+  .ai:hover { color:var(--fg-primary); background:var(--bg-hover); }
+  .ai.on { color:var(--accent); }
+  .ai.on::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:2px; background:var(--accent); border-radius:0 2px 2px 0; }
+  .ai i { width:20px; height:20px; }
+  .act-spacer { flex:1; }
+
+  /* ── Sidebar ── */
+  .side { width:240px; background:var(--bg-sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+  .sh { padding:10px 14px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--fg-muted); display:flex; justify-content:space-between; align-items:center; }
+  .tl { flex:1; overflow-y:auto; padding:2px 0; }
+  .ti { padding:3px 14px; font-size:12.5px; display:flex; align-items:center; gap:6px;
+    cursor:pointer; color:var(--fg-secondary); transition:all .1s; }
+  .ti:hover { background:var(--bg-hover); color:var(--fg-primary); }
+  .ti.on { background:var(--bg-active); color:var(--fg-primary); }
+  .ti i { width:15px; height:15px; flex-shrink:0; }
+  .ti.dir i:first-of-type { color:var(--fg-dim); }
+  .ti.dir i:nth-of-type(2) { color:var(--accent); }
+  .ti .gb { margin-left:auto; font-size:10px; font-weight:700; }
+  .gb-m { color:var(--warning); } .gb-a { color:var(--success); }
+  .tind { width:12px; border-left:1px solid var(--border); margin-left:6px; height:22px; flex-shrink:0; }
+
+  /* ── Center (Editor + Terminal) ── */
+  .center { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .tabs { height:36px; background:var(--bg-activity); display:flex; border-bottom:1px solid var(--border); overflow-x:auto; }
+  .tab { padding:0 14px; display:flex; align-items:center; gap:7px; font-size:12.5px; font-family:var(--font-ui);
+    color:var(--fg-muted); border-right:1px solid var(--border); cursor:pointer; min-width:110px; position:relative; }
+  .tab:hover { color:var(--fg-secondary); }
+  .tab.on { background:var(--bg-editor); color:var(--fg-primary); }
+  .tab.on::after { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--accent); }
+  .tab i { width:14px; height:14px; flex-shrink:0; }
+  .tab .x { margin-left:auto; opacity:0; cursor:pointer; transition:opacity .1s; }
+  .tab .x i { width:12px; height:12px; }
+  .tab:hover .x { opacity:.6; }
+
+  .editor { flex:1; display:flex; overflow:hidden; background:var(--bg-editor); }
+  .gutter { width:48px; padding-top:14px; text-align:right; padding-right:12px;
+    font-family:var(--font-code); font-size:12px; line-height:1.65; color:var(--fg-dim);
+    border-right:1px solid var(--border); user-select:none; overflow:hidden; }
+  .code { flex:1; padding:14px 16px; font-family:var(--font-code); font-size:13px;
+    line-height:1.65; white-space:pre; overflow:auto; tab-size:4; }
+  .hl { display:block; background:rgba(255,255,255,0.03); margin:0 -16px; padding:0 16px; }
+  .kw{color:var(--syn-kw)} .fn{color:var(--syn-fn)} .str{color:var(--syn-str)}
+  .cmt{color:var(--syn-cmt);font-style:italic} .typ{color:var(--syn-typ)} .num{color:var(--syn-num)} .op{color:var(--syn-op)}
+
+  /* ── Terminal ── */
+  .term { height:180px; border-top:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-terminal); }
+  .termc { flex:1; padding:8px 14px; font-family:var(--font-code); font-size:12px; line-height:1.7; overflow-y:auto; }
+  .tp { color:var(--success); } .tc { color:var(--accent); } .to { color:var(--fg-muted); } .te { color:var(--error); }
+  .tcur { display:inline-block; width:7px; height:14px; background:var(--fg-muted); vertical-align:text-bottom; animation:blink 1s step-end infinite; }
+  @keyframes blink { 50%{opacity:0} }
+
+  /* ── Right Panel (Chat + Tools) ── */
+  .right { width:360px; background:var(--bg-panel); border-left:1px solid var(--border);
+    display:flex; flex-direction:column; box-shadow:-8px 0 24px rgba(0,0,0,0.15); }
+  .rh { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+  .rh i { color:var(--accent); width:18px; height:18px; }
+  .badge { background:var(--accent-glow); color:var(--accent); padding:1px 7px; border-radius:4px;
+    font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+
+  .chat { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .bub { max-width:88%; padding:10px 13px; border-radius:12px; font-size:13px; line-height:1.55; }
+  .bub.u { align-self:flex-end; background:var(--bubble-user-bg); border-bottom-right-radius:3px; }
+  .bub.a { align-self:flex-start; background:var(--bubble-ai-bg); border:1px solid var(--bubble-ai-border); border-bottom-left-radius:3px; color:var(--fg-secondary); }
+  .bub code { font-family:var(--font-code); font-size:11.5px; background:var(--bg-active); padding:1px 5px; border-radius:3px; color:var(--accent); }
+  .bub .cb { font-family:var(--font-code); font-size:11.5px; background:var(--bg-base); padding:8px 10px; border-radius:6px; margin:6px 0; white-space:pre; overflow-x:auto; border:1px solid var(--border); }
+  .bub-tool { font-family:var(--font-code); font-size:11px; color:var(--fg-muted); padding:2px 14px; }
+  .sdot { color:var(--success); animation:pulse 1.5s infinite; font-size:8px; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  .cinput { padding:12px 14px; border-top:1px solid var(--border); }
+  .cibox { background:var(--bg-input); border:1px solid var(--border); border-radius:8px; padding:8px 12px; transition:all .2s; }
+  .cibox:focus-within { border-color:var(--border-focus); box-shadow:0 0 0 2px var(--accent-glow); }
+  .cibox textarea { width:100%; background:transparent; border:none; color:var(--fg-primary); resize:none;
+    font-family:var(--font-ui); font-size:12.5px; outline:none; min-height:48px; }
+  .cibox textarea::placeholder { color:var(--fg-dim); }
+  .cifooter { display:flex; justify-content:space-between; align-items:center; margin-top:6px; }
+  .cifooter span { font-size:10px; color:var(--fg-dim); }
+  .cifooter i { width:16px; height:16px; color:var(--accent); cursor:pointer; }
+
+  /* ── Tools Log ── */
+  .tools { border-top:1px solid var(--border); max-height:140px; overflow-y:auto; }
+  .tentry { padding:3px 14px; display:flex; gap:8px; font-family:var(--font-code); font-size:11px; color:var(--fg-secondary); }
+  .ttime { color:var(--fg-dim); min-width:38px; } .tname { color:var(--accent); } .tok { color:var(--success); }
+
+  /* ── Status Bar ── */
+  .sbar { height:24px; background:var(--status-bg); color:var(--status-fg);
+    display:flex; align-items:center; padding:0 12px; font-size:11px; font-weight:500; justify-content:space-between; }
+  .sg { display:flex; align-items:center; gap:12px; }
+  .si { display:flex; align-items:center; gap:4px; cursor:pointer; padding:0 4px; border-radius:2px; }
+  .si:hover { background:rgba(255,255,255,0.15); }
+  .si i { width:12px; height:12px; }
+
+  ::-webkit-scrollbar { width:7px; height:7px; }
+  ::-webkit-scrollbar-thumb { background:var(--bg-active); border-radius:4px; border:1px solid transparent; background-clip:content-box; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--fg-dim); }
+</style>
+</head>
+<body>
+
+<!-- Theme Bar -->
+<div class="theme-bar">
+  <button class="tb on" onclick="T('',this)"><span class="d" style="background:linear-gradient(135deg,#3b82f6,#10b981)"></span>Slate</button>
+  <button class="tb" onclick="T('t-cursor',this)"><span class="d" style="background:#f54e00"></span>Cursor</button>
+  <button class="tb" onclick="T('t-linear',this)"><span class="d" style="background:#7c3aed"></span>Linear</button>
+  <button class="tb" onclick="T('t-github',this)"><span class="d" style="background:#58a6ff"></span>GitHub</button>
+  <button class="tb" onclick="T('t-dracula',this)"><span class="d" style="background:#bd93f9"></span>Dracula</button>
+  <button class="tb" onclick="T('t-nord',this)"><span class="d" style="background:#88c0d0"></span>Nord</button>
+  <button class="tb" onclick="T('t-onedark',this)"><span class="d" style="background:#61afef"></span>One Dark</button>
+  <button class="tb" onclick="T('t-monokai',this)"><span class="d" style="background:#ffd866"></span>Monokai</button>
+  <button class="tb" onclick="T('t-solarized',this)"><span class="d" style="background:#268bd2"></span>Solarized</button>
+  <button class="tb" onclick="T('t-claude',this)"><span class="d" style="background:#c96442"></span>Claude</button>
+  <button class="tb" onclick="T('t-vercel',this)"><span class="d" style="background:linear-gradient(135deg,#000,#fff)"></span>Vercel</button>
+</div>
+
+<div class="app">
+  <!-- Activity Bar -->
+  <aside class="act">
+    <div class="ai on"><i data-lucide="files"></i></div>
+    <div class="ai"><i data-lucide="search"></i></div>
+    <div class="ai"><i data-lucide="git-branch"></i></div>
+    <div class="ai"><i data-lucide="play"></i></div>
+    <div class="ai"><i data-lucide="brain"></i></div>
+    <div class="act-spacer"></div>
+    <div class="ai"><i data-lucide="user"></i></div>
+    <div class="ai"><i data-lucide="settings"></i></div>
+  </aside>
+
+  <!-- Sidebar -->
+  <aside class="side">
+    <div class="sh">Explorer</div>
+    <div class="tl" id="tree"></div>
+  </aside>
+
+  <!-- Center -->
+  <main class="center">
+    <div class="tabs">
+      <div class="tab on"><i data-lucide="file-code" style="color:var(--syn-fn)"></i>client.go<span class="x"><i data-lucide="x"></i></span></div>
+      <div class="tab"><i data-lucide="file-code" style="color:var(--syn-typ)"></i>config.go<span class="x"><i data-lucide="x"></i></span></div>
+      <div class="tab"><i data-lucide="file-text" style="color:var(--fg-muted)"></i>README.md<span class="x"><i data-lucide="x"></i></span></div>
+    </div>
+    <div class="editor">
+      <div class="gutter" id="gut"></div>
+      <div class="code" id="code"></div>
+    </div>
+    <div class="term">
+      <div class="sh" style="padding:6px 14px">Terminal<span style="font-size:10px;color:var(--fg-dim);text-transform:none;letter-spacing:0;font-weight:400;margin-left:auto">bash</span></div>
+      <div class="termc" id="termc"></div>
+    </div>
+  </main>
+
+  <!-- Right Panel -->
+  <aside class="right">
+    <div class="rh">
+      <i data-lucide="sparkles"></i>
+      <span style="font-weight:600;font-size:14px">TECHAI</span>
+      <span class="badge">Qwen3-Coder</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--fg-muted)">2,481 tok</span>
+    </div>
+    <div class="chat" id="chat"></div>
+    <div class="cinput">
+      <div class="cibox">
+        <textarea id="inp" placeholder="Ask TECHAI... (Ctrl+K)" rows="2"></textarea>
+        <div class="cifooter">
+          <span>Enter send / Shift+Enter newline</span>
+          <i data-lucide="send"></i>
+        </div>
+      </div>
+    </div>
+    <div class="tools">
+      <div class="sh" style="padding:6px 14px">Tools<span class="badge" style="margin-left:6px;font-size:9px">5</span></div>
+      <div id="tlog"></div>
+    </div>
+  </aside>
+</div>
+
+<!-- Status Bar -->
+<footer class="sbar">
+  <div class="sg">
+    <div class="si"><i data-lucide="git-branch"></i>main*</div>
+    <div class="si"><i data-lucide="cloud"></i>Synced</div>
+    <div class="si">Qwen3-Coder-30B</div>
+  </div>
+  <div class="sg">
+    <div class="si">UTF-8</div>
+    <div class="si">Go</div>
+    <div class="si">Tool:ON(15)</div>
+    <div class="si">v0.9.6</div>
+  </div>
+</footer>
+
+<script>
+function T(c,b){document.body.className=c;document.querySelectorAll('.tb').forEach(x=>x.classList.remove('on'));b.classList.add('on');lucide.createIcons()}
+
+// Tree
+const F=[
+  {n:'cmd/',d:1,o:1,c:[{n:'tgc/',d:1,o:1,c:[{n:'main.go'}]},{n:'techai-ide/',d:1,c:[{n:'main.go',g:'A'},{n:'app.go',g:'A'}]}]},
+  {n:'internal/',d:1,o:1,c:[
+    {n:'app/',d:1,c:[{n:'app.go'}]},
+    {n:'config/',d:1,c:[{n:'config.go',g:'M'}]},
+    {n:'llm/',d:1,o:1,c:[{n:'client.go',sel:1,g:'M'},{n:'client_test.go',g:'A'},{n:'capabilities.go'},{n:'prompt.go'}]},
+    {n:'tools/',d:1,c:[{n:'registry.go'},{n:'apply_patch.go'}]},
+    {n:'companion/',d:1,c:[{n:'hub.go'},{n:'server.go'}]},
+  ]},
+  {n:'knowledge/',d:1,c:[{n:'docs/',d:1}]},
+  {n:'go.mod'},{n:'Makefile',g:'M'},{n:'README.md'},
+];
+function R(items,dep){let h='';for(const i of items){
+  const ind='<span class="tind"></span>'.repeat(dep);
+  const chevron=i.d?(i.o?'chevron-down':'chevron-right'):'';
+  const icon=i.d?(i.o?'folder-open':'folder'):'file-code';
+  const cls=['ti',i.d?'dir':'',i.sel?'on':''].filter(Boolean).join(' ');
+  let gb='';if(i.g==='M')gb='<span class="gb gb-m">M</span>';else if(i.g==='A')gb='<span class="gb gb-a">A</span>';
+  h+=`<div class="${cls}">${ind}`;
+  if(chevron)h+=`<i data-lucide="${chevron}"></i>`;
+  h+=`<i data-lucide="${icon}" style="${i.d?'':'color:var(--syn-fn)'}"></i><span>${i.n}</span>${gb}</div>`;
+  if(i.d&&i.o&&i.c)h+=R(i.c,dep+1);
+}return h}
+
+// Code
+const C=`<span class="kw">package</span> <span class="typ">llm</span>
+
+<span class="kw">import</span> (
+	<span class="str">"context"</span>
+	<span class="str">"encoding/json"</span>
+	<span class="str">"strings"</span>
+
+	openai <span class="str">"github.com/sashabaranov/go-openai"</span>
+	<span class="str">"github.com/kimjiwon/tgc/internal/config"</span>
+)
+
+<span class="cmt">// StreamChat streams a chat completion with tool support.</span>
+<span class="kw">func</span> (c *Client) <span class="fn">StreamChat</span>(
+	ctx context.Context,
+	model <span class="typ">string</span>,
+	messages []openai.ChatCompletionMessage,
+	toolDefs []openai.Tool,
+) <span class="op">&lt;-</span><span class="kw">chan</span> <span class="typ">StreamChunk</span> {
+	ch <span class="op">:=</span> <span class="fn">make</span>(<span class="kw">chan</span> StreamChunk)
+
+	<span class="kw">go</span> <span class="kw">func</span>() {
+		<span class="kw">defer</span> <span class="fn">close</span>(ch)
+
+<span class="hl">		<span class="kw">var</span> fullContentBuf strings.Builder</span>
+		<span class="kw">var</span> toolCallOutputStarted <span class="typ">bool</span>
+		<span class="kw">var</span> insideThinkTag <span class="typ">bool</span>
+
+		req <span class="op">:=</span> openai.ChatCompletionRequest{
+			Model:    model,
+			Messages: messages,
+			Stream:   <span class="kw">true</span>,
+		}
+		<span class="kw">if</span> <span class="fn">len</span>(toolDefs) <span class="op">&gt;</span> <span class="num">0</span> {
+			req.Tools <span class="op">=</span> toolDefs
+		}
+
+		stream, err <span class="op">:=</span> c.api.<span class="fn">CreateChatCompletionStream</span>(ctx, req)
+		<span class="kw">if</span> err <span class="op">!=</span> <span class="kw">nil</span> {
+			ch <span class="op">&lt;-</span> StreamChunk{Err: err, Done: <span class="kw">true</span>}
+			<span class="kw">return</span>
+		}
+		<span class="kw">defer</span> stream.<span class="fn">Close</span>()
+
+		<span class="cmt">// ... streaming loop with tool_call suppression</span>
+	}()
+	<span class="kw">return</span> ch
+}`;
+
+// Terminal
+const TM=`<div><span class="tc">$</span> <span class="tp">~/techai</span> go test ./internal/llm/... -count=1</div>
+<div class="to">ok  github.com/kimjiwon/tgc/internal/llm  0.453s  (53 tests)</div>
+<div>&nbsp;</div>
+<div><span class="tc">$</span> <span class="tp">~/techai</span> make build</div>
+<div class="to">Building knowledge index...</div>
+<div class="to">Generated knowledge/index.json: 81 documents indexed</div>
+<div class="to">go build -ldflags "..." -o techai ./cmd/tgc</div>
+<div>&nbsp;</div>
+<div><span class="tc">$</span> <span class="tp">~/techai</span> git log --oneline -3</div>
+<div class="to">5628e06 fix: &lt;parameter=key&gt; value tool_call parsing</div>
+<div class="to">6044126 fix: streaming partial tag suppression</div>
+<div class="to">9884959 feat: onprem Qwen3-Coder + config migration</div>
+<div>&nbsp;</div>
+<div><span class="tc">$</span> <span class="tp">~/techai</span> <span class="tcur"></span></div>`;
+
+// Chat
+const CH=`
+<div class="bub u">client.go의 parseToolCallsFromContent 함수 설명해줘</div>
+<div class="bub-tool">&gt;&gt; file_read internal/llm/client.go</div>
+<div class="bub-tool">&lt;&lt; 760 lines (OK)</div>
+<div class="bub a">API 프록시가 tool_calls를 변환하지 못할 때 텍스트 content에서 도구 호출을 추출하는 <strong>폴백 파서</strong>입니다.
+
+<div class="cb"><span class="cmt">// 지원 포맷:</span>
+<span class="str">&lt;tool_call&gt;</span>{"name":"..."}...
+<span class="str">&lt;function=name&gt;</span>{"key":"val"}...
+<span class="str">&lt;parameter=key&gt;</span> value ...</div>
+
+3가지 형식을 자동 감지하며, <code>&lt;think&gt;</code> 태그는 파싱 전에 제거하여 오탐을 방지합니다. 53개 테스트 커버.</div>
+<div class="bub u">온프레미스에서 Qwen3로 전환되나?</div>
+<div class="bub a"><code>MigrateModelsIfNeeded()</code>가 최초 실행 시 config.yaml의 GPT-OSS-120B를 Qwen3-Coder-30B로 자동 전환합니다. <code>.model-migrated</code> 마커로 1회만 실행.<span style="display:inline-block;width:2px;height:13px;background:var(--accent);animation:blink 1s step-end infinite;vertical-align:text-bottom;margin-left:1px"></span></div>`;
+
+// Tools
+const TL=`
+<div class="tentry"><span class="ttime">10:38</span><span class="tname">file_read</span> client.go <span class="tok">OK 760 lines</span></div>
+<div class="tentry"><span class="ttime">10:38</span><span class="tname">grep</span> "parseToolCalls" <span class="tok">2 matches</span></div>
+<div class="tentry"><span class="ttime">10:39</span><span class="tname">file_write</span> client_test.go <span class="tok">53 tests</span></div>
+<div class="tentry"><span class="ttime">10:40</span><span class="tname">shell</span> go test ./... <span class="tok">PASS</span></div>
+<div class="tentry"><span class="ttime">10:41</span><span class="tname">shell</span> make build <span class="tok">OK 25MB</span></div>`;
+
+document.getElementById('tree').innerHTML=R(F,0);
+document.getElementById('code').innerHTML=C;
+document.getElementById('termc').innerHTML=TM;
+document.getElementById('chat').innerHTML=CH;
+document.getElementById('tlog').innerHTML=TL;
+
+const lines=document.getElementById('code').innerText.split('\n').length;
+let g='';for(let i=1;i<=lines;i++)g+=i+'\n';
+document.getElementById('gut').textContent=g;
+
+document.getElementById('tree').addEventListener('click',e=>{
+  const t=e.target.closest('.ti');if(!t)return;
+  document.querySelectorAll('.ti.on').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+});
+document.getElementById('inp').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const v=this.value.trim();if(!v)return;
+  const c=document.getElementById('chat');
+  c.innerHTML+=`<div class="bub u">${v}</div><div class="bub a">확인하겠습니다<span style="display:inline-block;width:2px;height:13px;background:var(--accent);animation:blink 1s step-end infinite;vertical-align:text-bottom;margin-left:1px"></span></div>`;
+  c.scrollTop=c.scrollHeight;this.value='';}
+});
+lucide.createIcons();
+</script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+import { useState, useEffect, useCallback } from 'react'
+import { EventsOn } from '../wailsjs/runtime/runtime'
+import ActivityBar from './components/ActivityBar'
+import FileTree from './components/FileTree'
+import SearchPanel from './components/SearchPanel'
+import GitPanel from './components/GitPanel'
+import Editor from './components/Editor'
+import Terminal from './components/Terminal'
+import ChatPanel from './components/ChatPanel'
+import StatusBar from './components/StatusBar'
+import ThemePicker from './components/ThemePicker'
+import SettingsPanel from './components/SettingsPanel'
+import QuickOpen from './components/QuickOpen'
+import ResizeHandle from './components/ResizeHandle'
+import GitGraph from './components/GitGraph'
+import ToastContainer from './components/Toast'
+import AboutDialog from './components/AboutDialog'
+import CommandPalette from './components/CommandPalette'
+
+function App() {
+  const [activePanel, setActivePanel] = useState('files')
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [showTheme, setShowTheme] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [cursor, setCursor] = useState({ line: 1, col: 1, lang: 'Plain Text' })
+  const [showQuickOpen, setShowQuickOpen] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [splitFile, setSplitFile] = useState<string | null>(null) // second editor
+
+  // Resizable panel sizes
+  const [sidebarWidth, setSidebarWidth] = useState(240)
+  const [terminalHeight, setTerminalHeight] = useState(200)
+  const [chatWidth, setChatWidth] = useState(360)
+  const [showTerminal, setShowTerminal] = useState(true)
+
+  function handlePanelSelect(panel: string) {
+    if (panel === 'settings') { setShowTheme(true); return }
+    if (panel === 'account') { setShowSettings(true); return }
+    setActivePanel(prev => prev === panel ? '' : panel)
+  }
+
+  const sidebarOpen = activePanel === 'files' || activePanel === 'search' || activePanel === 'git'
+
+  const resizeSidebar = useCallback((d: number) => setSidebarWidth(w => Math.max(160, Math.min(400, w + d))), [])
+  const resizeTerminal = useCallback((d: number) => setTerminalHeight(h => Math.max(80, Math.min(500, h - d))), [])
+  const resizeChat = useCallback((d: number) => setChatWidth(w => Math.max(260, Math.min(600, w - d))), [])
+
+  // Native menu events
+  useEffect(() => {
+    const cancels = [
+      EventsOn('menu:settings', () => setShowSettings(true)),
+      EventsOn('menu:theme', () => setShowTheme(true)),
+      EventsOn('menu:quickopen', () => setShowQuickOpen(true)),
+      EventsOn('menu:terminal', () => setShowTerminal(t => !t)),
+      EventsOn('menu:panel', (panel: string) => handlePanelSelect(panel)),
+      EventsOn('menu:findinfiles', () => setActivePanel('search')),
+      EventsOn('menu:about', () => setShowAbout(true)),
+      EventsOn('menu:openfolder', () => {
+        import('../wailsjs/go/main/App').then(({ OpenFolder }) => {
+          OpenFolder().then(dir => { if (dir) window.location.reload() })
+        })
+      }),
+    ]
+    return () => cancels.forEach(fn => fn())
+  }, [])
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key === '1') { e.preventDefault(); handlePanelSelect('files') }
+      if (mod && e.key === '2') { e.preventDefault(); handlePanelSelect('search') }
+      if (mod && e.key === '3') { e.preventDefault(); handlePanelSelect('git') }
+      if (mod && e.key === ',') { e.preventDefault(); setShowTheme(true) }
+      if (mod && e.shiftKey && e.key === 'f') { e.preventDefault(); setActivePanel('search') }
+      if (mod && e.key === 'b') { e.preventDefault(); handlePanelSelect('files') }
+      if (mod && e.key === 'p') { e.preventDefault(); setShowQuickOpen(true) }
+      if (mod && e.key === '`') { e.preventDefault(); setShowTerminal(t => !t) }
+      if (mod && e.key === 'j') { e.preventDefault(); setShowTerminal(t => !t) }
+      if (mod && e.shiftKey && e.key === 'p') { e.preventDefault(); setShowCommandPalette(true) }
+      if (mod && e.key === '\\') { e.preventDefault(); setSplitFile(prev => prev ? null : selectedFile) }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
+
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* macOS traffic light spacing */}
+      <div style={{ height: 28, background: 'var(--bg-activity)', borderBottom: '1px solid var(--border)' }} />
+
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <ActivityBar active={activePanel} onSelect={handlePanelSelect} />
+
+        {/* Sidebar */}
+        {sidebarOpen && (
+          <>
+            <div style={{ width: sidebarWidth, flexShrink: 0, overflow: 'hidden' }}>
+              {activePanel === 'files' && <FileTree onFileSelect={setSelectedFile} selectedFile={selectedFile || ''} />}
+              {activePanel === 'search' && <SearchPanel onFileSelect={setSelectedFile} />}
+              {activePanel === 'git' && <GitPanel onFileSelect={setSelectedFile} />}
+            </div>
+            <ResizeHandle direction="horizontal" onResize={resizeSidebar} />
+          </>
+        )}
+
+        {/* Center: Editor + Terminal */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
+            {activePanel === 'git' ? (
+              <GitGraph />
+            ) : (
+              <>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <Editor filePath={selectedFile} onCursorChange={(l, c, lang) => setCursor({ line: l, col: c, lang })} />
+                </div>
+                {splitFile && (
+                  <>
+                    <div style={{ width: 3, background: 'transparent', borderLeft: '1px solid var(--border)', cursor: 'col-resize' }} />
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <Editor filePath={splitFile} onCursorChange={(l, c, lang) => setCursor({ line: l, col: c, lang })} />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          {showTerminal && (
+            <>
+              <ResizeHandle direction="vertical" onResize={resizeTerminal} />
+              <div style={{ height: terminalHeight, flexShrink: 0, overflow: 'hidden' }}>
+                <Terminal />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Chat resize handle + panel */}
+        <ResizeHandle direction="horizontal" onResize={resizeChat} />
+        <div style={{
+          width: chatWidth, flexShrink: 0,
+          background: 'var(--bg-panel)',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '-4px 0 16px rgba(0,0,0,0.1)',
+        }}>
+          <ChatPanel />
+        </div>
+      </div>
+
+      <StatusBar line={cursor.line} col={cursor.col} lang={cursor.lang} />
+
+      <ThemePicker open={showTheme} onClose={() => setShowTheme(false)} />
+      <SettingsPanel open={showSettings} onClose={() => setShowSettings(false)} />
+      <QuickOpen open={showQuickOpen} onClose={() => setShowQuickOpen(false)} onSelect={setSelectedFile} />
+      <ToastContainer />
+      <AboutDialog open={showAbout} onClose={() => setShowAbout(false)} />
+      <CommandPalette
+        open={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        actions={{
+          openFiles: () => setActivePanel('files'),
+          openSearch: () => setActivePanel('search'),
+          openGit: () => setActivePanel('git'),
+          openSettings: () => setShowSettings(true),
+          openTheme: () => setShowTheme(true),
+          toggleTerminal: () => setShowTerminal(t => !t),
+          openQuickOpen: () => setShowQuickOpen(true),
+          clearChat: () => { import('../wailsjs/go/main/App').then(m => m.ClearChat()) },
+          exportChat: () => { import('../wailsjs/go/main/App').then(m => m.ExportChat()) },
+          openFolder: () => { import('../wailsjs/go/main/App').then(m => m.OpenFolder().then(d => { if(d) window.location.reload() })) },
+          toggleSplit: () => setSplitFile(prev => prev ? null : selectedFile),
+        }}
+      />
+    </div>
+  )
+}
+
+export default App

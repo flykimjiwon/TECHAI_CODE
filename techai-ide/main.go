@@ -1,0 +1,142 @@
+package main
+
+import (
+	"embed"
+
+	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
+	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
+)
+
+//go:embed all:frontend/dist
+var assets embed.FS
+
+func main() {
+	app := NewApp()
+
+	appMenu := buildMenu(app)
+
+	err := wails.Run(&options.App{
+		Menu: appMenu,
+		Title:            "TECHAI CODE IDE",
+		Width:            1440,
+		Height:           900,
+		MinWidth:         1024,
+		MinHeight:        640,
+		DisableResize:    false,
+		Frameless:        false,
+		StartHidden:      false,
+		AssetServer: &assetserver.Options{
+			Assets: assets,
+		},
+		BackgroundColour: &options.RGBA{R: 10, G: 10, B: 12, A: 255}, // #0a0a0c
+		OnStartup:        app.startup,
+		OnShutdown:       app.shutdown,
+		Bind: []interface{}{
+			app,
+		},
+		Mac: &mac.Options{
+			TitleBar: mac.TitleBarHiddenInset(),
+			WebviewIsTransparent: true,
+			WindowIsTranslucent:  false,
+		},
+		Windows: &windows.Options{
+			WebviewIsTransparent: false,
+			WindowIsTranslucent:  false,
+		},
+	})
+
+	if err != nil {
+		println("Error:", err.Error())
+	}
+}
+
+func buildMenu(app *App) *menu.Menu {
+	appMenu := menu.NewMenu()
+
+	// File menu
+	fileMenu := appMenu.AddSubmenu("File")
+	fileMenu.AddText("Open Folder...", keys.CmdOrCtrl("o"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:openfolder")
+	})
+	fileMenu.AddSeparator()
+	fileMenu.AddText("Save", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:save")
+	})
+	fileMenu.AddText("Save All", keys.Combo("s", keys.CmdOrCtrlKey, keys.ShiftKey), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:saveall")
+	})
+	fileMenu.AddSeparator()
+	fileMenu.AddText("Close Tab", keys.CmdOrCtrl("w"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:closetab")
+	})
+	fileMenu.AddSeparator()
+	fileMenu.AddText("Settings...", keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:settings")
+	})
+
+	// Edit menu
+	editMenu := appMenu.AddSubmenu("Edit")
+	editMenu.AddText("Undo", keys.CmdOrCtrl("z"), nil)
+	editMenu.AddText("Redo", keys.Combo("z", keys.CmdOrCtrlKey, keys.ShiftKey), nil)
+	editMenu.AddSeparator()
+	editMenu.AddText("Cut", keys.CmdOrCtrl("x"), nil)
+	editMenu.AddText("Copy", keys.CmdOrCtrl("c"), nil)
+	editMenu.AddText("Paste", keys.CmdOrCtrl("v"), nil)
+	editMenu.AddText("Select All", keys.CmdOrCtrl("a"), nil)
+	editMenu.AddSeparator()
+	editMenu.AddText("Find", keys.CmdOrCtrl("f"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:find")
+	})
+	editMenu.AddText("Find in Files", keys.Combo("f", keys.CmdOrCtrlKey, keys.ShiftKey), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:findinfiles")
+	})
+
+	// View menu
+	viewMenu := appMenu.AddSubmenu("View")
+	viewMenu.AddText("Explorer", keys.CmdOrCtrl("1"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:panel", "files")
+	})
+	viewMenu.AddText("Search", keys.CmdOrCtrl("2"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:panel", "search")
+	})
+	viewMenu.AddText("Git", keys.CmdOrCtrl("3"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:panel", "git")
+	})
+	viewMenu.AddSeparator()
+	viewMenu.AddText("Toggle Sidebar", keys.CmdOrCtrl("b"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:panel", "files")
+	})
+	viewMenu.AddText("Toggle Terminal", keys.CmdOrCtrl("j"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:terminal")
+	})
+	viewMenu.AddSeparator()
+	viewMenu.AddText("Quick Open...", keys.CmdOrCtrl("p"), func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:quickopen")
+	})
+	viewMenu.AddText("Theme...", nil, func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:theme")
+	})
+
+	// Terminal menu
+	termMenu := appMenu.AddSubmenu("Terminal")
+	termMenu.AddText("New Terminal", nil, func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:newterminal")
+	})
+
+	// Help menu
+	helpMenu := appMenu.AddSubmenu("Help")
+	helpMenu.AddText("About TECHAI IDE", nil, func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:about")
+	})
+	helpMenu.AddText("Keyboard Shortcuts", nil, func(_ *menu.CallbackData) {
+		wailsRuntime.EventsEmit(app.ctx, "menu:shortcuts")
+	})
+
+	return appMenu
+}

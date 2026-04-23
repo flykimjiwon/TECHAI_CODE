@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>택가이코드 IDE — Design System v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Geist:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    /* ── Theme 1: Default (Slate) ── */
+    --bg-deep: #0f172a;
+    --bg-panel: #0c1021;
+    --bg-surface: #1e293b;
+    --bg-hover: #1e3a5f;
+    --bg-code: #0d1117;
+    --bg-terminal: #0a0e14;
+    --border: #1e293b;
+    --border-focus: #60a5fa;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-dim: #475569;
+    --text-faint: #334155;
+    --accent: #60a5fa;
+    --accent-secondary: #38bdf8;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --error: #f87171;
+    --keyword: #c084fc;
+    --function: #60a5fa;
+    --string: #34d399;
+    --comment: #475569;
+    --type: #38bdf8;
+    --number: #fbbf24;
+    --operator: #94a3b8;
+    --status-bg: #1e293b;
+    --input-border: #334155;
+    --msg-user-border: #38bdf8;
+    --msg-user-bg: rgba(56, 189, 248, 0.04);
+    --msg-ai-border: #34d399;
+    --msg-ai-bg: rgba(52, 211, 153, 0.04);
+    --scrollbar: #334155;
+    --tree-dir: var(--accent);
+    --tree-selected-bg: var(--bg-hover);
+    --diff-add: #34d399;
+    --diff-del: #f87171;
+    --tab-active-border: var(--accent);
+    --terminal-green: #34d399;
+    --terminal-cursor: #60a5fa;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-code: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  }
+
+  /* ── Theme 2: Cursor ── */
+  body.theme-cursor {
+    --bg-deep: #1a1a1a; --bg-panel: #141414; --bg-surface: #232323; --bg-hover: #2a2a2a;
+    --bg-code: #1a1a1a; --bg-terminal: #111111; --border: #2a2a2a; --border-focus: #f54e00;
+    --text-primary: #e4e4e7; --text-secondary: #a1a1aa; --text-muted: #71717a; --text-dim: #52525b; --text-faint: #3f3f46;
+    --accent: #f54e00; --accent-secondary: #ff6b2b; --success: #22c55e; --warning: #eab308; --error: #ef4444;
+    --keyword: #f54e00; --function: #60a5fa; --string: #22c55e; --comment: #52525b; --type: #38bdf8; --number: #eab308;
+    --status-bg: #232323; --input-border: #3f3f46;
+    --msg-user-border: #f54e00; --msg-user-bg: rgba(245, 78, 0, 0.04);
+    --msg-ai-border: #22c55e; --msg-ai-bg: rgba(34, 197, 94, 0.04);
+    --scrollbar: #3f3f46; --tree-dir: #f54e00; --tree-selected-bg: #2a2a2a;
+    --tab-active-border: #f54e00; --terminal-green: #22c55e; --terminal-cursor: #f54e00;
+  }
+
+  /* ── Theme 3: Linear ── */
+  body.theme-linear {
+    --bg-deep: #111119; --bg-panel: #0c0c14; --bg-surface: #1a1a2e; --bg-hover: #24243e;
+    --bg-code: #0f0f1a; --bg-terminal: #0a0a12; --border: #1f1f35; --border-focus: #7170ff;
+    --text-primary: #e0def4; --text-secondary: #908caa; --text-muted: #6e6a86; --text-dim: #524f67; --text-faint: #393552;
+    --accent: #7170ff; --accent-secondary: #9b99ff; --success: #56d49e; --warning: #f5c177; --error: #eb6f92;
+    --keyword: #c4a7e7; --function: #7170ff; --string: #56d49e; --comment: #524f67; --type: #9ccfd8; --number: #f5c177;
+    --status-bg: #1a1a2e; --input-border: #393552;
+    --msg-user-border: #7170ff; --msg-user-bg: rgba(113, 112, 255, 0.04);
+    --msg-ai-border: #56d49e; --msg-ai-bg: rgba(86, 212, 158, 0.04);
+    --scrollbar: #393552; --tree-dir: #7170ff; --tree-selected-bg: #24243e;
+    --tab-active-border: #7170ff; --terminal-green: #56d49e; --terminal-cursor: #7170ff;
+  }
+
+  /* ── Theme 4: Claude ── */
+  body.theme-claude {
+    --bg-deep: #f5f4ed; --bg-panel: #efeee6; --bg-surface: #e8e6dc; --bg-hover: #dddbd0;
+    --bg-code: #faf9f5; --bg-terminal: #f0efe7; --border: #e0dec4; --border-focus: #c96442;
+    --text-primary: #141413; --text-secondary: #4d4c48; --text-muted: #5e5d59; --text-dim: #87867f; --text-faint: #b0aea5;
+    --accent: #c96442; --accent-secondary: #d97757; --success: #2d7a4f; --warning: #a67c37; --error: #b53333;
+    --keyword: #7928ca; --function: #c96442; --string: #2d7a4f; --comment: #87867f; --type: #3a6ea5; --number: #a67c37;
+    --status-bg: #efeee6; --input-border: #d1cfc5;
+    --msg-user-border: #c96442; --msg-user-bg: rgba(201, 100, 66, 0.05);
+    --msg-ai-border: #2d7a4f; --msg-ai-bg: rgba(45, 122, 79, 0.05);
+    --scrollbar: #c2c0b6; --tree-dir: #c96442; --tree-selected-bg: #dddbd0;
+    --tab-active-border: #c96442; --terminal-green: #2d7a4f; --terminal-cursor: #c96442;
+  }
+
+  /* ── Theme 5: Vercel ── */
+  body.theme-vercel {
+    --bg-deep: #ffffff; --bg-panel: #fafafa; --bg-surface: #f5f5f5; --bg-hover: #ebebeb;
+    --bg-code: #fafafa; --bg-terminal: #f5f5f5; --border: rgba(0,0,0,0.08); --border-focus: #171717;
+    --text-primary: #171717; --text-secondary: #4d4d4d; --text-muted: #666666; --text-dim: #808080; --text-faint: #d4d4d4;
+    --accent: #171717; --accent-secondary: #4d4d4d; --success: #17a34a; --warning: #f59e0b; --error: #ff5b4f;
+    --keyword: #7928ca; --function: #0a72ef; --string: #17a34a; --comment: #808080; --type: #0a72ef; --number: #f59e0b;
+    --status-bg: #fafafa; --input-border: rgba(0,0,0,0.12);
+    --msg-user-border: #171717; --msg-user-bg: rgba(23,23,23,0.03);
+    --msg-ai-border: #17a34a; --msg-ai-bg: rgba(23,163,74,0.03);
+    --scrollbar: #d4d4d4; --tree-dir: #0a72ef; --tree-selected-bg: #ebebeb;
+    --tab-active-border: #171717; --terminal-green: #17a34a; --terminal-cursor: #171717;
+  }
+
+  /* ── Theme 6: GitHub Dark ── */
+  body.theme-github {
+    --bg-deep: #0d1117; --bg-panel: #010409; --bg-surface: #161b22; --bg-hover: #1f2937;
+    --bg-code: #0d1117; --bg-terminal: #090c10; --border: #21262d; --border-focus: #58a6ff;
+    --text-primary: #e6edf3; --text-secondary: #8b949e; --text-muted: #6e7681; --text-dim: #484f58; --text-faint: #30363d;
+    --accent: #58a6ff; --accent-secondary: #79c0ff; --success: #3fb950; --warning: #d29922; --error: #f85149;
+    --keyword: #ff7b72; --function: #d2a8ff; --string: #a5d6ff; --comment: #484f58; --type: #79c0ff; --number: #d29922;
+    --status-bg: #161b22; --input-border: #30363d;
+    --msg-user-border: #58a6ff; --msg-user-bg: rgba(88,166,255,0.04);
+    --msg-ai-border: #3fb950; --msg-ai-bg: rgba(63,185,80,0.04);
+    --scrollbar: #30363d; --tree-dir: #58a6ff; --tree-selected-bg: #1f2937;
+    --tab-active-border: #58a6ff; --terminal-green: #3fb950; --terminal-cursor: #58a6ff;
+  }
+
+  /* ── Theme 7: Dracula ── */
+  body.theme-dracula {
+    --bg-deep: #282a36; --bg-panel: #21222c; --bg-surface: #343746; --bg-hover: #3e4155;
+    --bg-code: #282a36; --bg-terminal: #1e1f29; --border: #3e4155; --border-focus: #bd93f9;
+    --text-primary: #f8f8f2; --text-secondary: #bfbfbf; --text-muted: #6272a4; --text-dim: #4a5580; --text-faint: #3e4155;
+    --accent: #bd93f9; --accent-secondary: #caa9fa; --success: #50fa7b; --warning: #f1fa8c; --error: #ff5555;
+    --keyword: #ff79c6; --function: #50fa7b; --string: #f1fa8c; --comment: #6272a4; --type: #8be9fd; --number: #bd93f9;
+    --status-bg: #343746; --input-border: #4a5580;
+    --msg-user-border: #bd93f9; --msg-user-bg: rgba(189,147,249,0.05);
+    --msg-ai-border: #50fa7b; --msg-ai-bg: rgba(80,250,123,0.05);
+    --scrollbar: #4a5580; --tree-dir: #bd93f9; --tree-selected-bg: #3e4155;
+    --tab-active-border: #bd93f9; --terminal-green: #50fa7b; --terminal-cursor: #f8f8f2;
+  }
+
+  /* ── Theme 8: Nord ── */
+  body.theme-nord {
+    --bg-deep: #2e3440; --bg-panel: #272c36; --bg-surface: #3b4252; --bg-hover: #434c5e;
+    --bg-code: #2e3440; --bg-terminal: #272c36; --border: #3b4252; --border-focus: #88c0d0;
+    --text-primary: #eceff4; --text-secondary: #d8dee9; --text-muted: #7b88a1; --text-dim: #616e88; --text-faint: #4c566a;
+    --accent: #88c0d0; --accent-secondary: #8fbcbb; --success: #a3be8c; --warning: #ebcb8b; --error: #bf616a;
+    --keyword: #81a1c1; --function: #88c0d0; --string: #a3be8c; --comment: #616e88; --type: #8fbcbb; --number: #b48ead;
+    --status-bg: #3b4252; --input-border: #4c566a;
+    --msg-user-border: #88c0d0; --msg-user-bg: rgba(136,192,208,0.05);
+    --msg-ai-border: #a3be8c; --msg-ai-bg: rgba(163,190,140,0.05);
+    --scrollbar: #4c566a; --tree-dir: #88c0d0; --tree-selected-bg: #434c5e;
+    --tab-active-border: #88c0d0; --terminal-green: #a3be8c; --terminal-cursor: #d8dee9;
+  }
+
+  /* ── Theme 9: Solarized Dark ── */
+  body.theme-solarized {
+    --bg-deep: #002b36; --bg-panel: #00232d; --bg-surface: #073642; --bg-hover: #0a4050;
+    --bg-code: #002b36; --bg-terminal: #001e27; --border: #073642; --border-focus: #268bd2;
+    --text-primary: #fdf6e3; --text-secondary: #93a1a1; --text-muted: #657b83; --text-dim: #586e75; --text-faint: #073642;
+    --accent: #268bd2; --accent-secondary: #2aa198; --success: #859900; --warning: #b58900; --error: #dc322f;
+    --keyword: #859900; --function: #268bd2; --string: #2aa198; --comment: #586e75; --type: #b58900; --number: #d33682;
+    --status-bg: #073642; --input-border: #586e75;
+    --msg-user-border: #268bd2; --msg-user-bg: rgba(38,139,210,0.05);
+    --msg-ai-border: #859900; --msg-ai-bg: rgba(133,153,0,0.05);
+    --scrollbar: #586e75; --tree-dir: #268bd2; --tree-selected-bg: #0a4050;
+    --tab-active-border: #268bd2; --terminal-green: #859900; --terminal-cursor: #93a1a1;
+  }
+
+  /* ── Theme 10: One Dark ── */
+  body.theme-onedark {
+    --bg-deep: #282c34; --bg-panel: #21252b; --bg-surface: #2c313a; --bg-hover: #333842;
+    --bg-code: #282c34; --bg-terminal: #1e2127; --border: #3e4452; --border-focus: #61afef;
+    --text-primary: #abb2bf; --text-secondary: #8b929e; --text-muted: #636d83; --text-dim: #4b5263; --text-faint: #3e4452;
+    --accent: #61afef; --accent-secondary: #56b6c2; --success: #98c379; --warning: #e5c07b; --error: #e06c75;
+    --keyword: #c678dd; --function: #61afef; --string: #98c379; --comment: #5c6370; --type: #e5c07b; --number: #d19a66;
+    --status-bg: #2c313a; --input-border: #4b5263;
+    --msg-user-border: #61afef; --msg-user-bg: rgba(97,175,239,0.04);
+    --msg-ai-border: #98c379; --msg-ai-bg: rgba(152,195,121,0.04);
+    --scrollbar: #4b5263; --tree-dir: #61afef; --tree-selected-bg: #333842;
+    --tab-active-border: #61afef; --terminal-green: #98c379; --terminal-cursor: #528bff;
+  }
+
+  /* ── Theme 11: Monokai Pro ── */
+  body.theme-monokai {
+    --bg-deep: #2d2a2e; --bg-panel: #252226; --bg-surface: #383539; --bg-hover: #423f44;
+    --bg-code: #2d2a2e; --bg-terminal: #221f22; --border: #403e41; --border-focus: #ffd866;
+    --text-primary: #fcfcfa; --text-secondary: #c1c0c0; --text-muted: #727072; --text-dim: #5b595c; --text-faint: #403e41;
+    --accent: #ffd866; --accent-secondary: #78dce8; --success: #a9dc76; --warning: #ffd866; --error: #ff6188;
+    --keyword: #ff6188; --function: #a9dc76; --string: #ffd866; --comment: #727072; --type: #78dce8; --number: #ab9df2;
+    --status-bg: #383539; --input-border: #5b595c;
+    --msg-user-border: #ffd866; --msg-user-bg: rgba(255,216,102,0.04);
+    --msg-ai-border: #a9dc76; --msg-ai-bg: rgba(169,220,118,0.04);
+    --scrollbar: #5b595c; --tree-dir: #78dce8; --tree-selected-bg: #423f44;
+    --tab-active-border: #ffd866; --terminal-green: #a9dc76; --terminal-cursor: #fcfcfa;
+  }
+
+  /* ============ BASE STYLES ============ */
+  body {
+    font-family: var(--font-ui);
+    color: var(--text-primary);
+    height: 100vh; display: flex; flex-direction: column;
+    overflow: hidden; font-size: 13px; line-height: 1.6;
+    background: var(--bg-deep); transition: background 0.25s, color 0.25s;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Theme Picker ── */
+  .theme-picker {
+    display: flex; flex-wrap: wrap; gap: 0;
+    background: var(--bg-panel); border-bottom: 1px solid var(--border);
+    min-height: 36px; align-items: stretch;
+  }
+  .theme-btn {
+    padding: 7px 12px; font-size: 11px; font-weight: 500; cursor: pointer;
+    color: var(--text-muted); background: transparent; border: none;
+    border-bottom: 2px solid transparent; font-family: var(--font-ui);
+    transition: all 0.15s; display: flex; align-items: center; gap: 6px;
+  }
+  .theme-btn:hover { color: var(--text-secondary); background: var(--bg-surface); }
+  .theme-btn.active { color: var(--text-primary); border-bottom-color: var(--accent); background: var(--bg-surface); }
+  .theme-btn .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── Main Layout ── */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── File Tree ── */
+  .file-tree {
+    width: 220px; min-width: 220px; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; background: var(--bg-panel);
+  }
+  .panel-header {
+    padding: 8px 14px; font-size: 11px; font-weight: 600;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-header .hint { font-size: 10px; color: var(--text-dim); text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .file-tree-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .tree-item {
+    padding: 2px 12px; cursor: pointer; display: flex; align-items: center; gap: 5px;
+    white-space: nowrap; font-size: 12px; font-family: var(--font-ui); font-weight: 400;
+    color: var(--text-secondary); transition: background 0.1s;
+  }
+  .tree-item:hover { background: var(--bg-surface); }
+  .tree-item.selected { background: var(--tree-selected-bg); color: var(--text-primary); }
+  .tree-item.dir { color: var(--tree-dir); font-weight: 500; }
+  .tree-item .icon { width: 14px; text-align: center; flex-shrink: 0; font-size: 10px; }
+  .tree-item .git-badge { margin-left: auto; font-size: 10px; font-weight: 700; padding: 0 3px; border-radius: 2px; }
+  .git-m { color: var(--warning); } .git-a { color: var(--success); }
+  .tree-indent { display: inline-block; width: 14px; }
+
+  /* ── Center Column (Editor + Terminal) ── */
+  .center-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* ── Editor ── */
+  .editor-panel { flex: 7; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); min-height: 0; }
+  .editor-tab-bar {
+    display: flex; background: var(--bg-panel); border-bottom: 1px solid var(--border);
+    min-height: 32px; align-items: stretch; overflow-x: auto;
+  }
+  .editor-tab {
+    padding: 0 14px; font-size: 12px; font-family: var(--font-ui); font-weight: 400;
+    color: var(--text-muted); border-right: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    border-top: 2px solid transparent; transition: all 0.1s;
+  }
+  .editor-tab:hover { color: var(--text-secondary); background: var(--bg-surface); }
+  .editor-tab.active { color: var(--text-primary); background: var(--bg-code); border-top-color: var(--tab-active-border); }
+  .editor-tab .close { font-size: 14px; color: var(--text-dim); cursor: pointer; line-height: 1; }
+  .editor-tab .close:hover { color: var(--error); }
+  .editor-content { flex: 1; display: flex; overflow: auto; background: var(--bg-code); }
+  .line-numbers {
+    padding: 10px 0; text-align: right; min-width: 44px; padding-right: 12px;
+    color: var(--text-dim); font-family: var(--font-code); font-size: 12.5px; line-height: 1.65;
+    user-select: none; white-space: pre; border-right: 1px solid var(--border);
+  }
+  .code-area {
+    flex: 1; padding: 10px 16px; font-family: var(--font-code); font-size: 12.5px;
+    line-height: 1.65; white-space: pre; overflow-x: auto; tab-size: 4;
+  }
+  .cur-line { background: rgba(255,255,255,0.04); display: block; margin: 0 -16px; padding: 0 16px; }
+  .kw { color: var(--keyword); } .fn { color: var(--function); } .str { color: var(--string); }
+  .cmt { color: var(--comment); font-style: italic; } .typ { color: var(--type); }
+  .num { color: var(--number); } .op { color: var(--operator); } .pkg { color: var(--function); }
+
+  /* ── Terminal ── */
+  .terminal-panel { flex: 3; display: flex; flex-direction: column; min-height: 0; }
+  .terminal-content {
+    flex: 1; background: var(--bg-terminal); padding: 8px 14px; overflow-y: auto;
+    font-family: var(--font-code); font-size: 12px; line-height: 1.6;
+  }
+  .term-prompt { color: var(--terminal-green); }
+  .term-path { color: var(--accent); }
+  .term-cmd { color: var(--text-primary); }
+  .term-output { color: var(--text-secondary); }
+  .term-err { color: var(--error); }
+  .term-cursor { display: inline-block; width: 7px; height: 14px; background: var(--terminal-cursor); animation: blink 1s step-end infinite; vertical-align: text-bottom; }
+
+  /* ── Right Column (Chat + Tools) ── */
+  .right-col { width: 340px; min-width: 340px; display: flex; flex-direction: column; border-left: 1px solid var(--border); }
+
+  /* ── Chat ── */
+  .chat-panel { flex: 7; display: flex; flex-direction: column; min-height: 0; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 8px 10px; border-radius: 6px; font-size: 12.5px; }
+  .msg-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; color: var(--text-muted); }
+  .msg-content { line-height: 1.6; }
+  .msg-user { border-left: 3px solid var(--msg-user-border); background: var(--msg-user-bg); }
+  .msg-assistant { border-left: 3px solid var(--msg-ai-border); background: var(--msg-ai-bg); }
+  .msg-tool { font-family: var(--font-code); font-size: 11px; color: var(--text-muted); padding: 2px 10px; }
+  .msg code { font-family: var(--font-code); font-size: 11.5px; background: var(--bg-surface); padding: 1px 5px; border-radius: 3px; }
+  .code-block { font-family: var(--font-code); font-size: 11.5px; background: var(--bg-code); padding: 8px 10px; border-radius: 4px; margin: 6px 0; white-space: pre; overflow-x: auto; border: 1px solid var(--border); }
+  .streaming-dot { color: var(--success); animation: pulse 1.5s infinite; font-size: 8px; }
+  .cursor-blink { display: inline-block; width: 2px; height: 13px; background: var(--accent); animation: blink 1s step-end infinite; vertical-align: text-bottom; margin-left: 1px; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .chat-input-area { border-top: 1px solid var(--border); padding: 8px 10px; }
+  .chat-input-box { display: flex; align-items: center; gap: 6px; background: var(--bg-surface); border: 1px solid var(--input-border); border-radius: 6px; padding: 6px 10px; }
+  .chat-input-box:focus-within { border-color: var(--border-focus); }
+  .prompt-icon { color: var(--accent); font-family: var(--font-code); font-weight: 700; font-size: 13px; }
+  .chat-input { flex: 1; background: none; border: none; outline: none; color: var(--text-primary); font-family: var(--font-ui); font-size: 12.5px; }
+  .chat-input::placeholder { color: var(--text-dim); }
+  .chat-input-hint { font-size: 10px; color: var(--text-dim); margin-top: 4px; padding: 0 2px; }
+
+  /* ── Tools Panel ── */
+  .tools-panel { flex: 3; display: flex; flex-direction: column; border-top: 1px solid var(--border); min-height: 0; }
+  .tools-body { flex: 1; overflow-y: auto; padding: 6px 10px; font-size: 11.5px; }
+  .tool-entry { padding: 3px 0; display: flex; gap: 8px; font-family: var(--font-code); color: var(--text-secondary); }
+  .tool-time { color: var(--text-dim); min-width: 42px; }
+  .tool-name { color: var(--accent); }
+  .tool-ok { color: var(--success); }
+  .tool-fail { color: var(--error); }
+  .tool-count { background: var(--bg-hover); color: var(--text-muted); padding: 0 5px; border-radius: 8px; font-size: 10px; margin-left: 4px; }
+
+  /* ── Status Bar ── */
+  .status-bar {
+    display: flex; align-items: center; gap: 12px; padding: 0 14px;
+    background: var(--status-bg); border-top: 1px solid var(--border);
+    font-size: 11px; font-weight: 500; color: var(--text-muted); min-height: 26px;
+    font-family: var(--font-ui);
+  }
+  .status-git { font-weight: 600; }
+  .status-git.dirty { color: var(--warning); }
+  .status-git.clean { color: var(--success); }
+  .status-model { color: var(--accent); font-weight: 600; }
+  .status-sep { color: var(--text-faint); }
+  .status-key { background: var(--bg-surface); padding: 0 4px; border-radius: 3px; font-size: 10px; font-family: var(--font-code); margin-right: 2px; }
+  .status-right { margin-left: auto; display: flex; gap: 14px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<!-- THEME PICKER -->
+<div class="theme-picker">
+  <button class="theme-btn active" onclick="setTheme('',this)"><span class="dot" style="background:linear-gradient(135deg,#60a5fa,#34d399)"></span>Slate</button>
+  <button class="theme-btn" onclick="setTheme('theme-cursor',this)"><span class="dot" style="background:#f54e00"></span>Cursor</button>
+  <button class="theme-btn" onclick="setTheme('theme-linear',this)"><span class="dot" style="background:#7170ff"></span>Linear</button>
+  <button class="theme-btn" onclick="setTheme('theme-claude',this)"><span class="dot" style="background:#c96442"></span>Claude</button>
+  <button class="theme-btn" onclick="setTheme('theme-vercel',this)"><span class="dot" style="background:linear-gradient(135deg,#000,#fff)"></span>Vercel</button>
+  <button class="theme-btn" onclick="setTheme('theme-github',this)"><span class="dot" style="background:#58a6ff"></span>GitHub</button>
+  <button class="theme-btn" onclick="setTheme('theme-dracula',this)"><span class="dot" style="background:#bd93f9"></span>Dracula</button>
+  <button class="theme-btn" onclick="setTheme('theme-nord',this)"><span class="dot" style="background:#88c0d0"></span>Nord</button>
+  <button class="theme-btn" onclick="setTheme('theme-solarized',this)"><span class="dot" style="background:#268bd2"></span>Solarized</button>
+  <button class="theme-btn" onclick="setTheme('theme-onedark',this)"><span class="dot" style="background:#61afef"></span>One Dark</button>
+  <button class="theme-btn" onclick="setTheme('theme-monokai',this)"><span class="dot" style="background:#ffd866"></span>Monokai</button>
+</div>
+
+<div class="main">
+  <!-- FILE TREE -->
+  <div class="file-tree">
+    <div class="panel-header">Explorer<span class="hint">Ctrl+1</span></div>
+    <div class="file-tree-list" id="fileTree"></div>
+  </div>
+
+  <!-- CENTER: Editor + Terminal -->
+  <div class="center-col">
+    <div class="editor-panel">
+      <div class="editor-tab-bar">
+        <div class="editor-tab active"><span>app.go</span><span class="close">&times;</span></div>
+        <div class="editor-tab"><span>client.go</span><span class="close">&times;</span></div>
+        <div class="editor-tab"><span>README.md</span><span class="close">&times;</span></div>
+      </div>
+      <div class="editor-content">
+        <div class="line-numbers" id="lineNumbers"></div>
+        <div class="code-area" id="codeArea"></div>
+      </div>
+    </div>
+    <div class="terminal-panel">
+      <div class="panel-header">Terminal<span class="hint">Ctrl+`</span></div>
+      <div class="terminal-content" id="termContent"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Chat + Tools -->
+  <div class="right-col">
+    <div class="chat-panel">
+      <div class="panel-header">TECHAI Chat<span class="hint">Ctrl+3</span></div>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-area">
+        <div class="chat-input-box">
+          <span class="prompt-icon">&#10095;</span>
+          <input class="chat-input" id="chatInput" placeholder="Ask TECHAI..." />
+        </div>
+        <div class="chat-input-hint">Enter send &middot; /help &middot; /git &middot; /diff &middot; /undo</div>
+      </div>
+    </div>
+    <div class="tools-panel">
+      <div class="panel-header">Tools<span class="tool-count" id="toolCount">5</span></div>
+      <div class="tools-body" id="toolsBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <div class="status-git dirty">&#9095; main*</div>
+  <div class="status-sep">|</div>
+  <div class="status-model">Qwen3-Coder-30B</div>
+  <div class="status-sep">|</div>
+  <div>2,481 tok</div>
+  <div class="status-sep">|</div>
+  <div>~/projects/techai</div>
+  <div class="status-sep">|</div>
+  <div>Tool:ON(15)</div>
+  <div class="status-right">
+    <span><span class="status-key">Ctrl+1</span>tree</span>
+    <span><span class="status-key">Ctrl+`</span>term</span>
+    <span><span class="status-key">Ctrl+3</span>chat</span>
+    <span>v0.9.6</span>
+  </div>
+</div>
+
+<script>
+function setTheme(cls, btn) {
+  document.body.className = cls;
+  document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── File Tree ──
+const tree = [
+  { n:'cmd/', d:1, x:1, c:[
+    { n:'tgc/', d:1, x:1, c:[{ n:'main.go' }] },
+    { n:'techai-ide/', d:1, c:[{ n:'main.go', g:'A' }, { n:'app.go', g:'A' }] },
+  ]},
+  { n:'internal/', d:1, x:1, c:[
+    { n:'app/', d:1, x:1, c:[{ n:'app.go', sel:1 }] },
+    { n:'config/', d:1, c:[{ n:'config.go' }] },
+    { n:'llm/', d:1, x:1, c:[{ n:'client.go', g:'M' }, { n:'client_test.go', g:'A' }, { n:'capabilities.go' }, { n:'prompt.go' }] },
+    { n:'tools/', d:1, c:[{ n:'registry.go' }, { n:'apply_patch.go' }] },
+    { n:'ui/', d:1, c:[{ n:'chat.go' }, { n:'styles.go' }] },
+    { n:'companion/', d:1, c:[{ n:'hub.go' }, { n:'server.go' }] },
+  ]},
+  { n:'web/', d:1, c:[{ n:'index.html' }, { n:'app.js' }] },
+  { n:'go.mod' }, { n:'go.sum' }, { n:'Makefile', g:'M' },
+];
+
+function renderTree(items, depth) {
+  let h='';
+  for (const i of items) {
+    const ind='<span class="tree-indent"></span>'.repeat(depth);
+    const ico=i.d?(i.x?'\u25be':'\u25b8'):'\u25ab';
+    const cls=['tree-item',i.d?'dir':'',i.sel?'selected':''].filter(Boolean).join(' ');
+    let gb='';
+    if(i.g==='M') gb='<span class="git-badge git-m">M</span>';
+    else if(i.g==='A') gb='<span class="git-badge git-a">A</span>';
+    h+=`<div class="${cls}">${ind}<span class="icon">${ico}</span>${i.n}${gb}</div>`;
+    if(i.d&&i.x&&i.c) h+=renderTree(i.c,depth+1);
+  }
+  return h;
+}
+
+// ── Code ──
+const code=`<span class="kw">package</span> <span class="pkg">app</span>
+
+<span class="kw">import</span> (
+	<span class="str">"context"</span>
+	<span class="str">"fmt"</span>
+	<span class="str">"strings"</span>
+	<span class="str">"time"</span>
+
+	<span class="typ">tea</span> <span class="str">"charm.land/bubbletea/v2"</span>
+	openai <span class="str">"github.com/sashabaranov/go-openai"</span>
+
+	<span class="str">"github.com/kimjiwon/tgc/internal/config"</span>
+	<span class="str">"github.com/kimjiwon/tgc/internal/llm"</span>
+	<span class="str">"github.com/kimjiwon/tgc/internal/tools"</span>
+)
+
+<span class="cmt">// Model is the main application state.</span>
+<span class="kw">type</span> <span class="typ">Model</span> <span class="kw">struct</span> {
+	cfg       config.Config
+	client    <span class="op">*</span>llm.Client
+	cwd       <span class="typ">string</span>
+
+<span class="cur-line">	history   []openai.ChatCompletionMessage</span>
+	msgs      []ui.Message
+	streaming <span class="typ">bool</span>
+	streamBuf <span class="typ">string</span>
+
+	<span class="cmt">// Tool call state</span>
+	toolIter  <span class="typ">int</span>
+	tokenCount <span class="typ">int</span>
+}
+
+<span class="kw">func</span> <span class="fn">NewModel</span>(cfg config.Config) <span class="typ">Model</span> {
+	client <span class="op">:=</span> llm.<span class="fn">NewClient</span>(cfg.API.BaseURL, cfg.API.APIKey)
+
+	<span class="kw">return</span> <span class="typ">Model</span>{
+		cfg:    cfg,
+		client: client,
+	}
+}
+
+<span class="cmt">// SendMessage sends a user message and starts streaming.</span>
+<span class="kw">func</span> (m <span class="op">*</span><span class="typ">Model</span>) <span class="fn">sendMessage</span>(input <span class="typ">string</span>) <span class="typ">tea.Cmd</span> {
+	m.history <span class="op">=</span> <span class="fn">append</span>(m.history, openai.ChatCompletionMessage{
+		Role:    openai.ChatMessageRoleUser,
+		Content: input,
+	})
+	m.streaming <span class="op">=</span> <span class="kw">true</span>
+	<span class="kw">return</span> m.<span class="fn">startStream</span>()
+}`;
+
+// ── Terminal ──
+const termHTML=`<div><span class="term-prompt">$</span> <span class="term-path">~/projects/techai</span> <span class="term-cmd">go test ./internal/llm/... -count=1</span></div>
+<div class="term-output">ok  \tgithub.com/kimjiwon/tgc/internal/llm\t0.453s</div>
+<div>&nbsp;</div>
+<div><span class="term-prompt">$</span> <span class="term-path">~/projects/techai</span> <span class="term-cmd">make build</span></div>
+<div class="term-output">Building knowledge index...</div>
+<div class="term-output">Generated knowledge/index.json: 81 documents indexed</div>
+<div class="term-output">go build -ldflags "..." -o techai ./cmd/tgc</div>
+<div>&nbsp;</div>
+<div><span class="term-prompt">$</span> <span class="term-path">~/projects/techai</span> <span class="term-cmd">git status -s</span></div>
+<div class="term-output"> M Makefile</div>
+<div class="term-output"> M internal/llm/client.go</div>
+<div class="term-output"><span style="color:var(--success)">??</span> internal/llm/client_test.go</div>
+<div>&nbsp;</div>
+<div><span class="term-prompt">$</span> <span class="term-path">~/projects/techai</span> <span class="term-cursor"></span></div>`;
+
+// ── Chat ──
+const chatHTML=`
+<div class="msg msg-user"><div class="msg-label">You</div><div class="msg-content">app.go의 Model 구조체 보여줘</div></div>
+<div class="msg msg-tool">&gt;&gt; file_read internal/app/app.go</div>
+<div class="msg msg-tool">&lt;&lt; 2,481 bytes (89 lines)</div>
+<div class="msg msg-assistant"><div class="msg-label">AI</div><div class="msg-content"><code>Model</code> 구조체의 핵심 필드입니다:
+<div class="code-block"><span class="kw">type</span> <span class="typ">Model</span> <span class="kw">struct</span> {
+    cfg       config.Config
+    client    *llm.Client
+    history   []openai.ChatCompletionMessage
+    streaming bool
+    toolIter  int
+}</div>
+스트리밍 상태와 도구 반복을 관리하는 필드가 포함되어 있습니다.</div></div>
+<div class="msg msg-user"><div class="msg-label">You</div><div class="msg-content">client.go에 parseToolCallsFromContent 함수 설명해줘</div></div>
+<div class="msg msg-tool">&gt;&gt; grep_search "parseToolCallsFromContent" ./internal/llm/</div>
+<div class="msg msg-tool">&lt;&lt; 2 matches in client.go</div>
+<div class="msg msg-assistant"><div class="msg-label">AI <span class="streaming-dot">&#9679;</span></div><div class="msg-content">API 프록시가 tool_calls를 변환하지 못할 때 텍스트 content에서 도구 호출을 추출하는 폴백 함수입니다. <code>&lt;tool_call&gt;</code>, <code>&lt;function=&gt;</code>, <code>&lt;parameter=&gt;</code> 3가지 형식을 지원합니다.<span class="cursor-blink"></span></div></div>`;
+
+// ── Tools ──
+const toolsHTML=`
+<div class="tool-entry"><span class="tool-time">10:38</span><span class="tool-name">file_read</span> app.go <span class="tool-ok">✓</span></div>
+<div class="tool-entry"><span class="tool-time">10:38</span><span class="tool-name">grep_search</span> "parseToolCalls" <span class="tool-ok">✓ 2건</span></div>
+<div class="tool-entry"><span class="tool-time">10:39</span><span class="tool-name">file_read</span> client.go <span class="tool-ok">✓</span></div>
+<div class="tool-entry"><span class="tool-time">10:40</span><span class="tool-name">file_write</span> client_test.go <span class="tool-ok">✓ 53 tests</span></div>
+<div class="tool-entry"><span class="tool-time">10:41</span><span class="tool-name">shell_exec</span> go test ./... <span class="tool-ok">✓ PASS</span></div>`;
+
+// ── Init ──
+document.getElementById('fileTree').innerHTML=renderTree(tree,0);
+document.getElementById('codeArea').innerHTML=code;
+document.getElementById('chatMessages').innerHTML=chatHTML;
+document.getElementById('termContent').innerHTML=termHTML;
+document.getElementById('toolsBody').innerHTML=toolsHTML;
+
+const lines=document.getElementById('codeArea').innerText.split('\n').length;
+let nums='';for(let i=1;i<=lines;i++) nums+=i+'\n';
+document.getElementById('lineNumbers').textContent=nums;
+
+document.getElementById('fileTree').addEventListener('click',e=>{
+  const item=e.target.closest('.tree-item');if(!item)return;
+  document.querySelectorAll('.tree-item.selected').forEach(i=>i.classList.remove('selected'));
+  item.classList.add('selected');
+});
+
+document.getElementById('chatInput').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){
+    e.preventDefault();const v=this.value.trim();if(!v)return;
+    const cm=document.getElementById('chatMessages');
+    cm.innerHTML+=`<div class="msg msg-user"><div class="msg-label">You</div><div class="msg-content">${v}</div></div>
+    <div class="msg msg-assistant"><div class="msg-label">AI <span class="streaming-dot">\u25cf</span></div>
+    <div class="msg-content">\ub124, \ud655\uc778\ud558\uaca0\uc2b5\ub2c8\ub2e4<span class="cursor-blink"></span></div></div>`;
+    cm.scrollTop=cm.scrollHeight;this.value='';
+  }
+});
+</script>
+</body>
+</html>

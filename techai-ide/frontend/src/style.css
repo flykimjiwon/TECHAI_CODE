@@ -1,0 +1,128 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Geist:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-base: #0a0a0c;
+  --bg-activity: #08080a;
+  --bg-sidebar: #0e0e11;
+  --bg-editor: #0d0d10;
+  --bg-panel: #111115;
+  --bg-terminal: #08080a;
+  --bg-hover: rgba(255,255,255,0.04);
+  --bg-active: rgba(255,255,255,0.07);
+  --bg-input: #0a0a0c;
+  --border: rgba(255,255,255,0.07);
+  --border-focus: #3b82f6;
+  --fg-primary: #e4e4e7;
+  --fg-secondary: #a1a1aa;
+  --fg-muted: #71717a;
+  --fg-dim: #3f3f46;
+  --accent: #3b82f6;
+  --accent-glow: rgba(59,130,246,0.25);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --status-bg: #3b82f6;
+  --status-fg: #ffffff;
+  --font-ui: 'Geist', 'Pretendard', -apple-system, system-ui, sans-serif;
+  --font-code: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body, #root {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-base);
+  color: var(--fg-primary);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-dim); }
+
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+/* ── Cursor ── */
+body.t-cursor {
+  --accent:#f54e00; --accent-glow:rgba(245,78,0,0.25); --border-focus:#f54e00;
+  --status-bg:#f54e00;
+}
+/* ── Linear ── */
+body.t-linear {
+  --bg-base:#0c0c14; --bg-activity:#08080f; --bg-sidebar:#0e0e18; --bg-editor:#0b0b14;
+  --bg-panel:#12121e; --bg-terminal:#08080f;
+  --accent:#7c3aed; --accent-glow:rgba(124,58,237,0.25); --border-focus:#7c3aed;
+  --status-bg:#7c3aed;
+}
+/* ── GitHub Dark ── */
+body.t-github {
+  --bg-base:#0d1117; --bg-activity:#010409; --bg-sidebar:#0d1117; --bg-editor:#0d1117;
+  --bg-panel:#161b22; --bg-terminal:#010409; --border:rgba(48,54,61,0.8);
+  --accent:#58a6ff; --accent-glow:rgba(88,166,255,0.2); --border-focus:#58a6ff;
+  --status-bg:#1f6feb;
+}
+/* ── Dracula ── */
+body.t-dracula {
+  --bg-base:#282a36; --bg-activity:#21222c; --bg-sidebar:#282a36; --bg-editor:#282a36;
+  --bg-panel:#343746; --bg-terminal:#1e1f29; --border:rgba(98,114,164,0.3);
+  --accent:#bd93f9; --accent-glow:rgba(189,147,249,0.2); --border-focus:#bd93f9;
+  --status-bg:#6272a4; --fg-primary:#f8f8f2; --fg-secondary:#bfbfbf;
+}
+/* ── Nord ── */
+body.t-nord {
+  --bg-base:#2e3440; --bg-activity:#272c36; --bg-sidebar:#2e3440; --bg-editor:#2e3440;
+  --bg-panel:#3b4252; --bg-terminal:#272c36; --border:rgba(76,86,106,0.5);
+  --accent:#88c0d0; --accent-glow:rgba(136,192,208,0.2); --border-focus:#88c0d0;
+  --status-bg:#5e81ac; --fg-primary:#eceff4; --fg-secondary:#d8dee9;
+}
+/* ── One Dark ── */
+body.t-onedark {
+  --bg-base:#282c34; --bg-activity:#21252b; --bg-sidebar:#282c34; --bg-editor:#282c34;
+  --bg-panel:#2c313a; --bg-terminal:#1e2127; --border:rgba(62,68,82,0.7);
+  --accent:#61afef; --accent-glow:rgba(97,175,239,0.2); --border-focus:#61afef;
+  --status-bg:#4d78cc; --fg-primary:#abb2bf; --fg-secondary:#8b929e;
+}
+/* ── Monokai ── */
+body.t-monokai {
+  --bg-base:#2d2a2e; --bg-activity:#221f22; --bg-sidebar:#2d2a2e; --bg-editor:#2d2a2e;
+  --bg-panel:#383539; --bg-terminal:#221f22; --border:rgba(64,62,65,0.7);
+  --accent:#ffd866; --accent-glow:rgba(255,216,102,0.2); --border-focus:#ffd866;
+  --status-bg:#423f44;
+}
+/* ── Solarized ── */
+body.t-solarized {
+  --bg-base:#002b36; --bg-activity:#001e27; --bg-sidebar:#002b36; --bg-editor:#002b36;
+  --bg-panel:#073642; --bg-terminal:#001e27; --border:rgba(7,54,66,0.8);
+  --accent:#268bd2; --accent-glow:rgba(38,139,210,0.2); --border-focus:#268bd2;
+  --status-bg:#073642; --fg-primary:#fdf6e3; --fg-secondary:#93a1a1;
+}
+/* ── Claude (Light) ── */
+body.t-claude {
+  --bg-base:#faf9f5; --bg-activity:#efeee6; --bg-sidebar:#f5f4ed; --bg-editor:#faf9f5;
+  --bg-panel:#f0efe7; --bg-terminal:#efeee6; --bg-input:#faf9f5;
+  --border:rgba(0,0,0,0.08); --border-focus:#c96442;
+  --fg-primary:#141413; --fg-secondary:#4d4c48; --fg-muted:#5e5d59; --fg-dim:#b0aea5;
+  --accent:#c96442; --accent-glow:rgba(201,100,66,0.2);
+  --success:#2d7a4f; --warning:#a67c37; --error:#b53333;
+  --status-bg:#c96442;
+  --bubble-user-bg:rgba(0,0,0,0.04); --bubble-ai-bg:rgba(0,0,0,0.02); --bubble-ai-border:rgba(0,0,0,0.06);
+  --bg-hover:rgba(0,0,0,0.04); --bg-active:rgba(0,0,0,0.07);
+}
+/* ── Vercel (Light) ── */
+body.t-vercel {
+  --bg-base:#ffffff; --bg-activity:#fafafa; --bg-sidebar:#fafafa; --bg-editor:#ffffff;
+  --bg-panel:#f5f5f5; --bg-terminal:#fafafa; --bg-input:#ffffff;
+  --border:rgba(0,0,0,0.06); --border-focus:#171717;
+  --fg-primary:#171717; --fg-secondary:#4d4d4d; --fg-muted:#666; --fg-dim:#d4d4d4;
+  --accent:#171717; --accent-glow:rgba(0,0,0,0.1);
+  --success:#17a34a; --warning:#f59e0b; --error:#ff5b4f;
+  --status-bg:#171717;
+  --bubble-user-bg:rgba(0,0,0,0.04); --bubble-ai-bg:rgba(0,0,0,0.02); --bubble-ai-border:rgba(0,0,0,0.06);
+  --bg-hover:rgba(0,0,0,0.04); --bg-active:rgba(0,0,0,0.06);
+}
