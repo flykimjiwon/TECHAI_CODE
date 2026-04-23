@@ -32,15 +32,25 @@ export function GetKnowledgePacks():Promise<Array<main.KnowledgePack>>;
 
 export function GetModel():Promise<string>;
 
+export function GetRecentProjects():Promise<Array<string>>;
+
 export function GetSettings():Promise<Record<string, string>>;
 
+export function GitCheckout(arg1:string):Promise<string>;
+
 export function GitCommit(arg1:string):Promise<string>;
+
+export function GitCreateBranch(arg1:string):Promise<string>;
 
 export function GitDiff():Promise<string>;
 
 export function GitDiffFile(arg1:string):Promise<string>;
 
 export function GitLog(arg1:number):Promise<string>;
+
+export function GitPull():Promise<string>;
+
+export function GitPush():Promise<string>;
 
 export function GitStage(arg1:string):Promise<void>;
 

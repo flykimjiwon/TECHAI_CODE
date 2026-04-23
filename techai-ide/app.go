@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -39,6 +40,9 @@ func (a *App) startup(ctx context.Context) {
 
 	// Auto-start terminal
 	_ = a.StartTerminal()
+
+	// Save to recent projects
+	a.saveRecentProject(a.cwd)
 }
 
 func (a *App) shutdown(ctx context.Context) {
@@ -183,6 +187,37 @@ func (a *App) RenameFile(oldPath, newPath string) error {
 		newPath = filepath.Join(a.cwd, newPath)
 	}
 	return os.Rename(oldPath, newPath)
+}
+
+// GetRecentProjects returns recently opened project paths.
+func (a *App) GetRecentProjects() []string {
+	home, _ := os.UserHomeDir()
+	path := filepath.Join(home, ".tgc", "ide-recent.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var projects []string
+	json.Unmarshal(data, &projects)
+	return projects
+}
+
+func (a *App) saveRecentProject(dir string) {
+	home, _ := os.UserHomeDir()
+	path := filepath.Join(home, ".tgc", "ide-recent.json")
+	projects := a.GetRecentProjects()
+	filtered := []string{dir}
+	for _, p := range projects {
+		if p != dir {
+			filtered = append(filtered, p)
+		}
+	}
+	if len(filtered) > 10 {
+		filtered = filtered[:10]
+	}
+	data, _ := json.Marshal(filtered)
+	os.MkdirAll(filepath.Dir(path), 0755)
+	os.WriteFile(path, data, 0644)
 }
 
 // OpenInBrowser opens a file in the default browser.

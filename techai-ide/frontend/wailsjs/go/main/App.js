@@ -62,12 +62,24 @@ export function GetModel() {
   return window['go']['main']['App']['GetModel']();
 }
 
+export function GetRecentProjects() {
+  return window['go']['main']['App']['GetRecentProjects']();
+}
+
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GitCheckout(arg1) {
+  return window['go']['main']['App']['GitCheckout'](arg1);
+}
+
 export function GitCommit(arg1) {
   return window['go']['main']['App']['GitCommit'](arg1);
+}
+
+export function GitCreateBranch(arg1) {
+  return window['go']['main']['App']['GitCreateBranch'](arg1);
 }
 
 export function GitDiff() {
@@ -80,6 +92,14 @@ export function GitDiffFile(arg1) {
 
 export function GitLog(arg1) {
   return window['go']['main']['App']['GitLog'](arg1);
+}
+
+export function GitPull() {
+  return window['go']['main']['App']['GitPull']();
+}
+
+export function GitPush() {
+  return window['go']['main']['App']['GitPush']();
 }
 
 export function GitStage(arg1) {

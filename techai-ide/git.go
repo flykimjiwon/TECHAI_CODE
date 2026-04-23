@@ -172,9 +172,29 @@ func (a *App) GetGitBranches() []string {
 	return branches
 }
 
+// GitCheckout switches to a branch.
+func (a *App) GitCheckout(branch string) (string, error) {
+	return a.runGit("checkout", branch)
+}
+
+// GitCreateBranch creates and switches to a new branch.
+func (a *App) GitCreateBranch(name string) (string, error) {
+	return a.runGit("checkout", "-b", name)
+}
+
+// GitPull pulls from remote.
+func (a *App) GitPull() (string, error) {
+	return a.runGit("pull")
+}
+
+// GitPush pushes to remote.
+func (a *App) GitPush() (string, error) {
+	return a.runGit("push")
+}
+
 func (a *App) runGit(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = a.cwd
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
