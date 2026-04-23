@@ -852,6 +852,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Check if AI wants to call tools
 			if len(msg.toolCalls) > 0 {
 				config.DebugLog("[APP-STREAM] done reason=tool_call | toolCalls=%d | bufLen=%d", len(msg.toolCalls), len(m.streamBuf))
+
+				// Clean streamBuf when text-based tool calls were parsed from content.
+				// The streaming suppression in client.go prevents most tag leakage,
+				// but edge cases (tag split across chunks) may leave partial tags.
+				if len(msg.toolCalls) > 0 && strings.HasPrefix(msg.toolCalls[0].ID, "text-tc-") {
+					m.streamBuf = llm.StripToolCallTags(m.streamBuf)
+				}
+
 				if m.streamBuf != "" {
 					m.msgs = append(m.msgs, ui.Message{
 						Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),

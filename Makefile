@@ -7,8 +7,8 @@ LDFLAGS = -ldflags "-s -w -X main.version=$(VERSION) \
 
 # On-premise build config
 ONPREM_URL = https://techai-web-prod.shinhan.com/v1
-ONPREM_MODEL_SUPER = GPT-OSS-120B
-ONPREM_MODEL_DEV = GPT-OSS-120B
+ONPREM_MODEL_SUPER = Qwen3-Coder-30B
+ONPREM_MODEL_DEV = Qwen3-Coder-30B
 ONPREM_LDFLAGS = -ldflags "-s -w -X main.version=$(VERSION)-onprem \
 	-X 'github.com/kimjiwon/tgc/internal/config.DefaultBaseURL=$(ONPREM_URL)' \
 	-X 'github.com/kimjiwon/tgc/internal/config.DefaultModel=$(ONPREM_MODEL_SUPER)' \

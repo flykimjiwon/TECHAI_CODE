@@ -205,6 +205,69 @@ func NeedsSetup() bool {
 	return cfg.API.APIKey == "" && os.Getenv("TGC_API_KEY") == ""
 }
 
+// MigrateModelsIfNeeded performs a one-time model migration for this version.
+// On onprem builds, users may have config.yaml with the previous model
+// (e.g. GPT-OSS-120B). This function detects the old model names and
+// force-updates to the binary's compiled-in DefaultModel/DefaultDevModel.
+// The migration runs at most once per version (tracked by a marker file).
+func MigrateModelsIfNeeded(version string) {
+	dir := ConfigDir()
+	markerPath := filepath.Join(dir, ".model-migrated")
+
+	// Check if already migrated for this version
+	if data, err := os.ReadFile(markerPath); err == nil {
+		if strings.TrimSpace(string(data)) == version {
+			return
+		}
+	}
+
+	// Load current config
+	data, err := os.ReadFile(ConfigPath())
+	if err != nil {
+		// No config file yet — nothing to migrate. Write marker and return.
+		_ = os.MkdirAll(dir, 0755)
+		_ = os.WriteFile(markerPath, []byte(version), 0644)
+		return
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		_ = os.WriteFile(markerPath, []byte(version), 0644)
+		return
+	}
+
+	// Known old model names that should be migrated
+	oldModels := map[string]bool{
+		"GPT-OSS-120B":      true,
+		"gpt-oss-120b":      true,
+		"openai/gpt-oss-120b": true,
+	}
+
+	changed := false
+	if oldModels[cfg.Models.Super] && cfg.Models.Super != DefaultModel {
+		DebugLog("[CONFIG-MIGRATE] super: %s → %s", cfg.Models.Super, DefaultModel)
+		cfg.Models.Super = DefaultModel
+		changed = true
+	}
+	if oldModels[cfg.Models.Dev] && cfg.Models.Dev != DefaultDevModel {
+		DebugLog("[CONFIG-MIGRATE] dev: %s → %s", cfg.Models.Dev, DefaultDevModel)
+		cfg.Models.Dev = DefaultDevModel
+		changed = true
+	}
+
+	if changed {
+		if err := Save(cfg); err != nil {
+			DebugLog("[CONFIG-MIGRATE] save failed: %v", err)
+		} else {
+			DebugLog("[CONFIG-MIGRATE] migration complete")
+		}
+	}
+
+	// Write marker regardless so we don't re-check
+	_ = os.MkdirAll(dir, 0755)
+	_ = os.WriteFile(markerPath, []byte(version), 0644)
+}
+
 func RunSetupWizard() (Config, error) {
 	cfg := DefaultConfig()
 	reader := bufio.NewReader(os.Stdin)

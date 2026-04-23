@@ -254,6 +254,9 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 		// Accumulate tool calls from deltas
 		tcMap := make(map[int]*ToolCallInfo)
 		var fullContentBuf strings.Builder // tracks full content for text tool_call parsing
+		var sentContentLen int             // bytes of fullContentBuf already sent as StreamChunks
+		var toolCallOutputStarted bool     // true once <tool_call>/<function= detected in content
+		var insideThinkTag bool            // true while inside <think>...</think> in content
 		chunkNum := 0
 		totalContentLen := 0
 		lastChunkTime := time.Now()
@@ -343,14 +346,43 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 			// Stream text content — handle both content and reasoning_content.
 			// Some models (e.g. GPT-OSS-120B via Novita) send thinking in
 			// reasoning_content first, then the final answer in content.
+			//
+			// Tool-call tag suppression: when the model outputs tool calls as
+			// text (e.g. <tool_call>JSON</tool_call>), we detect the tag start
+			// and stop forwarding content to the UI. The raw text is still
+			// accumulated in fullContentBuf for parsing at EOF.
 			if delta.Content != "" {
 				totalContentLen += len(delta.Content)
 				fullContentBuf.WriteString(delta.Content)
+
+				if !toolCallOutputStarted {
+					full := fullContentBuf.String()
+					tagIdx := findToolCallTagStart(full)
+
+					if tagIdx >= 0 {
+						toolCallOutputStarted = true
+						// Send only the content before the tag that hasn't been sent yet
+						if tagIdx > sentContentLen {
+							unsent := full[sentContentLen:tagIdx]
+							for _, seg := range splitThinkSegments(unsent, &insideThinkTag) {
+								ch <- seg
+							}
+						}
+						config.DebugLog("[CHUNK#%d] tool_call tag detected at pos %d, suppressing output", chunkNum, tagIdx)
+					} else {
+						// Emit content with <think> tag awareness
+						for _, seg := range splitThinkSegments(delta.Content, &insideThinkTag) {
+							ch <- seg
+						}
+						sentContentLen = len(full)
+					}
+				}
+				// When toolCallOutputStarted: content goes to fullContentBuf only, not to UI
+
 				hasTC := len(delta.ToolCalls) > 0
 				if chunkNum <= 5 || chunkNum%50 == 0 {
-					config.DebugLog("[CHUNK#%d] content len=%d | toolCall=%v | gap=%v | preview=%q", chunkNum, len(delta.Content), hasTC, gap, truncateForLog(delta.Content, 100))
+					config.DebugLog("[CHUNK#%d] content len=%d | toolCall=%v | gap=%v | suppressed=%v | thinking=%v | preview=%q", chunkNum, len(delta.Content), hasTC, gap, toolCallOutputStarted, insideThinkTag, truncateForLog(delta.Content, 100))
 				}
-				ch <- StreamChunk{Content: delta.Content, IsThinking: false}
 			} else if delta.ReasoningContent != "" {
 				totalContentLen += len(delta.ReasoningContent)
 				if chunkNum <= 5 || chunkNum%50 == 0 {
@@ -421,72 +453,280 @@ func (c *Client) Chat(ctx context.Context, model string, messages []openai.ChatC
 
 // parseToolCallsFromContent extracts tool calls from text content when
 // the API proxy doesn't convert model-native tool call format to OpenAI.
-// Supports Qwen3 format: <tool_call>{"name":"...","arguments":{...}}</tool_call>
-// and also: <function=name>{"key":"val"}</function>
+//
+// Supported patterns (Qwen3-Coder / ChatGLM / other OSS models):
+//   - <tool_call>{"name":"...","arguments":{...}}</tool_call>
+//   - <|tool_call|>{"name":"...","arguments":{...}}<|/tool_call|>
+//   - <function=name>{"key":"val"}</function>
+//   - <function=name>{"key":"val"}</tool_call>
+//
+// Thinking blocks (<think>...</think>) are stripped before parsing to
+// prevent false-positive extraction from model reasoning.
 func parseToolCallsFromContent(content string) []ToolCallInfo {
-	var calls []ToolCallInfo
-
-	// Pattern 1: <tool_call>{"name":"...","arguments":{...}}</tool_call>
-	for {
-		start := strings.Index(content, "<tool_call>")
-		if start == -1 {
-			break
-		}
-		end := strings.Index(content[start:], "</tool_call>")
-		if end == -1 {
-			break
-		}
-		jsonStr := strings.TrimSpace(content[start+len("<tool_call>") : start+end])
-		content = content[start+end+len("</tool_call>"):]
-
-		var parsed struct {
-			Name      string          `json:"name"`
-			Arguments json.RawMessage `json:"arguments"`
-		}
-		if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
-			config.DebugLog("[TOOL-PARSE] failed to parse tool_call JSON: %v", err)
-			continue
-		}
-		calls = append(calls, ToolCallInfo{
-			ID:        fmt.Sprintf("text-tc-%d", len(calls)),
-			Name:      parsed.Name,
-			Arguments: string(parsed.Arguments),
-		})
+	// ── Step 0: strip <think>...</think> blocks ──
+	content = stripThinkTags(content)
+	if content == "" {
+		return nil
 	}
 
-	// Pattern 2: <function=file_read>{"path":"..."}</function>
+	var calls []ToolCallInfo
+
+	// ── Pattern 1a: <tool_call>...</tool_call> ──
+	content = parseToolCallTag(content, "<tool_call>", "</tool_call>", &calls)
+
+	// ── Pattern 1b: <|tool_call|>...<|/tool_call|> (pipe-delimited variant) ──
+	content = parseToolCallTag(content, "<|tool_call|>", "<|/tool_call|>", &calls)
+
+	// ── Pattern 2: <function=name>{...}</function> or </tool_call> ──
 	remaining := content
 	for {
 		funcStart := strings.Index(remaining, "<function=")
 		if funcStart == -1 {
 			break
 		}
+		// Find closing '>' of opening tag
 		nameEnd := strings.Index(remaining[funcStart:], ">")
 		if nameEnd == -1 {
 			break
 		}
-		name := remaining[funcStart+len("<function=") : funcStart+nameEnd]
+		name := strings.TrimSpace(remaining[funcStart+len("<function=") : funcStart+nameEnd])
+		if name == "" {
+			// Empty function name — skip malformed tag
+			remaining = remaining[funcStart+nameEnd+1:]
+			continue
+		}
 
-		funcEnd := strings.Index(remaining[funcStart:], "</function>")
+		// Find closing tag — could be </function> or </tool_call>
+		closeTag := "</function>"
+		funcEnd := strings.Index(remaining[funcStart:], closeTag)
 		if funcEnd == -1 {
-			// Also try </tool_call> as some models mix formats
-			funcEnd = strings.Index(remaining[funcStart:], "</tool_call>")
+			closeTag = "</tool_call>"
+			funcEnd = strings.Index(remaining[funcStart:], closeTag)
 			if funcEnd == -1 {
 				break
 			}
 		}
 		argsStr := strings.TrimSpace(remaining[funcStart+nameEnd+1 : funcStart+funcEnd])
-		remaining = remaining[funcStart+funcEnd+len("</function>"):]
+		remaining = remaining[funcStart+funcEnd+len(closeTag):]
 
-		// Validate it's JSON
-		if len(argsStr) > 0 && argsStr[0] == '{' {
-			calls = append(calls, ToolCallInfo{
-				ID:        fmt.Sprintf("text-tc-%d", len(calls)),
-				Name:      name,
-				Arguments: argsStr,
-			})
+		// Validate JSON
+		if len(argsStr) == 0 {
+			argsStr = "{}"
 		}
+		if argsStr[0] != '{' {
+			config.DebugLog("[TOOL-PARSE] function=%s: args not JSON object: %q", name, truncateForLog(argsStr, 100))
+			continue
+		}
+		if !json.Valid([]byte(argsStr)) {
+			config.DebugLog("[TOOL-PARSE] function=%s: invalid JSON args: %q", name, truncateForLog(argsStr, 200))
+			continue
+		}
+
+		calls = append(calls, ToolCallInfo{
+			ID:        fmt.Sprintf("text-tc-%d", len(calls)),
+			Name:      name,
+			Arguments: argsStr,
+		})
 	}
 
 	return calls
+}
+
+// parseToolCallTag extracts tool calls matching a specific open/close tag pair.
+// The remaining content (after all matched tags are consumed) is returned.
+func parseToolCallTag(content, openTag, closeTag string, calls *[]ToolCallInfo) string {
+	for {
+		start := strings.Index(content, openTag)
+		if start == -1 {
+			break
+		}
+		end := strings.Index(content[start:], closeTag)
+		if end == -1 {
+			// Unclosed tag — try to parse what we have (model may have been cut off)
+			jsonStr := strings.TrimSpace(content[start+len(openTag):])
+			if len(jsonStr) > 0 && jsonStr[0] == '{' {
+				if tc, ok := parseToolCallJSON(jsonStr, len(*calls)); ok {
+					config.DebugLog("[TOOL-PARSE] recovered unclosed %s tag: name=%s", openTag, tc.Name)
+					*calls = append(*calls, tc)
+				}
+			}
+			content = ""
+			break
+		}
+		jsonStr := strings.TrimSpace(content[start+len(openTag) : start+end])
+		content = content[start+end+len(closeTag):]
+
+		if tc, ok := parseToolCallJSON(jsonStr, len(*calls)); ok {
+			*calls = append(*calls, tc)
+		}
+	}
+	return content
+}
+
+// parseToolCallJSON parses a JSON string from a tool_call tag into a ToolCallInfo.
+// Returns (info, true) on success, (zero, false) on failure.
+func parseToolCallJSON(jsonStr string, idx int) (ToolCallInfo, bool) {
+	if len(jsonStr) == 0 || jsonStr[0] != '{' {
+		config.DebugLog("[TOOL-PARSE] expected JSON object, got: %q", truncateForLog(jsonStr, 100))
+		return ToolCallInfo{}, false
+	}
+
+	// Try standard format: {"name":"...", "arguments":{...}}
+	var parsed struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+		config.DebugLog("[TOOL-PARSE] JSON unmarshal failed: %v | raw=%q", err, truncateForLog(jsonStr, 200))
+		return ToolCallInfo{}, false
+	}
+	if parsed.Name == "" {
+		config.DebugLog("[TOOL-PARSE] empty tool name in JSON: %q", truncateForLog(jsonStr, 100))
+		return ToolCallInfo{}, false
+	}
+
+	args := string(parsed.Arguments)
+	if args == "" || args == "null" {
+		args = "{}"
+	}
+
+	return ToolCallInfo{
+		ID:        fmt.Sprintf("text-tc-%d", idx),
+		Name:      parsed.Name,
+		Arguments: args,
+	}, true
+}
+
+// stripThinkTags removes <think>...</think> blocks from content.
+// Handles unclosed tags (strips from <think> to end) and nested tags.
+func stripThinkTags(s string) string {
+	for {
+		start := strings.Index(s, "<think>")
+		if start == -1 {
+			// Also check <|think|> variant
+			start = strings.Index(s, "<|think|>")
+			if start == -1 {
+				break
+			}
+			closeTag := "<|/think|>"
+			end := strings.Index(s[start:], closeTag)
+			if end == -1 {
+				s = s[:start]
+				break
+			}
+			s = s[:start] + s[start+end+len(closeTag):]
+			continue
+		}
+		end := strings.Index(s[start:], "</think>")
+		if end == -1 {
+			// Unclosed — strip from <think> to end
+			s = s[:start]
+			break
+		}
+		s = s[:start] + s[start+end+len("</think>"):]
+	}
+	return s
+}
+
+// splitThinkSegments splits content at <think>/<​/think> boundaries and
+// returns StreamChunks with correct IsThinking flags. The insideThink
+// pointer tracks state across calls (chunk boundaries). The raw tags
+// themselves are stripped from output so the user never sees them.
+func splitThinkSegments(content string, insideThink *bool) []StreamChunk {
+	var segs []StreamChunk
+	for len(content) > 0 {
+		if *insideThink {
+			if idx := strings.Index(content, "</think>"); idx >= 0 {
+				if idx > 0 {
+					segs = append(segs, StreamChunk{Content: content[:idx], IsThinking: true})
+				}
+				content = content[idx+len("</think>"):]
+				*insideThink = false
+			} else {
+				segs = append(segs, StreamChunk{Content: content, IsThinking: true})
+				content = ""
+			}
+		} else {
+			if idx := strings.Index(content, "<think>"); idx >= 0 {
+				if idx > 0 {
+					segs = append(segs, StreamChunk{Content: content[:idx], IsThinking: false})
+				}
+				content = content[idx+len("<think>"):]
+				*insideThink = true
+			} else {
+				segs = append(segs, StreamChunk{Content: content, IsThinking: false})
+				content = ""
+			}
+		}
+	}
+	return segs
+}
+
+// findToolCallTagStart returns the byte index of the first tool_call tag
+// start in the given content, or -1 if none found. Used by the streaming
+// loop to suppress tool_call output from being displayed to the user.
+func findToolCallTagStart(s string) int {
+	patterns := []string{"<tool_call>", "<|tool_call|>", "<function="}
+	minIdx := -1
+	for _, p := range patterns {
+		if idx := strings.Index(s, p); idx >= 0 && (minIdx < 0 || idx < minIdx) {
+			minIdx = idx
+		}
+	}
+	return minIdx
+}
+
+// StripToolCallTags removes tool_call/function tags and their content from
+// a string, returning only the human-readable text. Used to clean the
+// stream buffer when text-based tool calls were detected.
+func StripToolCallTags(s string) string {
+	s = stripThinkTags(s)
+
+	// Strip <tool_call>...</tool_call>
+	for {
+		start := strings.Index(s, "<tool_call>")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(s[start:], "</tool_call>")
+		if end == -1 {
+			s = s[:start]
+			break
+		}
+		s = s[:start] + s[start+end+len("</tool_call>"):]
+	}
+	// Strip <|tool_call|>...<|/tool_call|>
+	for {
+		start := strings.Index(s, "<|tool_call|>")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(s[start:], "<|/tool_call|>")
+		if end == -1 {
+			s = s[:start]
+			break
+		}
+		s = s[:start] + s[start+end+len("<|/tool_call|>"):]
+	}
+	// Strip <function=...>...</function> and <function=...>...</tool_call>
+	for {
+		start := strings.Index(s, "<function=")
+		if start == -1 {
+			break
+		}
+		// Try </function> first
+		end := strings.Index(s[start:], "</function>")
+		closeLen := len("</function>")
+		if end == -1 {
+			end = strings.Index(s[start:], "</tool_call>")
+			closeLen = len("</tool_call>")
+		}
+		if end == -1 {
+			s = s[:start]
+			break
+		}
+		s = s[:start] + s[start+end+closeLen:]
+	}
+
+	return strings.TrimSpace(s)
 }

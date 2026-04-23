@@ -65,6 +65,9 @@ func main() {
 		*setupFlag = true
 	}
 
+	// Migrate config models if needed (onprem: GPT-OSS → Qwen3-Coder)
+	config.MigrateModelsIfNeeded(version)
+
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {

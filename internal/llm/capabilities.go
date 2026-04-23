@@ -37,6 +37,8 @@ var knownModels = map[string]ModelCapability{
 	"qwen3-coder-30b-a3b-instruct": {ContextWindow: 262144, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
 	"gpt-oss-120b":                 {ContextWindow: 128000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
 	"qwen3-coder-30b":              {ContextWindow: 262144, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
+	// On-premise (Shinhan internal AI Platform)
+	"Qwen3-Coder-30B": {ContextWindow: 262144, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
 
 	// Common reference models, kept so the registry can grow without churn.
 	"gpt-4o":            {ContextWindow: 128000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
