@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, CSSProperties } from 'react'
 import { FileCode, X, Save } from 'lucide-react'
-import { ReadFile, WriteFile } from '../../wailsjs/go/main/App'
+import { ReadFile, WriteFile, GetRecentProjects, SetCwd } from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import CodeEditor from './CodeEditor'
 import { showToast } from './Toast'
@@ -121,8 +121,13 @@ export default function Editor({ filePath, onCursorChange }: Props) {
   const [findQuery, setFindQuery] = useState('')
   const [autoSave, setAutoSave] = useState(() => localStorage.getItem('techai-autosave') === 'true')
   const [mdPreview, setMdPreview] = useState(false)
+  const [recentProjects, setRecentProjects] = useState<string[]>([])
   const autoSaveTimer = useRef<number>(0)
   const findRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    GetRecentProjects().then(setRecentProjects).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!filePath) return
@@ -375,6 +380,26 @@ export default function Editor({ filePath, onCursorChange }: Props) {
               <kbd style={kbd}>Cmd+S</kbd><span>Save</span>
               <kbd style={kbd}>Cmd+,</kbd><span>Theme</span>
             </div>
+            {/* Recent Projects */}
+            {recentProjects.length > 0 && (
+              <div style={{ marginTop: 16, width: 300 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', marginBottom: 6 }}>Recent Projects</div>
+                {recentProjects.slice(0, 5).map(p => (
+                  <div key={p} onClick={async () => {
+                    try { await SetCwd(p); window.location.reload() } catch {}
+                  }} style={{
+                    padding: '4px 8px', fontSize: 12, color: 'var(--accent)',
+                    cursor: 'pointer', borderRadius: 4, fontFamily: 'var(--font-code)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    {p.split('/').slice(-2).join('/')}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

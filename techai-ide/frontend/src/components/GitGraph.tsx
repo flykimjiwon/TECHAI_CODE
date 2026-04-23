@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { GitBranch, GitCommit, RefreshCw, Tag } from 'lucide-react'
-import { GetGitGraph, GetGitBranches, GetGitInfo } from '../../wailsjs/go/main/App'
+import { GitBranch, GitCommit, RefreshCw, Tag, Plus, ArrowDown, ArrowUp } from 'lucide-react'
+import { GetGitGraph, GetGitBranches, GetGitInfo, GitCheckout, GitCreateBranch, GitPull, GitPush } from '../../wailsjs/go/main/App'
+import { showToast } from './Toast'
 
 interface GitLogEntry {
   hash: string
@@ -51,21 +52,61 @@ export default function GitGraph() {
         </button>
       </div>
 
-      {/* Branch list */}
+      {/* Branch list + actions */}
       <div style={{
         padding: '8px 16px', borderBottom: '1px solid var(--border)',
-        display: 'flex', flexWrap: 'wrap', gap: 6,
+        display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
       }}>
         {branches.map(br => (
-          <span key={br} style={{
+          <span key={br} onClick={async () => {
+            if (br === currentBranch) return
+            try {
+              await GitCheckout(br)
+              showToast(`Switched to ${br}`, 'success')
+              refresh()
+            } catch (e) { showToast(`Checkout failed: ${e}`, 'error') }
+          }} style={{
             padding: '2px 8px', borderRadius: 10, fontSize: 11, fontFamily: 'var(--font-code)',
             background: br === currentBranch ? 'var(--accent-glow)' : 'var(--bg-active)',
             color: br === currentBranch ? 'var(--accent)' : 'var(--fg-muted)',
             border: br === currentBranch ? '1px solid var(--accent)' : '1px solid var(--border)',
+            cursor: br === currentBranch ? 'default' : 'pointer',
           }}>
             {br}
           </span>
         ))}
+        {/* New branch */}
+        <button onClick={async () => {
+          const name = prompt('New branch name:')
+          if (!name) return
+          try {
+            await GitCreateBranch(name)
+            showToast(`Created branch: ${name}`, 'success')
+            refresh()
+          } catch (e) { showToast(`Error: ${e}`, 'error') }
+        }} style={{
+          background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 10,
+          color: 'var(--fg-muted)', padding: '2px 8px', fontSize: 11, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 3,
+        }}>
+          <Plus size={10} /> branch
+        </button>
+        {/* Pull/Push */}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+          <button onClick={async () => {
+            try { const r = await GitPull(); showToast('Pulled: ' + (r || 'up to date'), 'success') }
+            catch (e) { showToast(`Pull failed: ${e}`, 'error') }
+            refresh()
+          }} style={gitActionBtn}>
+            <ArrowDown size={11} /> Pull
+          </button>
+          <button onClick={async () => {
+            try { const r = await GitPush(); showToast('Pushed: ' + (r || 'done'), 'success') }
+            catch (e) { showToast(`Push failed: ${e}`, 'error') }
+          }} style={gitActionBtn}>
+            <ArrowUp size={11} /> Push
+          </button>
+        </div>
       </div>
 
       {/* Commit list */}
@@ -128,4 +169,10 @@ export default function GitGraph() {
       </div>
     </div>
   )
+}
+
+const gitActionBtn: React.CSSProperties = {
+  background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 6,
+  color: 'var(--fg-muted)', padding: '3px 8px', fontSize: 11, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-ui)',
 }
