@@ -55,8 +55,8 @@ type Config struct {
 // Build-time overridable defaults (set via -ldflags)
 var (
 	DefaultBaseURL  = "https://api.novita.ai/openai"
-	DefaultModel    = "openai/gpt-oss-120b"
-	DefaultDevModel = "qwen/qwen3-coder-30b"
+	DefaultModel    = "qwen/qwen3-coder-30b-a3b-instruct"
+	DefaultDevModel = "qwen/qwen3-coder-30b-a3b-instruct"
 	ConfigDirName   = ".tgc"
 	DebugMode       = "false" // set to "true" via ldflags in build-debug
 )

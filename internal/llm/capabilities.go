@@ -33,9 +33,10 @@ type ModelCapability struct {
 // after the provider prefix so lookups work for both "openai/gpt-oss-120b"
 // and bare "gpt-oss-120b" ids.
 var knownModels = map[string]ModelCapability{
-	// Novita.ai production models (the two 택가이코드 ships with)
-	"gpt-oss-120b":    {ContextWindow: 128000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
-	"qwen3-coder-30b": {ContextWindow: 262144, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
+	// Novita.ai production models
+	"qwen3-coder-30b-a3b-instruct": {ContextWindow: 262144, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
+	"gpt-oss-120b":                 {ContextWindow: 128000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
+	"qwen3-coder-30b":              {ContextWindow: 262144, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
 
 	// Common reference models, kept so the registry can grow without churn.
 	"gpt-4o":            {ContextWindow: 128000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
