@@ -298,6 +298,15 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 						}
 						ch <- StreamChunk{Done: true, ToolCalls: parsed, Usage: lastUsage}
 					} else {
+						// No tool calls — flush any held-back partial tag suffix
+						// as regular content (it wasn't a real tag after all).
+						full := fullContentBuf.String()
+						if sentContentLen < len(full) {
+							remainder := full[sentContentLen:]
+							for _, seg := range splitThinkSegments(remainder, &insideThinkTag) {
+								ch <- seg
+							}
+						}
 						config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=0 | totalTime=%v | usageTokens=%d", chunkNum, totalContentLen, totalElapsed, tokenCountFromUsage(lastUsage))
 						ch <- StreamChunk{Done: true, Usage: lastUsage}
 					}
@@ -370,11 +379,20 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 						}
 						config.DebugLog("[CHUNK#%d] tool_call tag detected at pos %d, suppressing output", chunkNum, tagIdx)
 					} else {
-						// Emit content with <think> tag awareness
-						for _, seg := range splitThinkSegments(delta.Content, &insideThinkTag) {
-							ch <- seg
+						// Check for partial tag at the end of accumulated content.
+						// E.g. "<function " could be the start of "<function=name>"
+						// split across chunks. Hold back the partial suffix.
+						safeEnd := len(full)
+						if hold := partialToolTagSuffix(full); hold > 0 {
+							safeEnd = len(full) - hold
 						}
-						sentContentLen = len(full)
+						if safeEnd > sentContentLen {
+							unsent := full[sentContentLen:safeEnd]
+							for _, seg := range splitThinkSegments(unsent, &insideThinkTag) {
+								ch <- seg
+							}
+						}
+						sentContentLen = safeEnd
 					}
 				}
 				// When toolCallOutputStarted: content goes to fullContentBuf only, not to UI
@@ -660,6 +678,26 @@ func splitThinkSegments(content string, insideThink *bool) []StreamChunk {
 		}
 	}
 	return segs
+}
+
+// partialToolTagSuffix checks if the string ends with a prefix of a known
+// tool_call tag (e.g. "<tool", "<func", "<|tool"). Returns the number of
+// trailing bytes that should be held back until the next chunk arrives.
+// Returns 0 if no partial match is found.
+func partialToolTagSuffix(s string) int {
+	tags := []string{"<tool_call>", "<|tool_call|>", "<function="}
+	maxHold := 0
+	for _, tag := range tags {
+		// Check every possible prefix of this tag (length 1..len(tag)-1)
+		for prefixLen := len(tag) - 1; prefixLen >= 1; prefixLen-- {
+			prefix := tag[:prefixLen]
+			if strings.HasSuffix(s, prefix) && prefixLen > maxHold {
+				maxHold = prefixLen
+				break // found longest prefix match for this tag
+			}
+		}
+	}
+	return maxHold
 }
 
 // findToolCallTagStart returns the byte index of the first tool_call tag

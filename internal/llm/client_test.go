@@ -307,3 +307,71 @@ func TestFindToolCallTagStart_EarliestMatch(t *testing.T) {
 		t.Errorf("expected 1 (function= is earlier), got %d", got)
 	}
 }
+
+// ── partialToolTagSuffix tests ──
+
+func TestPartialToolTagSuffix_NoMatch(t *testing.T) {
+	if got := partialToolTagSuffix("hello world"); got != 0 {
+		t.Errorf("expected 0, got %d", got)
+	}
+}
+
+func TestPartialToolTagSuffix_FullTag_NoHold(t *testing.T) {
+	// Full tag is detected by findToolCallTagStart, not by suffix hold
+	if got := partialToolTagSuffix("abc<tool_call>"); got != 0 {
+		t.Errorf("full tag should not be held, got %d", got)
+	}
+}
+
+func TestPartialToolTagSuffix_PartialToolCall(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{"some text<", 1},
+		{"some text<t", 2},
+		{"some text<to", 3},
+		{"some text<too", 4},
+		{"some text<tool", 5},
+		{"some text<tool_", 6},
+		{"some text<tool_c", 7},
+		{"some text<tool_ca", 8},
+		{"some text<tool_cal", 9},
+		{"some text<tool_call", 10},
+	}
+	for _, tt := range tests {
+		got := partialToolTagSuffix(tt.input)
+		if got != tt.want {
+			t.Errorf("partialToolTagSuffix(%q) = %d, want %d", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestPartialToolTagSuffix_PartialFunction(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{"text<f", 2},
+		{"text<fu", 3},
+		{"text<fun", 4},
+		{"text<func", 5},
+		{"text<funct", 6},
+		{"text<functi", 7},
+		{"text<functio", 8},
+		{"text<function", 9},
+	}
+	for _, tt := range tests {
+		got := partialToolTagSuffix(tt.input)
+		if got != tt.want {
+			t.Errorf("partialToolTagSuffix(%q) = %d, want %d", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestPartialToolTagSuffix_PipeVariant(t *testing.T) {
+	got := partialToolTagSuffix("text<|tool")
+	if got != 6 { // "<|tool" = 6 bytes
+		t.Errorf("expected 6, got %d", got)
+	}
+}
