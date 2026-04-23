@@ -281,6 +281,21 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 							calls = append(calls, *tc)
 						}
 					}
+					// Also check for additional text tool calls the proxy
+					// may not have converted (partial proxy conversion).
+					if textCalls := parseToolCallsFromContent(fullContentBuf.String()); len(textCalls) > 0 {
+						existing := make(map[string]bool)
+						for _, c := range calls {
+							existing[c.Name+"|"+c.Arguments] = true
+						}
+						for _, tc := range textCalls {
+							if !existing[tc.Name+"|"+tc.Arguments] {
+								tc.ID = fmt.Sprintf("text-tc-%d", len(calls))
+								calls = append(calls, tc)
+								config.DebugLog("[STREAM-DONE] merged text tool call: name=%s", tc.Name)
+							}
+						}
+					}
 					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=%d | totalTime=%v | usageTokens=%d", chunkNum, totalContentLen, len(calls), totalElapsed, tokenCountFromUsage(lastUsage))
 					for i, tc := range calls {
 						config.DebugLog("[STREAM-DONE] toolCall[%d] name=%s | argsLen=%d | args=%s", i, tc.Name, len(tc.Arguments), truncateForLog(tc.Arguments, 500))
@@ -560,13 +575,18 @@ func parseToolCallTag(content, openTag, closeTag string, calls *[]ToolCallInfo) 
 		}
 		end := strings.Index(content[start:], closeTag)
 		if end == -1 {
-			// Unclosed tag — try to parse what we have (model may have been cut off)
+			// Unclosed tag — model was likely cut off (finishReason=length).
+			// Try to parse what we have; if JSON is also truncated, log warning.
 			jsonStr := strings.TrimSpace(content[start+len(openTag):])
 			if len(jsonStr) > 0 && jsonStr[0] == '{' {
 				if tc, ok := parseToolCallJSON(jsonStr, len(*calls)); ok {
 					config.DebugLog("[TOOL-PARSE] recovered unclosed %s tag: name=%s", openTag, tc.Name)
 					*calls = append(*calls, tc)
+				} else {
+					config.DebugLog("[TOOL-PARSE] unclosed %s with truncated JSON (context overflow?): %q", openTag, truncateForLog(jsonStr, 200))
 				}
+			} else {
+				config.DebugLog("[TOOL-PARSE] unclosed %s with no valid JSON content", openTag)
 			}
 			content = ""
 			break
@@ -584,9 +604,19 @@ func parseToolCallTag(content, openTag, closeTag string, calls *[]ToolCallInfo) 
 // parseToolCallJSON parses a JSON string from a tool_call tag into a ToolCallInfo.
 // Returns (info, true) on success, (zero, false) on failure.
 func parseToolCallJSON(jsonStr string, idx int) (ToolCallInfo, bool) {
-	if len(jsonStr) == 0 || jsonStr[0] != '{' {
-		config.DebugLog("[TOOL-PARSE] expected JSON object, got: %q", truncateForLog(jsonStr, 100))
+	if len(jsonStr) == 0 {
 		return ToolCallInfo{}, false
+	}
+	// Some models prepend text before JSON: "Sure!\n{"name":"..."}
+	// Find the first '{' and try from there.
+	if jsonStr[0] != '{' {
+		braceIdx := strings.Index(jsonStr, "{")
+		if braceIdx == -1 {
+			config.DebugLog("[TOOL-PARSE] no JSON object found: %q", truncateForLog(jsonStr, 100))
+			return ToolCallInfo{}, false
+		}
+		config.DebugLog("[TOOL-PARSE] skipping %d bytes of preamble before JSON", braceIdx)
+		jsonStr = jsonStr[braceIdx:]
 	}
 
 	// Try standard format: {"name":"...", "arguments":{...}}
@@ -606,6 +636,16 @@ func parseToolCallJSON(jsonStr string, idx int) (ToolCallInfo, bool) {
 	args := string(parsed.Arguments)
 	if args == "" || args == "null" {
 		args = "{}"
+	}
+
+	// Handle arguments as escaped JSON string.
+	// Some models output: {"name":"x","arguments":"{\"path\":\"y\"}"}
+	// instead of:         {"name":"x","arguments":{"path":"y"}}
+	if len(args) >= 2 && args[0] == '"' {
+		var unescaped string
+		if err := json.Unmarshal([]byte(args), &unescaped); err == nil && len(unescaped) > 0 && unescaped[0] == '{' {
+			args = unescaped
+		}
 	}
 
 	return ToolCallInfo{
@@ -685,7 +725,7 @@ func splitThinkSegments(content string, insideThink *bool) []StreamChunk {
 // trailing bytes that should be held back until the next chunk arrives.
 // Returns 0 if no partial match is found.
 func partialToolTagSuffix(s string) int {
-	tags := []string{"<tool_call>", "<|tool_call|>", "<function="}
+	tags := []string{"<tool_call>", "<|tool_call|>", "<function=", "<think>", "</think>"}
 	maxHold := 0
 	for _, tag := range tags {
 		// Check every possible prefix of this tag (length 1..len(tag)-1)

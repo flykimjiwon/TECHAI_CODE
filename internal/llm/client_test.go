@@ -375,3 +375,48 @@ func TestPartialToolTagSuffix_PipeVariant(t *testing.T) {
 		t.Errorf("expected 6, got %d", got)
 	}
 }
+
+func TestPartialToolTagSuffix_ThinkTag(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{"text</thi", 5},   // partial </think>
+		{"text<thin", 5},   // partial <think>
+		{"text</think", 7}, // partial </think> (missing >)
+	}
+	for _, tt := range tests {
+		got := partialToolTagSuffix(tt.input)
+		if got != tt.want {
+			t.Errorf("partialToolTagSuffix(%q) = %d, want %d", tt.input, got, tt.want)
+		}
+	}
+}
+
+// ── arguments as escaped string ──
+
+func TestParseToolCalls_ArgumentsAsEscapedString(t *testing.T) {
+	// Some models output arguments as a JSON string instead of object
+	content := `<tool_call>{"name":"file_read","arguments":"{\"path\":\"main.go\"}"}</tool_call>`
+	calls := parseToolCallsFromContent(content)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Arguments != `{"path":"main.go"}` {
+		t.Errorf("expected unescaped args, got %q", calls[0].Arguments)
+	}
+}
+
+// ── text before JSON in tool_call ──
+
+func TestParseToolCalls_TextBeforeJSON(t *testing.T) {
+	content := `<tool_call>Sure, I'll read that file for you!
+{"name":"file_read","arguments":{"path":"test.go"}}</tool_call>`
+	calls := parseToolCallsFromContent(content)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "file_read" {
+		t.Errorf("name=%q", calls[0].Name)
+	}
+}
