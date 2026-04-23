@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -252,6 +253,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 
 		// Accumulate tool calls from deltas
 		tcMap := make(map[int]*ToolCallInfo)
+		var fullContentBuf strings.Builder // tracks full content for text tool_call parsing
 		chunkNum := 0
 		totalContentLen := 0
 		lastChunkTime := time.Now()
@@ -282,8 +284,20 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 					}
 					ch <- StreamChunk{Done: true, ToolCalls: calls, Usage: lastUsage}
 				} else {
-					config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=0 | totalTime=%v | usageTokens=%d", chunkNum, totalContentLen, totalElapsed, tokenCountFromUsage(lastUsage))
-					ch <- StreamChunk{Done: true, Usage: lastUsage}
+					// Fallback: parse <tool_call> tags from streamed content.
+					// Some API proxies pass tools to the model but don't convert
+					// the model's native tool_call format to OpenAI tool_calls.
+					// Qwen3 outputs: <tool_call>{"name":"...","arguments":{...}}</tool_call>
+					if parsed := parseToolCallsFromContent(fullContentBuf.String()); len(parsed) > 0 {
+						config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | textToolCalls=%d (parsed from content) | totalTime=%v | usageTokens=%d", chunkNum, totalContentLen, len(parsed), totalElapsed, tokenCountFromUsage(lastUsage))
+						for i, tc := range parsed {
+							config.DebugLog("[STREAM-DONE] textToolCall[%d] name=%s | argsLen=%d", i, tc.Name, len(tc.Arguments))
+						}
+						ch <- StreamChunk{Done: true, ToolCalls: parsed, Usage: lastUsage}
+					} else {
+						config.DebugLog("[STREAM-DONE] chunks=%d | totalContent=%dbytes | toolCalls=0 | totalTime=%v | usageTokens=%d", chunkNum, totalContentLen, totalElapsed, tokenCountFromUsage(lastUsage))
+						ch <- StreamChunk{Done: true, Usage: lastUsage}
+					}
 				}
 				return
 			}
@@ -331,6 +345,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 			// reasoning_content first, then the final answer in content.
 			if delta.Content != "" {
 				totalContentLen += len(delta.Content)
+				fullContentBuf.WriteString(delta.Content)
 				hasTC := len(delta.ToolCalls) > 0
 				if chunkNum <= 5 || chunkNum%50 == 0 {
 					config.DebugLog("[CHUNK#%d] content len=%d | toolCall=%v | gap=%v | preview=%q", chunkNum, len(delta.Content), hasTC, gap, truncateForLog(delta.Content, 100))
@@ -402,4 +417,76 @@ func (c *Client) Chat(ctx context.Context, model string, messages []openai.ChatC
 		content = resp.Choices[0].Message.ReasoningContent
 	}
 	return content, nil
+}
+
+// parseToolCallsFromContent extracts tool calls from text content when
+// the API proxy doesn't convert model-native tool call format to OpenAI.
+// Supports Qwen3 format: <tool_call>{"name":"...","arguments":{...}}</tool_call>
+// and also: <function=name>{"key":"val"}</function>
+func parseToolCallsFromContent(content string) []ToolCallInfo {
+	var calls []ToolCallInfo
+
+	// Pattern 1: <tool_call>{"name":"...","arguments":{...}}</tool_call>
+	for {
+		start := strings.Index(content, "<tool_call>")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(content[start:], "</tool_call>")
+		if end == -1 {
+			break
+		}
+		jsonStr := strings.TrimSpace(content[start+len("<tool_call>") : start+end])
+		content = content[start+end+len("</tool_call>"):]
+
+		var parsed struct {
+			Name      string          `json:"name"`
+			Arguments json.RawMessage `json:"arguments"`
+		}
+		if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+			config.DebugLog("[TOOL-PARSE] failed to parse tool_call JSON: %v", err)
+			continue
+		}
+		calls = append(calls, ToolCallInfo{
+			ID:        fmt.Sprintf("text-tc-%d", len(calls)),
+			Name:      parsed.Name,
+			Arguments: string(parsed.Arguments),
+		})
+	}
+
+	// Pattern 2: <function=file_read>{"path":"..."}</function>
+	remaining := content
+	for {
+		funcStart := strings.Index(remaining, "<function=")
+		if funcStart == -1 {
+			break
+		}
+		nameEnd := strings.Index(remaining[funcStart:], ">")
+		if nameEnd == -1 {
+			break
+		}
+		name := remaining[funcStart+len("<function=") : funcStart+nameEnd]
+
+		funcEnd := strings.Index(remaining[funcStart:], "</function>")
+		if funcEnd == -1 {
+			// Also try </tool_call> as some models mix formats
+			funcEnd = strings.Index(remaining[funcStart:], "</tool_call>")
+			if funcEnd == -1 {
+				break
+			}
+		}
+		argsStr := strings.TrimSpace(remaining[funcStart+nameEnd+1 : funcStart+funcEnd])
+		remaining = remaining[funcStart+funcEnd+len("</function>"):]
+
+		// Validate it's JSON
+		if len(argsStr) > 0 && argsStr[0] == '{' {
+			calls = append(calls, ToolCallInfo{
+				ID:        fmt.Sprintf("text-tc-%d", len(calls)),
+				Name:      name,
+				Arguments: argsStr,
+			})
+		}
+	}
+
+	return calls
 }
