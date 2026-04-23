@@ -112,13 +112,15 @@ function App() {
             ) : (
               <>
                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <Editor filePath={selectedFile} onCursorChange={(l, c, lang) => setCursor({ line: l, col: c, lang })} />
+                  <Editor filePath={selectedFile} onCursorChange={(l, c, lang) => setCursor({ line: l, col: c, lang })}
+                    onAskAI={(prompt) => { import('../wailsjs/go/main/App').then(m => m.SendMessage(prompt)) }} />
                 </div>
                 {splitFile && (
                   <>
                     <div style={{ width: 3, background: 'transparent', borderLeft: '1px solid var(--border)', cursor: 'col-resize' }} />
                     <div style={{ flex: 1, overflow: 'hidden' }}>
-                      <Editor filePath={splitFile} onCursorChange={(l, c, lang) => setCursor({ line: l, col: c, lang })} />
+                      <Editor filePath={splitFile} onCursorChange={(l, c, lang) => setCursor({ line: l, col: c, lang })}
+                        onAskAI={(prompt) => { import('../wailsjs/go/main/App').then(m => m.SendMessage(prompt)) }} />
                     </div>
                   </>
                 )}

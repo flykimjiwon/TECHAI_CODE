@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -43,6 +44,40 @@ func (a *App) startup(ctx context.Context) {
 
 	// Save to recent projects
 	a.saveRecentProject(a.cwd)
+
+	// File watcher — notify frontend of external changes
+	go a.watchFiles()
+}
+
+func (a *App) watchFiles() {
+	// Simple polling-based watcher (every 3 seconds)
+	// Checks if any open file was modified externally
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	modTimes := map[string]time.Time{}
+
+	for range ticker.C {
+		if a.ctx == nil {
+			return
+		}
+		// Scan known files (cwd top-level for now)
+		entries, _ := os.ReadDir(a.cwd)
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			path := filepath.Join(a.cwd, e.Name())
+			mt := info.ModTime()
+			if prev, ok := modTimes[path]; ok && mt.After(prev) {
+				wailsRuntime.EventsEmit(a.ctx, "file:changed", path)
+			}
+			modTimes[path] = mt
+		}
+	}
 }
 
 func (a *App) shutdown(ctx context.Context) {

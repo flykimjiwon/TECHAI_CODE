@@ -88,9 +88,10 @@ interface Props {
   filename: string
   onChange: (value: string) => void
   onCursorChange?: (line: number, col: number) => void
+  onAskAI?: (selectedCode: string, filename: string) => void
 }
 
-export default function CodeEditor({ content, filename, onChange, onCursorChange }: Props) {
+export default function CodeEditor({ content, filename, onChange, onCursorChange, onAskAI }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const langCompartment = useRef(new Compartment())
@@ -149,6 +150,15 @@ export default function CodeEditor({ content, filename, onChange, onCursorChange
     const view = new EditorView({ state, parent: containerRef.current })
     viewRef.current = view
 
+    // Right-click context menu for "Ask AI"
+    containerRef.current.addEventListener('contextmenu', (e) => {
+      const sel = view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)
+      if (sel && sel.trim() && onAskAI) {
+        e.preventDefault()
+        showContextMenu(e.clientX, e.clientY, sel, filename, onAskAI)
+      }
+    })
+
     return () => { view.destroy(); viewRef.current = null }
   }, [filename])
 
@@ -174,4 +184,40 @@ export default function CodeEditor({ content, filename, onChange, onCursorChange
   useEffect(() => { updateLang(filename) }, [filename, updateLang])
 
   return <div ref={containerRef} style={{ height: '100%', overflow: 'hidden' }} />
+}
+
+function showContextMenu(x: number, y: number, code: string, filename: string, onAskAI: (code: string, file: string) => void) {
+  // Remove existing menu
+  document.getElementById('ai-context-menu')?.remove()
+
+  const menu = document.createElement('div')
+  menu.id = 'ai-context-menu'
+  menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:9999;background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:4px 0;box-shadow:0 8px 24px rgba(0,0,0,0.4);min-width:180px;font-family:var(--font-ui);font-size:12px;`
+
+  const items = [
+    { label: '💡 Explain Selection', action: () => onAskAI(`Explain this code:\n\`\`\`\n${code}\n\`\`\``, filename) },
+    { label: '🔧 Fix / Improve', action: () => onAskAI(`Fix or improve this code from ${filename}:\n\`\`\`\n${code}\n\`\`\``, filename) },
+    { label: '📝 Add Comments', action: () => onAskAI(`Add comments to this code:\n\`\`\`\n${code}\n\`\`\``, filename) },
+    { label: '🧪 Generate Tests', action: () => onAskAI(`Generate tests for this code from ${filename}:\n\`\`\`\n${code}\n\`\`\``, filename) },
+    { label: '♻️ Refactor', action: () => onAskAI(`Refactor this code from ${filename}:\n\`\`\`\n${code}\n\`\`\``, filename) },
+  ]
+
+  items.forEach(item => {
+    const btn = document.createElement('div')
+    btn.textContent = item.label
+    btn.style.cssText = `padding:6px 14px;cursor:pointer;color:var(--fg-secondary);transition:background 0.1s;`
+    btn.onmouseenter = () => btn.style.background = 'var(--bg-hover)'
+    btn.onmouseleave = () => btn.style.background = 'transparent'
+    btn.onclick = () => { item.action(); menu.remove() }
+    menu.appendChild(btn)
+  })
+
+  document.body.appendChild(menu)
+  // Close on click outside
+  setTimeout(() => {
+    document.addEventListener('click', function close() {
+      menu.remove()
+      document.removeEventListener('click', close)
+    })
+  }, 100)
 }

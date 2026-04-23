@@ -15,6 +15,7 @@ interface Tab {
 interface Props {
   filePath: string | null
   onCursorChange?: (line: number, col: number, lang: string) => void
+  onAskAI?: (prompt: string) => void
 }
 
 const kbd: CSSProperties = {
@@ -113,7 +114,7 @@ function detectLang(name: string): string {
   return map[ext] || 'Plain Text'
 }
 
-export default function Editor({ filePath, onCursorChange }: Props) {
+export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const [saveFlash, setSaveFlash] = useState(false)
@@ -355,6 +356,7 @@ export default function Editor({ filePath, onCursorChange }: Props) {
             onCursorChange={(line, col) => {
               if (onCursorChange && current) onCursorChange(line, col, detectLang(current.name))
             }}
+            onAskAI={onAskAI ? (code) => onAskAI(code) : undefined}
           />
         ) : (
           <div style={{
