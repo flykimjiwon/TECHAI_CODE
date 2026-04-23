@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -408,6 +409,81 @@ func TestParseToolCalls_ArgumentsAsEscapedString(t *testing.T) {
 }
 
 // ── text before JSON in tool_call ──
+
+// ── <parameter=key> format (Qwen3 onprem variant) ──
+
+func TestParseToolCalls_ParameterFormat(t *testing.T) {
+	content := `<function=list_files> <parameter=path> . <parameter=recursive> false </tool_call>`
+	calls := parseToolCallsFromContent(content)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "list_files" {
+		t.Errorf("name=%q", calls[0].Name)
+	}
+	// Verify args were converted to JSON
+	var args map[string]string
+	if err := json.Unmarshal([]byte(calls[0].Arguments), &args); err != nil {
+		t.Fatalf("args not valid JSON: %v | raw=%q", err, calls[0].Arguments)
+	}
+	if args["path"] != "." {
+		t.Errorf("path=%q, want '.'", args["path"])
+	}
+	if args["recursive"] != "false" {
+		t.Errorf("recursive=%q, want 'false'", args["recursive"])
+	}
+}
+
+func TestParseToolCalls_ParameterFormatWithClosingTags(t *testing.T) {
+	content := `<function=file_read><parameter=path>/src/main.go</parameter></function>`
+	calls := parseToolCallsFromContent(content)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "file_read" {
+		t.Errorf("name=%q", calls[0].Name)
+	}
+	var args map[string]string
+	if err := json.Unmarshal([]byte(calls[0].Arguments), &args); err != nil {
+		t.Fatalf("args not valid JSON: %v", err)
+	}
+	if args["path"] != "/src/main.go" {
+		t.Errorf("path=%q", args["path"])
+	}
+}
+
+func TestParseToolCalls_ParameterFormatMultipleParams(t *testing.T) {
+	content := `<function=grep_search> <parameter=pattern> TODO <parameter=path> ./src <parameter=include> *.go </function>`
+	calls := parseToolCallsFromContent(content)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	var args map[string]string
+	json.Unmarshal([]byte(calls[0].Arguments), &args)
+	if args["pattern"] != "TODO" {
+		t.Errorf("pattern=%q", args["pattern"])
+	}
+	if args["path"] != "./src" {
+		t.Errorf("path=%q", args["path"])
+	}
+	if args["include"] != "*.go" {
+		t.Errorf("include=%q", args["include"])
+	}
+}
+
+func TestParseParameterTags_Empty(t *testing.T) {
+	got := parseParameterTags("")
+	if len(got) != 0 {
+		t.Errorf("expected empty map, got %v", got)
+	}
+}
+
+func TestParseParameterTags_NoParameterTags(t *testing.T) {
+	got := parseParameterTags("just plain text")
+	if len(got) != 0 {
+		t.Errorf("expected empty map, got %v", got)
+	}
+}
 
 func TestParseToolCalls_TextBeforeJSON(t *testing.T) {
 	content := `<tool_call>Sure, I'll read that file for you!

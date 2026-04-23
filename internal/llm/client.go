@@ -542,13 +542,26 @@ func parseToolCallsFromContent(content string) []ToolCallInfo {
 		argsStr := strings.TrimSpace(remaining[funcStart+nameEnd+1 : funcStart+funcEnd])
 		remaining = remaining[funcStart+funcEnd+len(closeTag):]
 
-		// Validate JSON
+		// Parse arguments — supports both JSON and <parameter=key> format.
 		if len(argsStr) == 0 {
 			argsStr = "{}"
 		}
 		if argsStr[0] != '{' {
-			config.DebugLog("[TOOL-PARSE] function=%s: args not JSON object: %q", name, truncateForLog(argsStr, 100))
-			continue
+			// Not JSON — try <parameter=key> value format.
+			// Example: <parameter=path> . <parameter=recursive> false
+			if params := parseParameterTags(argsStr); len(params) > 0 {
+				paramsJSON, err := json.Marshal(params)
+				if err == nil {
+					argsStr = string(paramsJSON)
+					config.DebugLog("[TOOL-PARSE] function=%s: converted %d parameter tags to JSON", name, len(params))
+				} else {
+					config.DebugLog("[TOOL-PARSE] function=%s: parameter tags marshal failed: %v", name, err)
+					continue
+				}
+			} else {
+				config.DebugLog("[TOOL-PARSE] function=%s: args not JSON and no parameter tags: %q", name, truncateForLog(argsStr, 100))
+				continue
+			}
 		}
 		if !json.Valid([]byte(argsStr)) {
 			config.DebugLog("[TOOL-PARSE] function=%s: invalid JSON args: %q", name, truncateForLog(argsStr, 200))
@@ -655,6 +668,39 @@ func parseToolCallJSON(jsonStr string, idx int) (ToolCallInfo, bool) {
 	}, true
 }
 
+// parseParameterTags parses <parameter=key> value sequences into a map.
+// This format is used by some Qwen3 variants instead of JSON arguments:
+//
+//	<parameter=path> . <parameter=recursive> false
+//	→ {"path": ".", "recursive": "false"}
+//
+// Also handles the explicit closing form: <parameter=key>value</parameter>
+func parseParameterTags(s string) map[string]string {
+	params := make(map[string]string)
+	parts := strings.Split(s, "<parameter=")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		// part looks like: "path> ." or "recursive> false" or "path>./src</parameter>"
+		closeIdx := strings.Index(part, ">")
+		if closeIdx == -1 {
+			continue
+		}
+		key := strings.TrimSpace(part[:closeIdx])
+		value := strings.TrimSpace(part[closeIdx+1:])
+		// Remove trailing </parameter> if present
+		if idx := strings.Index(value, "</parameter>"); idx >= 0 {
+			value = strings.TrimSpace(value[:idx])
+		}
+		if key != "" && value != "" {
+			params[key] = value
+		}
+	}
+	return params
+}
+
 // stripThinkTags removes <think>...</think> blocks from content.
 // Handles unclosed tags (strips from <think> to end) and nested tags.
 func stripThinkTags(s string) string {
@@ -725,7 +771,7 @@ func splitThinkSegments(content string, insideThink *bool) []StreamChunk {
 // trailing bytes that should be held back until the next chunk arrives.
 // Returns 0 if no partial match is found.
 func partialToolTagSuffix(s string) int {
-	tags := []string{"<tool_call>", "<|tool_call|>", "<function=", "<think>", "</think>"}
+	tags := []string{"<tool_call>", "<|tool_call|>", "<function=", "<parameter=", "<think>", "</think>"}
 	maxHold := 0
 	for _, tag := range tags {
 		// Check every possible prefix of this tag (length 1..len(tag)-1)
