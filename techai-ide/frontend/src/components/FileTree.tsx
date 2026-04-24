@@ -22,7 +22,8 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
   const [projectName, setProjectName] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; path: string; isDir: boolean } | null>(null)
   const [filter, setFilter] = useState('')
-  const [inputMode, setInputMode] = useState<{ type: 'new' | 'rename' | 'delete'; path: string; value: string } | null>(null)
+  const [renamingPath, setRenamingPath] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
 
   const refresh = useCallback(() => {
     ListFiles('.', 3).then(setTree).catch(console.error)
@@ -62,29 +63,47 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     setContextMenu({ x: e.clientX, y: e.clientY, path, isDir })
   }
 
-  function handleNewFile() {
+  async function handleNewFile() {
     if (!contextMenu) return
     const dir = contextMenu.isDir ? contextMenu.path : contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/'))
-    setInputMode({ type: 'new', path: dir, value: '' })
+    const newPath = dir + '/newfile'
+    try {
+      await WriteFile(newPath, '')
+      refresh()
+      onFileSelect(newPath)
+      // Start rename immediately
+      setTimeout(() => { setRenamingPath(newPath); setRenameValue('newfile') }, 100)
+    } catch (e) {
+      import('./Toast').then(m => m.showToast(`Error: ${e}`, 'error'))
+    }
     setContextMenu(null)
   }
 
-  async function submitInput() {
-    if (!inputMode || !inputMode.value.trim()) { setInputMode(null); return }
+  async function handleDelete() {
+    if (!contextMenu) return
     try {
-      if (inputMode.type === 'new') {
-        await WriteFile(inputMode.path + '/' + inputMode.value.trim(), '')
-      } else if (inputMode.type === 'rename') {
-        const dir = inputMode.path.substring(0, inputMode.path.lastIndexOf('/'))
-        await RenameFile(inputMode.path, dir + '/' + inputMode.value.trim())
-      } else if (inputMode.type === 'delete') {
-        await DeleteFile(inputMode.path)
-      }
+      await DeleteFile(contextMenu.path)
+      import('./Toast').then(m => m.showToast('Deleted', 'success'))
       refresh()
     } catch (e) {
       import('./Toast').then(m => m.showToast(`Error: ${e}`, 'error'))
     }
-    setInputMode(null)
+    setContextMenu(null)
+  }
+
+  async function submitRename() {
+    if (!renamingPath || !renameValue.trim()) { setRenamingPath(null); return }
+    const dir = renamingPath.substring(0, renamingPath.lastIndexOf('/'))
+    const newPath = dir + '/' + renameValue.trim()
+    if (newPath !== renamingPath) {
+      try {
+        await RenameFile(renamingPath, newPath)
+        refresh()
+      } catch (e) {
+        import('./Toast').then(m => m.showToast(`Error: ${e}`, 'error'))
+      }
+    }
+    setRenamingPath(null)
   }
 
   function getIcon(entry: FileEntry) {
@@ -216,9 +235,24 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         >
           {entry.isDir ? (expanded.has(entry.path) ? <ChevronDown size={14} style={{ color: 'var(--fg-dim)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--fg-dim)', flexShrink: 0 }} />) : <span style={{ width: 14, flexShrink: 0 }} />}
           {getIcon(entry)}
-          <span style={{ fontWeight: entry.isDir ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{entry.name}</span>
-          {!entry.isDir && entry.size > 0 && (
-            <span style={{ fontSize: 9, color: 'var(--fg-dim)', flexShrink: 0 }}>{formatSize(entry.size)}</span>
+          {renamingPath === entry.path ? (
+            <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') submitRename(); if (e.key === 'Escape') setRenamingPath(null) }}
+              onBlur={submitRename}
+              onClick={e => e.stopPropagation()}
+              style={{
+                flex: 1, padding: '1px 4px', fontSize: 12, borderRadius: 3,
+                background: 'var(--bg-base)', border: '1px solid var(--accent)', outline: 'none',
+                color: 'var(--fg-primary)', fontFamily: 'var(--font-code)',
+              }}
+            />
+          ) : (
+            <>
+              <span style={{ fontWeight: entry.isDir ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{entry.name}</span>
+              {!entry.isDir && entry.size > 0 && (
+                <span style={{ fontSize: 9, color: 'var(--fg-dim)', flexShrink: 0 }}>{formatSize(entry.size)}</span>
+              )}
+            </>
           )}
         </div>
         {entry.isDir && expanded.has(entry.path) && entry.kids && renderItems(entry.kids, depth + 1)}
@@ -271,39 +305,6 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         {renderItems(tree, 0)}
       </div>
 
-      {/* Inline input for new/rename/delete */}
-      {inputMode && (
-        <div style={{
-          padding: '6px 10px', borderTop: '1px solid var(--border)',
-          background: 'var(--bg-panel)',
-        }}>
-          <div style={{ fontSize: 10, color: 'var(--fg-muted)', marginBottom: 4, fontWeight: 600 }}>
-            {inputMode.type === 'new' ? 'New File' : inputMode.type === 'rename' ? 'Rename' : `Delete "${inputMode.path.split('/').pop()}"?`}
-          </div>
-          {inputMode.type === 'delete' ? (
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button onClick={submitInput} style={{
-                flex: 1, padding: '4px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                background: 'var(--error)', color: '#fff', fontSize: 11, fontFamily: 'var(--font-ui)',
-              }}>Delete</button>
-              <button onClick={() => setInputMode(null)} style={{
-                flex: 1, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', cursor: 'pointer',
-                background: 'var(--bg-active)', color: 'var(--fg-secondary)', fontSize: 11, fontFamily: 'var(--font-ui)',
-              }}>Cancel</button>
-            </div>
-          ) : (
-            <input autoFocus value={inputMode.value} onChange={e => setInputMode({ ...inputMode, value: e.target.value })}
-              onKeyDown={e => { if (e.key === 'Enter') submitInput(); if (e.key === 'Escape') setInputMode(null) }}
-              style={{
-                width: '100%', padding: '4px 8px', borderRadius: 4, fontSize: 12,
-                background: 'var(--bg-base)', border: '1px solid var(--accent)', outline: 'none',
-                color: 'var(--fg-primary)', fontFamily: 'var(--font-code)',
-              }}
-            />
-          )}
-        </div>
-      )}
-
       {/* Context Menu */}
       {contextMenu && (
         <div style={{
@@ -317,7 +318,8 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
           </div>
           <div onClick={() => {
             if (!contextMenu) return
-            setInputMode({ type: 'rename', path: contextMenu.path, value: contextMenu.path.split('/').pop() || '' })
+            setRenamingPath(contextMenu.path)
+            setRenameValue(contextMenu.path.split('/').pop() || '')
             setContextMenu(null)
           }} style={ctxStyle}>
             <FilePlus size={13} /> Rename
@@ -335,11 +337,7 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
               </div>
             </>
           )}
-          <div onClick={async () => {
-            if (!contextMenu) return
-            setInputMode({ type: 'delete', path: contextMenu.path, value: 'confirm' })
-            setContextMenu(null)
-          }} style={{...ctxStyle, color: 'var(--error)'}}>
+          <div onClick={handleDelete} style={{...ctxStyle, color: 'var(--error)'}}>
             <Trash2 size={13} /> Delete
           </div>
         </div>
