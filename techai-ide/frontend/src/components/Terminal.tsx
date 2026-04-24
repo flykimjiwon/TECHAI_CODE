@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, X, ChevronDown } from 'lucide-react'
+import { Plus, X, ChevronDown, Trash2 } from 'lucide-react'
 import { Terminal as XTerm } from 'xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -96,6 +96,9 @@ export default function Terminal() {
         ))}
         <button onClick={addTab} style={{background:'none',border:'none',cursor:'pointer',padding:'0 8px',color:'var(--fg-dim)',display:'flex',alignItems:'center'}}>
           <Plus size={13}/>
+        </button>
+        <button onClick={() => xtermRef.current?.clear()} style={{background:'none',border:'none',cursor:'pointer',padding:'0 6px',color:'var(--fg-dim)',display:'flex',alignItems:'center'}}>
+          <Trash2 size={11}/>
         </button>
         <div style={{marginLeft:'auto',position:'relative'}}>
           <button onClick={()=>setShowShellPicker(p=>!p)} style={{

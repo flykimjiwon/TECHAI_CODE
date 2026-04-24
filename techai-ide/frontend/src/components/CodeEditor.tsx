@@ -146,8 +146,23 @@ export default function CodeEditor({ content, filename, onChange, onCursorChange
         techaiTheme,
         updateListener,
         EditorState.tabSize.of(4),
-        // Multi-cursor: Alt+Click adds cursor, Cmd+D selects next occurrence
         EditorView.clickAddsSelectionRange.of(e => e.altKey),
+        // Cmd+G go to line
+        keymap.of([{
+          key: 'Mod-g',
+          run: (view) => {
+            const line = prompt('Go to line:')
+            if (line) {
+              const n = parseInt(line)
+              if (n > 0 && n <= view.state.doc.lines) {
+                const pos = view.state.doc.line(n).from
+                view.dispatch({ selection: { anchor: pos }, scrollIntoView: true })
+                view.focus()
+              }
+            }
+            return true
+          }
+        }]),
       ],
     })
 

@@ -7,6 +7,7 @@ interface Message {
   role: 'user' | 'ai' | 'tool'
   content: string
   streaming?: boolean
+  time?: string
 }
 
 export default function ChatPanel() {
@@ -90,7 +91,7 @@ export default function ChatPanel() {
       return
     }
 
-    setMessages(prev => [...prev, { role: 'user', content: text }])
+    setMessages(prev => [...prev, { role: 'user', content: text, time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) }])
     setInput('')
     SendMessage(text)
   }
@@ -238,6 +239,16 @@ export default function ChatPanel() {
                   background: 'var(--accent)', animation: 'blink 1s step-end infinite',
                   verticalAlign: 'text-bottom', marginLeft: 1
                 }} />
+              )}
+              {/* Time + Copy */}
+              {!msg.streaming && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  {msg.time && <span style={{ fontSize: 9, color: 'var(--fg-dim)' }}>{msg.time}</span>}
+                  <button onClick={() => navigator.clipboard.writeText(msg.content)} style={{
+                    background: 'none', border: 'none', cursor: 'pointer', fontSize: 9,
+                    color: 'var(--fg-dim)', padding: 0, marginLeft: 'auto',
+                  }}>Copy</button>
+                </div>
               )}
             </div>
           )

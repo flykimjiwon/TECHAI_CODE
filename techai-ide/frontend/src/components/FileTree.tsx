@@ -21,6 +21,7 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [projectName, setProjectName] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; path: string; isDir: boolean } | null>(null)
+  const [filter, setFilter] = useState('')
 
   const refresh = useCallback(() => {
     ListFiles('.', 3).then(setTree).catch(console.error)
@@ -178,7 +179,8 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
   }
 
   function renderItems(items: FileEntry[], depth: number) {
-    return items.map(entry => (
+    const filtered = filter ? items.filter(e => e.isDir || e.name.toLowerCase().includes(filter.toLowerCase())) : items
+    return filtered.map(entry => (
       <div key={entry.path}>
         <div
           onClick={() => entry.isDir ? toggleDir(entry.path) : onFileSelect(entry.path)}
@@ -198,7 +200,10 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         >
           {entry.isDir ? (expanded.has(entry.path) ? <ChevronDown size={14} style={{ color: 'var(--fg-dim)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--fg-dim)', flexShrink: 0 }} />) : <span style={{ width: 14, flexShrink: 0 }} />}
           {getIcon(entry)}
-          <span style={{ fontWeight: entry.isDir ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}</span>
+          <span style={{ fontWeight: entry.isDir ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{entry.name}</span>
+          {!entry.isDir && entry.size > 0 && (
+            <span style={{ fontSize: 9, color: 'var(--fg-dim)', flexShrink: 0 }}>{formatSize(entry.size)}</span>
+          )}
         </div>
         {entry.isDir && expanded.has(entry.path) && entry.kids && renderItems(entry.kids, depth + 1)}
       </div>
@@ -219,6 +224,18 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         <FilePlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={handleNewFile} />
         <FolderPlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={handleOpenFolder} />
         <RefreshCw size={12} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={refresh} />
+      </div>
+      {/* Filter */}
+      <div style={{ padding: '0 10px 4px' }}>
+        <input value={filter} onChange={e => setFilter(e.target.value)}
+          placeholder="Filter files..."
+          style={{
+            width: '100%', padding: '3px 8px', borderRadius: 4, fontSize: 11,
+            background: 'var(--bg-active)', border: '1px solid var(--border)',
+            color: 'var(--fg-primary)', fontFamily: 'var(--font-ui)', outline: 'none',
+            display: filter || tree.length > 20 ? 'block' : 'none',
+          }}
+        />
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
         {renderItems(tree, 0)}
@@ -275,4 +292,10 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
 const ctxStyle: React.CSSProperties = {
   padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8,
   cursor: 'pointer', color: 'var(--fg-secondary)', transition: 'background 0.1s',
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return bytes + 'B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + 'K'
+  return (bytes / 1024 / 1024).toFixed(1) + 'M'
 }
