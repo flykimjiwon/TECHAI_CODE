@@ -13,6 +13,7 @@ import SettingsPanel from './components/SettingsPanel'
 import QuickOpen from './components/QuickOpen'
 import ResizeHandle from './components/ResizeHandle'
 import GitGraph from './components/GitGraph'
+import DiffView from './components/DiffView'
 import ToastContainer from './components/Toast'
 import AboutDialog from './components/AboutDialog'
 import CommandPalette from './components/CommandPalette'
@@ -26,7 +27,8 @@ function App() {
   const [showQuickOpen, setShowQuickOpen] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
-  const [splitFile, setSplitFile] = useState<string | null>(null) // second editor
+  const [splitFile, setSplitFile] = useState<string | null>(null)
+  const [diffFile, setDiffFile] = useState<string | null>(null)
 
   // Resizable panel sizes
   const [sidebarWidth, setSidebarWidth] = useState(240)
@@ -98,7 +100,7 @@ function App() {
             <div style={{ width: sidebarWidth, flexShrink: 0, overflow: 'hidden' }}>
               {activePanel === 'files' && <FileTree onFileSelect={setSelectedFile} selectedFile={selectedFile || ''} />}
               {activePanel === 'search' && <SearchPanel onFileSelect={setSelectedFile} />}
-              {activePanel === 'git' && <GitPanel onFileSelect={setSelectedFile} />}
+              {activePanel === 'git' && <GitPanel onFileSelect={(path) => setDiffFile(path)} />}
             </div>
             <ResizeHandle direction="horizontal" onResize={resizeSidebar} />
           </>
@@ -107,7 +109,9 @@ function App() {
         {/* Center: Editor + Terminal */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
-            {activePanel === 'git' ? (
+            {diffFile ? (
+              <DiffView filePath={diffFile} onClose={() => setDiffFile(null)} />
+            ) : activePanel === 'git' ? (
               <GitGraph />
             ) : (
               <>
@@ -149,7 +153,9 @@ function App() {
         </div>
       </div>
 
-      <StatusBar line={cursor.line} col={cursor.col} lang={cursor.lang} />
+      <StatusBar line={cursor.line} col={cursor.col} lang={cursor.lang}
+        onGitClick={() => setActivePanel('git')}
+        onSettingsClick={() => setShowSettings(true)} />
 
       <ThemePicker open={showTheme} onClose={() => setShowTheme(false)} />
       <SettingsPanel open={showSettings} onClose={() => setShowSettings(false)} />
