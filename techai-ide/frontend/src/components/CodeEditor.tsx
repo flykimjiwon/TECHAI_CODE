@@ -4,7 +4,7 @@ import { EditorState, Compartment } from '@codemirror/state'
 import { defaultKeymap, indentWithTab, history, historyKeymap } from '@codemirror/commands'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
-import { LanguageSupport, indentOnInput, bracketMatching, foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
+import { LanguageSupport, indentOnInput, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language'
 import { go } from '@codemirror/lang-go'
 import { javascript } from '@codemirror/lang-javascript'
 import { python } from '@codemirror/lang-python'
@@ -110,7 +110,7 @@ export default function CodeEditor({ content, filename, onChange, onCursorChange
         closeBrackets(),
         indentOnInput(),
         foldGutter(),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        // No defaultHighlightStyle — syntax colors come from global CSS variables
         highlightSpecialChars(),
         scrollPastEnd(),
         keymap.of([
