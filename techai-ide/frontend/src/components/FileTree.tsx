@@ -225,12 +225,14 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         <div
           onClick={(e) => {
             if (entry.isDir) { toggleDir(entry.path); return }
-            if (e.metaKey || e.ctrlKey) {
+            if (e.metaKey || e.ctrlKey || e.shiftKey) {
+              e.preventDefault()
+              e.stopPropagation()
               setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
-            } else {
-              setSelected(new Set())
-              onFileSelect(entry.path)
+              return
             }
+            setSelected(new Set())
+            onFileSelect(entry.path)
           }}
           onContextMenu={e => handleContextMenu(e, entry.path, entry.isDir)}
           draggable={!entry.isDir}
