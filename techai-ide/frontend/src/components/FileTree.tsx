@@ -279,7 +279,31 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     <aside style={{
       width: '100%', height: '100%', background: 'var(--bg-sidebar)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden'
-    }} onClick={() => { setContextMenu(null); setDeleteConfirm(null) }}
+    }} tabIndex={0} onClick={() => { setContextMenu(null); setDeleteConfirm(null) }}
+      onKeyDown={e => {
+        // Cmd+A select all files
+        if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+          e.preventDefault(); e.stopPropagation()
+          const allPaths = new Set<string>()
+          function collect(items: FileEntry[]) {
+            for (const f of items) {
+              if (!f.isDir) allPaths.add(f.path)
+              if (f.kids) collect(f.kids)
+            }
+          }
+          collect(tree)
+          setSelected(allPaths)
+        }
+        // Delete selected
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+          if (selected.size > 0) {
+            selected.forEach(p => DeleteFile(p).catch(() => {}))
+            import('./Toast').then(m => m.showToast(`Deleted ${selected.size} file(s)`, 'success'))
+            setSelected(new Set())
+            refresh()
+          }
+        }
+      }}
       onContextMenu={e => {
         // Empty space right-click
         if ((e.target as HTMLElement).closest('.tree-item-row')) return
