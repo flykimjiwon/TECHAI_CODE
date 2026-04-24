@@ -53,8 +53,6 @@ html, body, #root {
 ::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--fg-dim); }
 
-.tree-item-row:hover .file-checkbox { opacity: 1 !important; }
-
 @keyframes blink { 50% { opacity: 0; } }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }

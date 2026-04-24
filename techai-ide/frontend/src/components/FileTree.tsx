@@ -223,14 +223,31 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     return filtered.map(entry => (
       <div key={entry.path}>
         <div
+          onMouseDown={(e) => {
+            if (entry.isDir) return
+            // Cmd/Ctrl+Click: toggle individual
+            if (e.metaKey || e.ctrlKey) {
+              e.preventDefault()
+              e.stopPropagation()
+              setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
+              return
+            }
+            // Shift+Click: range select
+            if (e.shiftKey && selectedFile) {
+              e.preventDefault()
+              e.stopPropagation()
+              const allFiles: string[] = []
+              function collect(items: FileEntry[]) { for (const f of items) { if (!f.isDir) allFiles.push(f.path); if (f.kids) collect(f.kids) } }
+              collect(tree)
+              const a = allFiles.indexOf(selectedFile), b = allFiles.indexOf(entry.path)
+              if (a >= 0 && b >= 0) setSelected(new Set(allFiles.slice(Math.min(a,b), Math.max(a,b)+1)))
+              return
+            }
+          }}
           onClick={() => {
             if (entry.isDir) { toggleDir(entry.path); return }
-            if (selected.size > 0) {
-              // Already in multi-select mode — toggle this file
-              setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
-            } else {
-              onFileSelect(entry.path)
-            }
+            setSelected(new Set())
+            onFileSelect(entry.path)
           }}
           onContextMenu={e => handleContextMenu(e, entry.path, entry.isDir)}
           draggable={!entry.isDir}
@@ -250,27 +267,6 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         >
           {entry.isDir ? (expanded.has(entry.path) ? <ChevronDown size={14} style={{ color: 'var(--fg-dim)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--fg-dim)', flexShrink: 0 }} />) : <span style={{ width: 14, flexShrink: 0 }} />}
           {getIcon(entry)}
-          {/* Checkbox for multi-select */}
-          {!entry.isDir && (
-            <input type="checkbox" checked={selected.has(entry.path)}
-              onChange={e => {
-                e.stopPropagation()
-                setSelected(prev => {
-                  const n = new Set(prev)
-                  e.target.checked ? n.add(entry.path) : n.delete(entry.path)
-                  return n
-                })
-              }}
-              onClick={e => e.stopPropagation()}
-              style={{
-                width: 13, height: 13, flexShrink: 0, cursor: 'pointer',
-                accentColor: 'var(--accent)',
-                opacity: selected.size > 0 || selected.has(entry.path) ? 1 : 0,
-                transition: 'opacity 0.1s',
-              }}
-              className="file-checkbox"
-            />
-          )}
           {renamingPath === entry.path ? (
             <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') submitRename(); if (e.key === 'Escape') setRenamingPath(null) }}
@@ -302,18 +298,22 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
       display: 'flex', flexDirection: 'column', overflow: 'hidden'
     }} tabIndex={0} onClick={() => { setContextMenu(null); setDeleteConfirm(null) }}
       onKeyDown={e => {
-        // Cmd+A select all files
+        // Cmd+A toggle select all files
         if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
           e.preventDefault(); e.stopPropagation()
-          const allPaths = new Set<string>()
-          function collect(items: FileEntry[]) {
-            for (const f of items) {
-              if (!f.isDir) allPaths.add(f.path)
-              if (f.kids) collect(f.kids)
+          if (selected.size > 0) {
+            setSelected(new Set()) // deselect all
+          } else {
+            const allPaths = new Set<string>()
+            function collect(items: FileEntry[]) {
+              for (const f of items) {
+                if (!f.isDir) allPaths.add(f.path)
+                if (f.kids) collect(f.kids)
+              }
             }
+            collect(tree)
+            setSelected(allPaths)
           }
-          collect(tree)
-          setSelected(allPaths)
         }
         // Delete selected
         if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -351,14 +351,9 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         display: 'flex', alignItems: 'center', gap: 6
       }}>
         <span style={{ flex: 1 }}>
-          {selected.size > 0 ? (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: 'var(--accent)' }}>{selected.size} selected</span>
-              <button onClick={() => setSelected(new Set())} style={{
-                background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-dim)', fontSize: 10, padding: 0,
-              }}>✕ clear</button>
-            </span>
-          ) : (projectName || 'Explorer')}
+          {selected.size > 0
+            ? <span style={{ color: 'var(--accent)', fontSize: 11 }}>{selected.size} selected</span>
+            : (projectName || 'Explorer')}
         </span>
         <FilePlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => handleNewFile()} />
         <FolderPlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={handleOpenFolder} />
