@@ -20,8 +20,8 @@ type TGCConfig struct {
 }
 
 const (
-	defaultBaseURL = "https://api.novita.ai/openai"
-	defaultModel   = "qwen/qwen3-coder-30b-a3b-instruct"
+	defaultBaseURL = "https://techai-web-prod.shinhan.com/v1"
+	defaultModel   = "Qwen3-Coder-30B"
 )
 
 // LoadTGCConfig reads the shared .tgc/config.yaml (or .tgc-onprem/).
