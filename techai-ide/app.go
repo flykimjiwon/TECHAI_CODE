@@ -131,6 +131,10 @@ func (a *App) OpenFolder() (string, error) {
 	}
 	a.cwd = dir
 	wailsRuntime.WindowSetTitle(a.ctx, "TECHAI IDE — "+dir)
+	// Restart terminal in new directory
+	a.StopTerminal()
+	a.StartTerminal()
+	a.saveRecentProject(dir)
 	return dir, nil
 }
 

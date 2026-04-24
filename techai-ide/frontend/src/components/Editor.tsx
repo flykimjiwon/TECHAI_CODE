@@ -300,17 +300,18 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
           </button>
         )}
         {/* Auto-save toggle */}
-        <button onClick={() => {
+        <button title={autoSave ? 'Auto Save ON — click to disable' : 'Auto Save OFF — click to enable'} onClick={() => {
           const next = !autoSave
           setAutoSave(next)
           localStorage.setItem('techai-autosave', String(next))
+          import('./Toast').then(m => m.showToast(next ? 'Auto Save ON' : 'Auto Save OFF', 'info'))
         }} style={{
-          padding: '0 8px', fontSize: 10, cursor: 'pointer',
+          padding: '0 10px', fontSize: 10, cursor: 'pointer',
           background: autoSave ? 'rgba(16,185,129,0.15)' : 'transparent',
           color: autoSave ? 'var(--success)' : 'var(--fg-dim)',
-          border: 'none', fontFamily: 'var(--font-ui)',
+          border: 'none', fontFamily: 'var(--font-ui)', gap: 3, display: 'flex', alignItems: 'center',
         }}>
-          {autoSave ? 'Auto' : 'Manual'}
+          💾 {autoSave ? 'Auto Save' : 'Save: Manual'}
         </button>
         {saveFlash && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 12px', fontSize: 11, color: 'var(--success)' }}>
