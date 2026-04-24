@@ -22,7 +22,7 @@ import { cpp } from '@codemirror/lang-cpp'
 
 // Dark theme matching designs-v3
 const techaiTheme = EditorView.theme({
-  '&': { backgroundColor: 'var(--bg-editor)', color: 'var(--fg-secondary)', fontSize: '12.5px' },
+  '&': { backgroundColor: 'var(--bg-editor)', color: 'var(--fg-secondary)', fontSize: '12.5px', height: '100%' },
   '.cm-content': { fontFamily: 'var(--font-code)', lineHeight: '1.55', padding: '10px 0', caretColor: 'var(--accent)' },
   '.cm-gutters': { backgroundColor: 'var(--bg-editor)', color: 'var(--fg-dim)', border: 'none', borderRight: '1px solid var(--border)' },
   '.cm-gutter': { minWidth: '40px' },
@@ -269,7 +269,7 @@ export default function CodeEditor({ content, filename, onChange, onCursorChange
 
   useEffect(() => { updateLang(filename) }, [filename, updateLang])
 
-  return <div ref={containerRef} style={{ height: '100%', overflow: 'hidden' }} />
+  return <div ref={containerRef} style={{ height: '100%', overflow: 'auto' }} />
 }
 
 function showContextMenu(x: number, y: number, code: string, filename: string, onAskAI: (code: string, file: string) => void) {
