@@ -3,7 +3,6 @@ module techai-ide
 go 1.23.0
 
 require (
-	github.com/creack/pty v1.1.24
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/wailsapp/wails/v2 v2.12.0
 	gopkg.in/yaml.v3 v3.0.1

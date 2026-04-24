@@ -449,30 +449,21 @@ func (a *App) executeTool(name, argsJSON string) string {
 	case "grep_search", "search_files":
 		pattern, _ := args["pattern"].(string)
 		dir, _ := args["path"].(string)
-		include, _ := args["include"].(string)
 		if pattern == "" {
 			return "Error: pattern is required"
 		}
-		// Use grep for better results when available
-		grepArgs := []string{"-rn", "--color=never"}
-		if include != "" {
-			grepArgs = append(grepArgs, "--include="+include)
+		results, err := a.SearchInFiles(pattern, dir)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
 		}
-		grepArgs = append(grepArgs, pattern)
-		if dir == "" {
-			dir = "."
-		}
-		grepArgs = append(grepArgs, dir)
-		out, _ := a.runShell("grep", grepArgs...)
-		if out == "" {
+		if len(results) == 0 {
 			return "No matches found."
 		}
-		// Limit output
-		lines := strings.Split(out, "\n")
-		if len(lines) > 50 {
-			return strings.Join(lines[:50], "\n") + fmt.Sprintf("\n... (%d more lines)", len(lines)-50)
+		var sb strings.Builder
+		for _, r := range results {
+			fmt.Fprintf(&sb, "%s:%d: %s\n", r.File, r.Line, r.Content)
 		}
-		return out
+		return sb.String()
 
 	case "glob_search":
 		pattern, _ := args["pattern"].(string)
