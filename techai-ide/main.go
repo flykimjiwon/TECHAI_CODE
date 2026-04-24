@@ -40,6 +40,7 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
+		EnableDefaultContextMenu: true,
 		Mac: &mac.Options{
 			TitleBar: mac.TitleBarHiddenInset(),
 			WebviewIsTransparent: true,
