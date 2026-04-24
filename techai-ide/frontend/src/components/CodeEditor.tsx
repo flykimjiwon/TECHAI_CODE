@@ -4,7 +4,8 @@ import { EditorState, Compartment } from '@codemirror/state'
 import { defaultKeymap, indentWithTab, history, historyKeymap } from '@codemirror/commands'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
-import { LanguageSupport, indentOnInput, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language'
+import { LanguageSupport, indentOnInput, bracketMatching, foldGutter, foldKeymap, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { tags } from '@lezer/highlight'
 import { go } from '@codemirror/lang-go'
 import { javascript } from '@codemirror/lang-javascript'
 import { python } from '@codemirror/lang-python'
@@ -35,11 +36,50 @@ const techaiTheme = EditorView.theme({
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(255,200,0,0.5)' },
   '.cm-foldGutter .cm-gutterElement': { color: 'var(--fg-dim)', cursor: 'pointer', fontSize: '11px' },
   '.cm-scroller': { overflow: 'auto' },
-  // Syntax colors handled by global CSS (style.css) with !important
-  // to allow theme switching via CSS variables. Only non-color styles here:
   '.cm-emphasis': { fontStyle: 'italic' },
   '.cm-strong': { fontWeight: 'bold' },
 }, { dark: true })
+
+// Highlight style using CSS classes — colors come from style.css CSS variables
+const techaiHighlight = HighlightStyle.define([
+  { tag: tags.keyword, class: 'cm-keyword' },
+  { tag: tags.name, class: 'cm-variableName' },
+  { tag: tags.definition(tags.name), class: 'cm-definition' },
+  { tag: tags.function(tags.variableName), class: 'cm-function' },
+  { tag: tags.propertyName, class: 'cm-propertyName' },
+  { tag: tags.typeName, class: 'cm-typeName' },
+  { tag: tags.className, class: 'cm-className' },
+  { tag: tags.string, class: 'cm-string' },
+  { tag: tags.special(tags.string), class: 'cm-string2' },
+  { tag: tags.number, class: 'cm-number' },
+  { tag: tags.integer, class: 'cm-number' },
+  { tag: tags.float, class: 'cm-number' },
+  { tag: tags.bool, class: 'cm-bool' },
+  { tag: tags.null, class: 'cm-null' },
+  { tag: tags.atom, class: 'cm-atom' },
+  { tag: tags.comment, class: 'cm-comment' },
+  { tag: tags.lineComment, class: 'cm-comment' },
+  { tag: tags.blockComment, class: 'cm-comment' },
+  { tag: tags.docComment, class: 'cm-comment' },
+  { tag: tags.operator, class: 'cm-operator' },
+  { tag: tags.punctuation, class: 'cm-punctuation' },
+  { tag: tags.paren, class: 'cm-punctuation' },
+  { tag: tags.brace, class: 'cm-punctuation' },
+  { tag: tags.bracket, class: 'cm-punctuation' },
+  { tag: tags.meta, class: 'cm-meta' },
+  { tag: tags.tagName, class: 'cm-tagName' },
+  { tag: tags.attributeName, class: 'cm-attributeName' },
+  { tag: tags.regexp, class: 'cm-regexp' },
+  { tag: tags.link, class: 'cm-link' },
+  { tag: tags.heading, class: 'cm-heading' },
+  { tag: tags.emphasis, class: 'cm-emphasis' },
+  { tag: tags.strong, class: 'cm-strong' },
+  { tag: tags.self, class: 'cm-keyword' },
+  { tag: tags.moduleKeyword, class: 'cm-keyword' },
+  { tag: tags.controlKeyword, class: 'cm-keyword' },
+  { tag: tags.definitionKeyword, class: 'cm-keyword' },
+  { tag: tags.operatorKeyword, class: 'cm-keyword' },
+])
 
 function getLang(ext: string): LanguageSupport | null {
   switch (ext) {
@@ -110,7 +150,7 @@ export default function CodeEditor({ content, filename, onChange, onCursorChange
         closeBrackets(),
         indentOnInput(),
         foldGutter(),
-        // No defaultHighlightStyle — syntax colors come from global CSS variables
+        syntaxHighlighting(techaiHighlight),
         highlightSpecialChars(),
         scrollPastEnd(),
         keymap.of([
