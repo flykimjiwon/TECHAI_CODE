@@ -183,6 +183,9 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         <div
           onClick={() => entry.isDir ? toggleDir(entry.path) : onFileSelect(entry.path)}
           onContextMenu={e => handleContextMenu(e, entry.path, entry.isDir)}
+          draggable={!entry.isDir}
+          onDragStart={e => { if (!entry.isDir) e.dataTransfer.setData('text/plain', entry.path) }}
+          onDoubleClick={() => { if (!entry.isDir) onFileSelect(entry.path) }}
           style={{
             padding: '3px 12px', paddingLeft: 12 + depth * 14,
             fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6,

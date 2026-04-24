@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor, dropCursor } from '@codemirror/view'
+import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor, dropCursor, highlightSpecialChars, scrollPastEnd } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
 import { defaultKeymap, indentWithTab, history, historyKeymap } from '@codemirror/commands'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
@@ -132,6 +132,8 @@ export default function CodeEditor({ content, filename, onChange, onCursorChange
         indentOnInput(),
         foldGutter(),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        highlightSpecialChars(),
+        scrollPastEnd(),
         keymap.of([
           ...defaultKeymap,
           ...searchKeymap,
@@ -144,6 +146,8 @@ export default function CodeEditor({ content, filename, onChange, onCursorChange
         techaiTheme,
         updateListener,
         EditorState.tabSize.of(4),
+        // Multi-cursor: Alt+Click adds cursor, Cmd+D selects next occurrence
+        EditorView.clickAddsSelectionRange.of(e => e.altKey),
       ],
     })
 

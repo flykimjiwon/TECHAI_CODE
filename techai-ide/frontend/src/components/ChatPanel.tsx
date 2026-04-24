@@ -329,8 +329,18 @@ function renderContent(text: string) {
           background: 'var(--bg-base)', padding: '8px 10px', borderRadius: 6,
           margin: '6px 0', overflow: 'auto', border: '1px solid var(--border)',
           fontFamily: 'var(--font-code)', fontSize: 11.5, lineHeight: 1.5,
+          position: 'relative',
         }}>
-          {lang && <div style={{ fontSize: 10, color: 'var(--fg-dim)', marginBottom: 4 }}>{lang}</div>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            {lang && <span style={{ fontSize: 10, color: 'var(--fg-dim)' }}>{lang}</span>}
+            <span style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+              <button onClick={() => navigator.clipboard.writeText(code)} style={{
+                background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 4,
+                color: 'var(--fg-muted)', padding: '1px 6px', fontSize: 10, cursor: 'pointer',
+                fontFamily: 'var(--font-ui)',
+              }}>Copy</button>
+            </span>
+          </div>
           {code}
         </pre>
       )

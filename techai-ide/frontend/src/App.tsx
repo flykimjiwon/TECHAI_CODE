@@ -81,6 +81,9 @@ function App() {
       if (mod && e.key === 'j') { e.preventDefault(); setShowTerminal(t => !t) }
       if (mod && e.shiftKey && e.key === 'p') { e.preventDefault(); setShowCommandPalette(true) }
       if (mod && e.key === '\\') { e.preventDefault(); setSplitFile(prev => prev ? null : selectedFile) }
+      if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); document.documentElement.style.fontSize = (parseFloat(getComputedStyle(document.documentElement).fontSize) + 1) + 'px' }
+      if (mod && e.key === '-') { e.preventDefault(); document.documentElement.style.fontSize = Math.max(10, parseFloat(getComputedStyle(document.documentElement).fontSize) - 1) + 'px' }
+      if (mod && e.key === '0') { e.preventDefault(); document.documentElement.style.fontSize = '13px' }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
@@ -107,7 +110,13 @@ function App() {
         )}
 
         {/* Center: Editor + Terminal */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => {
+            const path = e.dataTransfer.getData('text/plain')
+            if (path) { e.preventDefault(); setSelectedFile(path) }
+          }}
+        >
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
             {diffFile ? (
               <DiffView filePath={diffFile} onClose={() => setDiffFile(null)} />
