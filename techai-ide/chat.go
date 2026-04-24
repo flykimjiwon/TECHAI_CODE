@@ -49,11 +49,35 @@ func newChatEngine(cfg TGCConfig, app *App) *chatEngine {
 	}
 }
 
+var userLanguage = "korean" // default, changeable via settings
+
 func systemPrompt() string {
-	base := `You are TECHAI, an AI coding assistant embedded in an IDE.
-You can read and write files, search code, and run shell commands.
-Answer in the same language the user uses. Be concise and direct.
-When editing files, show the changes clearly.`
+	langInstruction := "ALWAYS respond in Korean. Code/paths stay in English."
+	switch userLanguage {
+	case "english":
+		langInstruction = "ALWAYS respond in English."
+	case "korean":
+		langInstruction = "ALWAYS respond in Korean. Code/paths stay in English."
+	default:
+		if userLanguage != "" {
+			langInstruction = "ALWAYS respond in " + userLanguage + ". Code/paths stay in English."
+		}
+	}
+
+	base := `You are TECHAI — AI coding assistant embedded in an IDE.
+` + langInstruction + `
+
+## Workflow
+- Simple question → direct answer
+- Code modification → use tools (file_read → file_write)
+- Project overview → list_files → read key files
+
+## Rules
+- Read file before editing (file_read first)
+- Use grep_search/glob_search for search. Never shell_exec grep/find.
+- Git: create new commits. No force push/amend.
+- Never include secrets (.env, API keys) in code.
+- Be concise and direct. Show changes clearly.`
 
 	// Load project context (.techai.md + project type detection)
 	cwd, _ := os.Getwd()

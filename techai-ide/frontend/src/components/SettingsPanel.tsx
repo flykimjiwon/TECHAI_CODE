@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Settings, X, Save, Check } from 'lucide-react'
-import { GetSettings, SaveSettings } from '../../wailsjs/go/main/App'
+import { GetSettings, SaveSettings, SetLanguage } from '../../wailsjs/go/main/App'
 
 interface Props {
   open: boolean
@@ -12,6 +12,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('')
   const [saved, setSaved] = useState(false)
+  const [language, setLanguageState] = useState('korean')
+  const [customLang, setCustomLang] = useState('')
 
   useEffect(() => {
     if (open) {
@@ -19,6 +21,9 @@ export default function SettingsPanel({ open, onClose }: Props) {
         setBaseURL(s.baseURL || '')
         setApiKey(s.apiKey || '')
         setModel(s.model || '')
+        const lang = s.language || 'korean'
+        setLanguageState(lang)
+        if (!['korean', 'english'].includes(lang)) setCustomLang(lang)
         setSaved(false)
       }).catch(() => {})
     }
@@ -34,6 +39,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
   async function handleSave() {
     try {
       await SaveSettings(baseURL, apiKey, model)
+      const lang = language === 'custom' ? customLang : language
+      await SetLanguage(lang)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (err) {
@@ -68,6 +75,34 @@ export default function SettingsPanel({ open, onClose }: Props) {
           <Field label="API Base URL" value={baseURL} onChange={setBaseURL} placeholder="https://api.novita.ai/openai" />
           <Field label="API Key" value={apiKey} onChange={setApiKey} placeholder="sk-..." type="password" />
           <Field label="Model" value={model} onChange={setModel} placeholder="qwen/qwen3-coder-30b-a3b-instruct" />
+
+          {/* Language */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', marginBottom: 4, display: 'block' }}>AI Response Language</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['korean', 'english', 'custom'].map(opt => (
+                <button key={opt} onClick={() => setLanguageState(opt)} style={{
+                  flex: 1, padding: '6px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                  fontFamily: 'var(--font-ui)',
+                  background: language === opt ? 'var(--accent-glow)' : 'var(--bg-active)',
+                  color: language === opt ? 'var(--accent)' : 'var(--fg-muted)',
+                  border: language === opt ? '1px solid var(--accent)' : '1px solid var(--border)',
+                }}>
+                  {opt === 'korean' ? '한국어' : opt === 'english' ? 'English' : 'Custom'}
+                </button>
+              ))}
+            </div>
+            {language === 'custom' && (
+              <input value={customLang} onChange={e => setCustomLang(e.target.value)}
+                placeholder="e.g. Japanese, Chinese, Spanish..."
+                style={{
+                  width: '100%', padding: '6px 10px', borderRadius: 6, marginTop: 6,
+                  background: 'var(--bg-base)', border: '1px solid var(--border)',
+                  color: 'var(--fg-primary)', fontSize: 12, fontFamily: 'var(--font-ui)', outline: 'none',
+                }}
+              />
+            )}
+          </div>
 
           <button onClick={handleSave} style={{
             padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',

@@ -170,6 +170,10 @@ export function SetCwd(arg1) {
   return window['go']['main']['App']['SetCwd'](arg1);
 }
 
+export function SetLanguage(arg1) {
+  return window['go']['main']['App']['SetLanguage'](arg1);
+}
+
 export function SetShell(arg1) {
   return window['go']['main']['App']['SetShell'](arg1);
 }

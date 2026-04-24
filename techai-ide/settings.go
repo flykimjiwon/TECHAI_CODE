@@ -11,10 +11,22 @@ import (
 func (a *App) GetSettings() map[string]string {
 	cfg := LoadTGCConfig()
 	return map[string]string{
-		"baseURL": cfg.API.BaseURL,
-		"apiKey":  maskKey(cfg.API.APIKey),
-		"model":   cfg.Models.Super,
+		"baseURL":  cfg.API.BaseURL,
+		"apiKey":   maskKey(cfg.API.APIKey),
+		"model":    cfg.Models.Super,
+		"language": userLanguage,
 	}
+}
+
+// SetLanguage changes the AI response language.
+func (a *App) SetLanguage(lang string) {
+	userLanguage = lang
+	// Reinitialize chat with new system prompt
+	a.chatMu.Lock()
+	if a.chat != nil {
+		a.chat.history[0].Content = systemPrompt()
+	}
+	a.chatMu.Unlock()
 }
 
 // SaveSettings writes updated settings to config.yaml.

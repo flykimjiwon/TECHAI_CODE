@@ -86,6 +86,8 @@ export function SendMessage(arg1:string):Promise<void>;
 
 export function SetCwd(arg1:string):Promise<void>;
 
+export function SetLanguage(arg1:string):Promise<void>;
+
 export function SetShell(arg1:string):Promise<void>;
 
 export function StartLiveServer(arg1:string):Promise<string>;
