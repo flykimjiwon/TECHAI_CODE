@@ -24,6 +24,8 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
   const [filter, setFilter] = useState('')
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null) // path pending delete
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const refresh = useCallback(() => {
     ListFiles('.', 3).then(setTree).catch(console.error)
@@ -63,10 +65,11 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     setContextMenu({ x: e.clientX, y: e.clientY, path, isDir })
   }
 
-  async function handleNewFile() {
-    if (!contextMenu) return
-    const dir = contextMenu.isDir ? contextMenu.path : contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/'))
-    const newPath = dir + '/newfile'
+  async function handleNewFile(atPath?: string) {
+    let base = atPath || (contextMenu?.isDir ? contextMenu.path : contextMenu?.path.substring(0, contextMenu.path.lastIndexOf('/')))
+    if (!base) { const { GetCwd } = await import('../../wailsjs/go/main/App'); base = await GetCwd() }
+    if (!base) return
+    const newPath = base + '/newfile'
     try {
       await WriteFile(newPath, '')
       refresh()
@@ -79,16 +82,18 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     setContextMenu(null)
   }
 
-  async function handleDelete() {
-    if (!contextMenu) return
+  async function handleDelete(path?: string) {
+    const target = path || contextMenu?.path
+    if (!target) return
     try {
-      await DeleteFile(contextMenu.path)
+      await DeleteFile(target)
       import('./Toast').then(m => m.showToast('Deleted', 'success'))
       refresh()
     } catch (e) {
       import('./Toast').then(m => m.showToast(`Error: ${e}`, 'error'))
     }
     setContextMenu(null)
+    setDeleteConfirm(null)
   }
 
   async function submitRename() {
@@ -218,16 +223,26 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     return filtered.map(entry => (
       <div key={entry.path}>
         <div
-          onClick={() => entry.isDir ? toggleDir(entry.path) : onFileSelect(entry.path)}
+          onClick={(e) => {
+            if (entry.isDir) { toggleDir(entry.path); return }
+            if (e.metaKey || e.ctrlKey) {
+              setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
+            } else {
+              setSelected(new Set())
+              onFileSelect(entry.path)
+            }
+          }}
           onContextMenu={e => handleContextMenu(e, entry.path, entry.isDir)}
           draggable={!entry.isDir}
           onDragStart={e => { if (!entry.isDir) e.dataTransfer.setData('text/plain', entry.path) }}
           onDoubleClick={() => { if (!entry.isDir) onFileSelect(entry.path) }}
+          className="tree-item-row"
           style={{
             padding: '4px 12px', paddingLeft: 12 + depth * 14, minHeight: 24,
             fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6,
-            cursor: 'pointer', color: selectedFile === entry.path ? 'var(--fg-primary)' : 'var(--fg-secondary)',
-            background: selectedFile === entry.path ? 'var(--bg-active)' : 'transparent',
+            cursor: 'pointer',
+            color: selectedFile === entry.path || selected.has(entry.path) ? 'var(--fg-primary)' : 'var(--fg-secondary)',
+            background: selected.has(entry.path) ? 'rgba(59,130,246,0.15)' : selectedFile === entry.path ? 'var(--bg-active)' : 'transparent',
             transition: 'background 0.1s',
           }}
           onMouseEnter={e => { if (selectedFile !== entry.path) e.currentTarget.style.background = 'var(--bg-hover)' }}
@@ -264,7 +279,13 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     <aside style={{
       width: '100%', height: '100%', background: 'var(--bg-sidebar)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden'
-    }} onClick={() => setContextMenu(null)}
+    }} onClick={() => { setContextMenu(null); setDeleteConfirm(null) }}
+      onContextMenu={e => {
+        // Empty space right-click
+        if ((e.target as HTMLElement).closest('.tree-item-row')) return
+        e.preventDefault()
+        setContextMenu({ x: e.clientX, y: e.clientY, path: '', isDir: true })
+      }}
       onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
       onDrop={async e => {
         e.preventDefault(); e.stopPropagation()
@@ -285,7 +306,7 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         display: 'flex', alignItems: 'center', gap: 6
       }}>
         <span style={{ flex: 1 }}>{projectName || 'Explorer'}</span>
-        <FilePlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={handleNewFile} />
+        <FilePlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => handleNewFile()} />
         <FolderPlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={handleOpenFolder} />
         <RefreshCw size={12} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={refresh} />
       </div>
@@ -313,7 +334,7 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
           borderRadius: 6, padding: '4px 0', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
           zIndex: 999, minWidth: 160,
         }}>
-          <div onClick={handleNewFile} style={ctxStyle}>
+          <div onClick={() => handleNewFile()} style={ctxStyle}>
             <FilePlus size={13} /> New File
           </div>
           <div onClick={() => {
@@ -337,9 +358,22 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
               </div>
             </>
           )}
-          <div onClick={handleDelete} style={{...ctxStyle, color: 'var(--error)'}}>
-            <Trash2 size={13} /> Delete
-          </div>
+          {deleteConfirm === contextMenu?.path ? (
+            <div style={{ padding: '4px 10px', display: 'flex', gap: 4 }}>
+              <button onClick={() => handleDelete(contextMenu?.path)} style={{
+                flex: 1, padding: '4px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                background: 'var(--error)', color: '#fff', fontSize: 11, fontFamily: 'var(--font-ui)',
+              }}>Delete</button>
+              <button onClick={() => { setDeleteConfirm(null); setContextMenu(null) }} style={{
+                flex: 1, padding: '4px', borderRadius: 4, border: '1px solid var(--border)', cursor: 'pointer',
+                background: 'var(--bg-active)', color: 'var(--fg-secondary)', fontSize: 11, fontFamily: 'var(--font-ui)',
+              }}>Cancel</button>
+            </div>
+          ) : (
+            <div onClick={() => setDeleteConfirm(contextMenu?.path || null)} style={{...ctxStyle, color: 'var(--error)'}}>
+              <Trash2 size={13} /> Delete
+            </div>
+          )}
         </div>
       )}
     </aside>

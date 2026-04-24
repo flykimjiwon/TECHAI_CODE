@@ -150,7 +150,7 @@ export default function Terminal() {
         <button onClick={addTab} style={{background:'none',border:'none',cursor:'pointer',padding:'0 8px',color:'var(--fg-dim)',display:'flex',alignItems:'center'}}>
           <Plus size={13}/>
         </button>
-        <button onClick={() => xtermRef.current?.clear()} style={{background:'none',border:'none',cursor:'pointer',padding:'0 6px',color:'var(--fg-dim)',display:'flex',alignItems:'center'}}>
+        <button title="Clear terminal" onClick={() => { xtermRef.current?.clear(); xtermRef.current?.write('\x1b[2J\x1b[H') }} style={{background:'none',border:'none',cursor:'pointer',padding:'0 6px',color:'var(--fg-dim)',display:'flex',alignItems:'center'}}>
           <Trash2 size={11}/>
         </button>
         <div style={{marginLeft:'auto',position:'relative'}}>
