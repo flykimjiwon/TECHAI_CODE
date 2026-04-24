@@ -31,6 +31,7 @@ export default function ActivityBar({ active, onSelect }: Props) {
   const renderIcon = (item: typeof top[0], isBottom = false) => (
     <button
       key={item.id}
+      title={item.label}
       onClick={() => onSelect(item.id)}
       style={{
         background: 'none', border: 'none', cursor: 'pointer', padding: 10,

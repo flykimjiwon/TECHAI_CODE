@@ -106,7 +106,8 @@ export default function QuickOpen({ open, onClose, onSelect }: Props) {
             const name = file.split('/').pop() || file
             const dir = file.substring(0, file.length - name.length - 1)
             return (
-              <div key={file} onClick={() => { onSelect(file); onClose() }} style={{
+              <div key={file} ref={i === selected ? el => el?.scrollIntoView({ block: 'nearest' }) : undefined}
+                onClick={() => { onSelect(file); onClose() }} style={{
                 padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8,
                 cursor: 'pointer', fontSize: 13,
                 background: i === selected ? 'var(--bg-active)' : 'transparent',

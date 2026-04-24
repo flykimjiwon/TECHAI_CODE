@@ -4,6 +4,7 @@ import { ReadFile, WriteFile, GetRecentProjects, SetCwd } from '../../wailsjs/go
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import CodeEditor from './CodeEditor'
 import { showToast } from './Toast'
+import { modKey } from '../utils'
 
 interface Tab {
   path: string
@@ -404,12 +405,12 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
               marginTop: 8, fontSize: 11, color: 'var(--fg-dim)',
               display: 'grid', gridTemplateColumns: 'auto auto', gap: '4px 24px', alignItems: 'center',
             }}>
-              <kbd style={kbd}>Cmd+P</kbd><span>Quick Open</span>
-              <kbd style={kbd}>Cmd+F</kbd><span>Find</span>
-              <kbd style={kbd}>Cmd+B</kbd><span>Toggle Sidebar</span>
-              <kbd style={kbd}>Cmd+J</kbd><span>Toggle Terminal</span>
-              <kbd style={kbd}>Cmd+S</kbd><span>Save</span>
-              <kbd style={kbd}>Cmd+,</kbd><span>Theme</span>
+              <kbd style={kbd}>{modKey}+P</kbd><span>Quick Open</span>
+              <kbd style={kbd}>{modKey}+F</kbd><span>Find</span>
+              <kbd style={kbd}>{modKey}+B</kbd><span>Toggle Sidebar</span>
+              <kbd style={kbd}>{modKey}+J</kbd><span>Toggle Terminal</span>
+              <kbd style={kbd}>{modKey}+S</kbd><span>Save</span>
+              <kbd style={kbd}>{modKey}+,</kbd><span>Theme</span>
             </div>
             {/* Recent Projects */}
             {recentProjects.length > 0 && (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, Files, GitBranch, Settings, Palette, Terminal, BookOpen, Download, Trash2, FolderOpen, SplitSquareHorizontal } from 'lucide-react'
+import { modKey } from '../utils'
 
 interface Command {
   id: string
@@ -33,14 +34,14 @@ export default function CommandPalette({ open, onClose, actions }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const commands: Command[] = [
-    { id: 'quick-open', label: 'Go to File', shortcut: 'Cmd+P', icon: Search, action: () => { onClose(); actions.openQuickOpen() } },
-    { id: 'open-folder', label: 'Open Folder', shortcut: 'Cmd+O', icon: FolderOpen, action: () => { onClose(); actions.openFolder() } },
-    { id: 'explorer', label: 'Show Explorer', shortcut: 'Cmd+1', icon: Files, action: () => { onClose(); actions.openFiles() } },
-    { id: 'search', label: 'Search in Files', shortcut: 'Cmd+Shift+F', icon: Search, action: () => { onClose(); actions.openSearch() } },
-    { id: 'git', label: 'Show Git', shortcut: 'Cmd+3', icon: GitBranch, action: () => { onClose(); actions.openGit() } },
-    { id: 'terminal', label: 'Toggle Terminal', shortcut: 'Cmd+J', icon: Terminal, action: () => { onClose(); actions.toggleTerminal() } },
-    { id: 'split', label: 'Split Editor', shortcut: 'Cmd+\\', icon: SplitSquareHorizontal, action: () => { onClose(); actions.toggleSplit() } },
-    { id: 'theme', label: 'Change Theme', shortcut: 'Cmd+,', icon: Palette, action: () => { onClose(); actions.openTheme() } },
+    { id: 'quick-open', label: 'Go to File', shortcut: `${modKey}+P`, icon: Search, action: () => { onClose(); actions.openQuickOpen() } },
+    { id: 'open-folder', label: 'Open Folder', shortcut: `${modKey}+O`, icon: FolderOpen, action: () => { onClose(); actions.openFolder() } },
+    { id: 'explorer', label: 'Show Explorer', shortcut: `${modKey}+1`, icon: Files, action: () => { onClose(); actions.openFiles() } },
+    { id: 'search', label: 'Search in Files', shortcut: `${modKey}+Shift+F`, icon: Search, action: () => { onClose(); actions.openSearch() } },
+    { id: 'git', label: 'Show Git', shortcut: `${modKey}+3`, icon: GitBranch, action: () => { onClose(); actions.openGit() } },
+    { id: 'terminal', label: 'Toggle Terminal', shortcut: `${modKey}+J`, icon: Terminal, action: () => { onClose(); actions.toggleTerminal() } },
+    { id: 'split', label: 'Split Editor', shortcut: `${modKey}+\\`, icon: SplitSquareHorizontal, action: () => { onClose(); actions.toggleSplit() } },
+    { id: 'theme', label: 'Change Theme', shortcut: `${modKey}+,`, icon: Palette, action: () => { onClose(); actions.openTheme() } },
     { id: 'settings', label: 'Open Settings', icon: Settings, action: () => { onClose(); actions.openSettings() } },
     { id: 'export-chat', label: 'Export Chat', icon: Download, action: () => { onClose(); actions.exportChat() } },
     { id: 'clear-chat', label: 'Clear Chat', icon: Trash2, action: () => { onClose(); actions.clearChat() } },

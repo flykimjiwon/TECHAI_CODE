@@ -189,7 +189,7 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
           onDragStart={e => { if (!entry.isDir) e.dataTransfer.setData('text/plain', entry.path) }}
           onDoubleClick={() => { if (!entry.isDir) onFileSelect(entry.path) }}
           style={{
-            padding: '3px 12px', paddingLeft: 12 + depth * 14,
+            padding: '4px 12px', paddingLeft: 12 + depth * 14, minHeight: 24,
             fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6,
             cursor: 'pointer', color: selectedFile === entry.path ? 'var(--fg-primary)' : 'var(--fg-secondary)',
             background: selectedFile === entry.path ? 'var(--bg-active)' : 'transparent',
