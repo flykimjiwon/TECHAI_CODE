@@ -233,41 +233,27 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
       <div key={entry.path}>
         <div
           onMouseDown={(e) => {
-            // Cmd/Ctrl+Click: toggle individual
-            if (e.metaKey || e.ctrlKey || modKeyDown.current) {
-              e.preventDefault()
-              e.stopPropagation()
-              setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
-              return
-            }
+            // Shift+Click: range select
             if (e.shiftKey) {
               e.preventDefault()
               e.stopPropagation()
-              // Shift+Click: if items already selected → range from last to current
-              if (selected.size > 0 && selectedFile) {
-                const allItems: string[] = []
-                function collect(items: FileEntry[]) { for (const f of items) { allItems.push(f.path); if (f.kids) collect(f.kids) } }
-                collect(tree)
-                const a = allItems.indexOf(selectedFile), b = allItems.indexOf(entry.path)
-                if (a >= 0 && b >= 0) {
-                  setSelected(prev => {
-                    const n = new Set(prev)
-                    allItems.slice(Math.min(a,b), Math.max(a,b)+1).forEach(p => n.add(p))
-                    return n
-                  })
-                }
-              } else {
-                // Shift+Click: no prior selection → toggle individual
-                setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
-              }
+              const allItems: string[] = []
+              function collect(items: FileEntry[]) { for (const f of items) { allItems.push(f.path); if (f.kids) collect(f.kids) } }
+              collect(tree)
+              const anchor = selectedFile || allItems[0]
+              const a = allItems.indexOf(anchor), b = allItems.indexOf(entry.path)
+              if (a >= 0 && b >= 0) setSelected(new Set(allItems.slice(Math.min(a,b), Math.max(a,b)+1)))
               return
             }
           }}
-          onClick={(e) => {
-            if (entry.isDir && !modKeyDown.current) { toggleDir(entry.path); return }
-            // Skip if modifier was used (handled by onMouseDown)
-            if (e.metaKey || e.ctrlKey || e.shiftKey || modKeyDown.current) return
-            setSelected(new Set())
+          onClick={() => {
+            if (entry.isDir) { toggleDir(entry.path); return }
+            // If already in selection mode → toggle individual
+            if (selected.size > 0) {
+              setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
+              return
+            }
+            // Normal click → open file
             onFileSelect(entry.path)
           }}
           onContextMenu={e => handleContextMenu(e, entry.path, entry.isDir)}
