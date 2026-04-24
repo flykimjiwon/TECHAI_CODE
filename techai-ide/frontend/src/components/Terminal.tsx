@@ -134,7 +134,7 @@ export default function Terminal() {
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#08080a' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-terminal, #08080a)' }}>
       <div style={{ display:'flex', alignItems:'stretch', borderBottom:'1px solid var(--border)', minHeight:28, background:'var(--bg-activity)' }}>
         {tabs.map(tab => (
           <div key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
