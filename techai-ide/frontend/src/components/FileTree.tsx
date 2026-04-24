@@ -232,28 +232,30 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     return filtered.map(entry => (
       <div key={entry.path}>
         <div
-          onMouseDown={(e) => {
-            // Shift+Click: range select
-            if (e.shiftKey) {
+          onClick={(e) => {
+            if (entry.isDir) { toggleDir(entry.path); return }
+            // Shift+Click: range selection
+            if (e.shiftKey && selectedFile) {
               e.preventDefault()
-              e.stopPropagation()
-              const allItems: string[] = []
-              function collect(items: FileEntry[]) { for (const f of items) { allItems.push(f.path); if (f.kids) collect(f.kids) } }
+              const allFiles: string[] = []
+              function collect(items: FileEntry[]) { for (const f of items) { if (!f.isDir) allFiles.push(f.path); if (f.kids) collect(f.kids) } }
               collect(tree)
-              const anchor = selectedFile || allItems[0]
-              const a = allItems.indexOf(anchor), b = allItems.indexOf(entry.path)
-              if (a >= 0 && b >= 0) setSelected(new Set(allItems.slice(Math.min(a,b), Math.max(a,b)+1)))
+              const startIdx = allFiles.indexOf(selectedFile)
+              const endIdx = allFiles.indexOf(entry.path)
+              if (startIdx >= 0 && endIdx >= 0) {
+                const from = Math.min(startIdx, endIdx)
+                const to = Math.max(startIdx, endIdx)
+                setSelected(new Set(allFiles.slice(from, to + 1)))
+              }
               return
             }
-          }}
-          onClick={() => {
-            if (entry.isDir) { toggleDir(entry.path); return }
-            // If already in selection mode → toggle individual
+            // Already in selection mode → toggle individual
             if (selected.size > 0) {
               setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
               return
             }
-            // Normal click → open file
+            // Normal click
+            setSelected(new Set())
             onFileSelect(entry.path)
           }}
           onContextMenu={e => handleContextMenu(e, entry.path, entry.isDir)}
