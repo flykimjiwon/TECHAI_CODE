@@ -1,5 +1,4 @@
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Geist:wght@300;400;500;600;700&display=swap');
+/* Fonts — system fallback only (no CDN dependency for air-gapped networks) */
 
 :root {
   --bg-base: #0a0a0c;
@@ -33,8 +32,8 @@
   --code-variable: #c08088;
   --code-operator: #7fa8b0;
   --code-text: #7e8590;
-  --font-ui: 'Geist', 'Pretendard', -apple-system, system-ui, sans-serif;
-  --font-code: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', system-ui, sans-serif;
+  --font-code: 'Cascadia Code', 'Consolas', 'SF Mono', 'Menlo', monospace;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

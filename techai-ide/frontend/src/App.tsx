@@ -94,8 +94,10 @@ function App() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* macOS traffic light spacing */}
-      <div style={{ height: 28, background: 'var(--bg-activity)', borderBottom: '1px solid var(--border)' }} />
+      {/* macOS traffic light spacing — hide on Windows */}
+      {navigator.platform.includes('Mac') && (
+        <div style={{ height: 28, background: 'var(--bg-activity)', borderBottom: '1px solid var(--border)' }} />
+      )}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <ActivityBar active={activePanel} onSelect={handlePanelSelect} />
