@@ -140,7 +140,7 @@ export default function Terminal() {
           <div key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
             padding:'0 10px', display:'flex', alignItems:'center', gap:6, fontSize:11, cursor:'pointer',
             borderRight:'1px solid var(--border)', color:activeTab===tab.id?'var(--fg-primary)':'var(--fg-muted)',
-            background:activeTab===tab.id?'#08080a':'transparent', position:'relative',
+            background:activeTab===tab.id?'var(--bg-terminal, #08080a)':'transparent', position:'relative',
           }}>
             {activeTab===tab.id && <span style={{position:'absolute',top:0,left:0,right:0,height:2,background:'var(--success)'}}/>}
             {tab.label}
