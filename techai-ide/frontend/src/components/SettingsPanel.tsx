@@ -37,7 +37,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (err) {
-      alert('Save failed: ' + err)
+      import('./Toast').then(m => m.showToast('Save failed: ' + err, 'error'))
     }
   }
 

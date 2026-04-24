@@ -184,7 +184,7 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
         e.preventDefault()
         if (activeTab) {
           const tab = tabs.find(t => t.path === activeTab)
-          if (tab?.modified && !confirm('Unsaved changes. Close?')) return
+          if (tab?.modified) { import('./Toast').then(m => m.showToast('Unsaved changes — save first or close again', 'info')); return }
           setTabs(prev => {
             const next = prev.filter(t => t.path !== activeTab)
             setActiveTab(next.length > 0 ? next[next.length - 1].path : null)
@@ -229,7 +229,7 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
   function closeTab(path: string, e: React.MouseEvent) {
     e.stopPropagation()
     const tab = tabs.find(t => t.path === path)
-    if (tab?.modified && !confirm('Unsaved changes. Close anyway?')) return
+    if (tab?.modified) { import('./Toast').then(m => m.showToast('Unsaved changes — save first', 'info')); return }
     setTabs(prev => prev.filter(t => t.path !== path))
     if (activeTab === path) {
       const remaining = tabs.filter(t => t.path !== path)

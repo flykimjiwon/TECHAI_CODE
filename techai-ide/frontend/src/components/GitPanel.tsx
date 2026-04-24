@@ -47,7 +47,7 @@ export default function GitPanel({ onFileSelect }: Props) {
       setCommitMsg('')
       refresh()
     } catch (err) {
-      alert('Commit failed: ' + err)
+      import('./Toast').then(m => m.showToast('Commit failed: ' + err, 'error'))
     }
   }
 

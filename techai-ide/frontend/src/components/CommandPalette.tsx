@@ -44,10 +44,9 @@ export default function CommandPalette({ open, onClose, actions }: Props) {
     { id: 'split', label: 'Split Editor', shortcut: `${modKey}+\\`, icon: SplitSquareHorizontal, action: () => { onClose(); actions.toggleSplit() } },
     { id: 'theme', label: 'Change Theme', shortcut: `${modKey}+,`, icon: Palette, action: () => { onClose(); actions.openTheme() } },
     { id: 'settings', label: 'Open Settings', icon: Settings, action: () => { onClose(); actions.openSettings() } },
-    { id: 'preview', label: 'Open Preview (URL)', icon: Globe, action: () => {
+    { id: 'preview', label: 'Open Preview (localhost:3000)', icon: Globe, action: () => {
       onClose()
-      const url = prompt('Enter URL to preview:')
-      if (url) actions.openPreview?.(url)
+      actions.openPreview?.('http://localhost:3000')
     }},
     { id: 'export-chat', label: 'Export Chat', icon: Download, action: () => { onClose(); actions.exportChat() } },
     { id: 'clear-chat', label: 'Clear Chat', icon: Trash2, action: () => { onClose(); actions.clearChat() } },

@@ -17,6 +17,8 @@ export default function GitGraph() {
   const [branches, setBranches] = useState<string[]>([])
   const [currentBranch, setCurrentBranch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [newBranch, setNewBranch] = useState('')
+  const [showNewBranch, setShowNewBranch] = useState(false)
 
   function refresh() {
     setLoading(true)
@@ -76,21 +78,32 @@ export default function GitGraph() {
           </span>
         ))}
         {/* New branch */}
-        <button onClick={async () => {
-          const name = prompt('New branch name:')
-          if (!name) return
-          try {
-            await GitCreateBranch(name)
-            showToast(`Created branch: ${name}`, 'success')
-            refresh()
-          } catch (e) { showToast(`Error: ${e}`, 'error') }
-        }} style={{
-          background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 10,
-          color: 'var(--fg-muted)', padding: '2px 8px', fontSize: 11, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 3,
-        }}>
-          <Plus size={10} /> branch
-        </button>
+        {showNewBranch ? (
+          <input autoFocus value={newBranch} onChange={e => setNewBranch(e.target.value)}
+            placeholder="branch name"
+            onKeyDown={async e => {
+              if (e.key === 'Enter' && newBranch.trim()) {
+                try { await GitCreateBranch(newBranch.trim()); showToast(`Created: ${newBranch}`, 'success'); refresh() }
+                catch (err) { showToast(`Error: ${err}`, 'error') }
+                setShowNewBranch(false); setNewBranch('')
+              }
+              if (e.key === 'Escape') { setShowNewBranch(false); setNewBranch('') }
+            }}
+            style={{
+              padding: '2px 8px', borderRadius: 10, fontSize: 11, fontFamily: 'var(--font-code)',
+              background: 'var(--bg-base)', border: '1px solid var(--accent)', outline: 'none',
+              color: 'var(--fg-primary)', width: 120,
+            }}
+          />
+        ) : (
+          <button onClick={() => setShowNewBranch(true)} style={{
+            background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 10,
+            color: 'var(--fg-muted)', padding: '2px 8px', fontSize: 11, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 3,
+          }}>
+            <Plus size={10} /> branch
+          </button>
+        )}
         {/* Pull/Push */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
           <button onClick={async () => {
