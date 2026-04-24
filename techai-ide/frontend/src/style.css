@@ -57,6 +57,30 @@ html, body, #root {
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
+/* CodeMirror syntax colors — global override using CSS variables */
+.cm-editor .cm-keyword { color: var(--code-keyword) !important; }
+.cm-editor .cm-atom { color: var(--code-number) !important; }
+.cm-editor .cm-number { color: var(--code-number) !important; }
+.cm-editor .cm-string { color: var(--code-string) !important; }
+.cm-editor .cm-string2 { color: var(--code-string) !important; }
+.cm-editor .cm-comment { color: var(--code-comment) !important; font-style: italic; }
+.cm-editor .cm-variableName { color: var(--code-variable) !important; }
+.cm-editor .cm-definition { color: var(--code-function) !important; }
+.cm-editor .cm-function { color: var(--code-function) !important; }
+.cm-editor .cm-typeName { color: var(--code-type) !important; }
+.cm-editor .cm-className { color: var(--code-type) !important; }
+.cm-editor .cm-propertyName { color: var(--code-variable) !important; }
+.cm-editor .cm-operator { color: var(--code-operator) !important; }
+.cm-editor .cm-punctuation { color: var(--code-text) !important; }
+.cm-editor .cm-meta { color: var(--code-text) !important; }
+.cm-editor .cm-tagName { color: var(--code-variable) !important; }
+.cm-editor .cm-attributeName { color: var(--code-number) !important; }
+.cm-editor .cm-bool { color: var(--code-number) !important; }
+.cm-editor .cm-null { color: var(--code-text) !important; }
+.cm-editor .cm-regexp { color: var(--code-string) !important; }
+.cm-editor .cm-link { color: var(--code-function) !important; }
+.cm-editor .cm-heading { color: var(--code-variable) !important; font-weight: bold; }
+
 /* ── Cursor ── */
 body.t-cursor {
   --accent:#f54e00; --accent-glow:rgba(245,78,0,0.25); --border-focus:#f54e00;

@@ -99,6 +99,8 @@ export default function Terminal() {
         brightCyan: cv('--code-operator', '#7fa8b0'),
         brightWhite: cv('--fg-primary', '#e4e4e7'),
       }
+      // Force redraw
+      xtermRef.current.refresh(0, xtermRef.current.rows - 1)
     })
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] })
     return () => observer.disconnect()
