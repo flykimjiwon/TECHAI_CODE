@@ -179,6 +179,16 @@ function App() {
               </>
             )}
           </div>
+          {/* Terminal toggle bar */}
+          <div onClick={() => setShowTerminal(t => !t)} style={{
+            height: 22, background: 'var(--bg-activity)', borderTop: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', padding: '0 12px', cursor: 'pointer',
+            fontSize: 10, color: 'var(--fg-muted)', gap: 6, flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 8 }}>{showTerminal ? '▼' : '▶'}</span>
+            Terminal
+            <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-code)', fontSize: 9, color: 'var(--fg-dim)' }}>⌘J</span>
+          </div>
           {showTerminal && (
             <>
               <ResizeHandle direction="vertical" onResize={resizeTerminal} />
