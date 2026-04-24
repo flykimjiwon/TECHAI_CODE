@@ -80,22 +80,8 @@ func buildMenu(app *App) *menu.Menu {
 		wailsRuntime.EventsEmit(app.ctx, "menu:settings")
 	})
 
-	// Edit menu
-	editMenu := appMenu.AddSubmenu("Edit")
-	editMenu.AddText("Undo", keys.CmdOrCtrl("z"), nil)
-	editMenu.AddText("Redo", keys.Combo("z", keys.CmdOrCtrlKey, keys.ShiftKey), nil)
-	editMenu.AddSeparator()
-	editMenu.AddText("Cut", keys.CmdOrCtrl("x"), nil)
-	editMenu.AddText("Copy", keys.CmdOrCtrl("c"), nil)
-	editMenu.AddText("Paste", keys.CmdOrCtrl("v"), nil)
-	editMenu.AddText("Select All", keys.CmdOrCtrl("a"), nil)
-	editMenu.AddSeparator()
-	editMenu.AddText("Find", keys.CmdOrCtrl("f"), func(_ *menu.CallbackData) {
-		wailsRuntime.EventsEmit(app.ctx, "menu:find")
-	})
-	editMenu.AddText("Find in Files", keys.Combo("f", keys.CmdOrCtrlKey, keys.ShiftKey), func(_ *menu.CallbackData) {
-		wailsRuntime.EventsEmit(app.ctx, "menu:findinfiles")
-	})
+	// Edit menu — Role-based for native Undo/Redo/Cut/Copy/Paste/SelectAll
+	appMenu.Append(menu.EditMenu())
 
 	// View menu
 	viewMenu := appMenu.AddSubmenu("View")

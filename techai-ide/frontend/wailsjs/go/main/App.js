@@ -66,6 +66,10 @@ export function GetRecentProjects() {
   return window['go']['main']['App']['GetRecentProjects']();
 }
 
+export function GetSearchLimit() {
+  return window['go']['main']['App']['GetSearchLimit']();
+}
+
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }

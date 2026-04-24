@@ -34,6 +34,8 @@ export function GetModel():Promise<string>;
 
 export function GetRecentProjects():Promise<Array<string>>;
 
+export function GetSearchLimit():Promise<number>;
+
 export function GetSettings():Promise<Record<string, string>>;
 
 export function GitCheckout(arg1:string):Promise<string>;

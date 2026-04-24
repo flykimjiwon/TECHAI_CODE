@@ -169,7 +169,9 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
         e.preventDefault()
         saveCurrentFile()
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+      // Cmd+F: CodeMirror handles its own search (Ctrl+F in editor)
+      // Only show our find bar when no file is open
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !current) {
         e.preventDefault()
         setFindOpen(prev => !prev)
         setTimeout(() => findRef.current?.focus(), 50)
