@@ -43,8 +43,7 @@ func (a *App) startup(ctx context.Context) {
 	// Set window title
 	wailsRuntime.WindowSetTitle(ctx, "TECHAI IDE — "+a.cwd)
 
-	// Auto-start terminal
-	_ = a.StartTerminal()
+	// Terminal starts on-demand when frontend mounts Terminal component
 
 	// Save to recent projects
 	a.saveRecentProject(a.cwd)
@@ -131,9 +130,8 @@ func (a *App) OpenFolder() (string, error) {
 	}
 	a.cwd = dir
 	wailsRuntime.WindowSetTitle(a.ctx, "TECHAI IDE — "+dir)
-	// Restart terminal in new directory
+	// Stop old terminal — new one starts on-demand
 	a.StopTerminal()
-	a.StartTerminal()
 	a.saveRecentProject(dir)
 	return dir, nil
 }

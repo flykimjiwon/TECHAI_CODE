@@ -114,10 +114,13 @@ export default function Terminal() {
   }, [])
 
   useEffect(() => {
+    // Start terminal on mount (on-demand, not at app startup)
+    StartTerminal().catch(() => {})
     GetAvailableShells().then(setShells).catch(() => {})
     GetCurrentShell().then(s => {
       setCurrentShell(s)
-      setTabs([{ id: 0, label: s.split('/').pop() || 'bash' }])
+      const name = s.includes('\\') ? s.split('\\').pop() : s.split('/').pop()
+      setTabs([{ id: 0, label: name || 'shell' }])
     }).catch(() => {})
   }, [])
 
