@@ -233,22 +233,33 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
       <div key={entry.path}>
         <div
           onMouseDown={(e) => {
-            // Cmd/Ctrl+Click: toggle individual (files and folders)
+            // Cmd/Ctrl+Click: toggle individual
             if (e.metaKey || e.ctrlKey || modKeyDown.current) {
               e.preventDefault()
               e.stopPropagation()
               setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
               return
             }
-            // Shift+Click: range select
-            if (e.shiftKey && selectedFile) {
+            if (e.shiftKey) {
               e.preventDefault()
               e.stopPropagation()
-              const allFiles: string[] = []
-              function collect(items: FileEntry[]) { for (const f of items) { if (!f.isDir) allFiles.push(f.path); if (f.kids) collect(f.kids) } }
-              collect(tree)
-              const a = allFiles.indexOf(selectedFile), b = allFiles.indexOf(entry.path)
-              if (a >= 0 && b >= 0) setSelected(new Set(allFiles.slice(Math.min(a,b), Math.max(a,b)+1)))
+              // Shift+Click: if items already selected → range from last to current
+              if (selected.size > 0 && selectedFile) {
+                const allItems: string[] = []
+                function collect(items: FileEntry[]) { for (const f of items) { allItems.push(f.path); if (f.kids) collect(f.kids) } }
+                collect(tree)
+                const a = allItems.indexOf(selectedFile), b = allItems.indexOf(entry.path)
+                if (a >= 0 && b >= 0) {
+                  setSelected(prev => {
+                    const n = new Set(prev)
+                    allItems.slice(Math.min(a,b), Math.max(a,b)+1).forEach(p => n.add(p))
+                    return n
+                  })
+                }
+              } else {
+                // Shift+Click: no prior selection → toggle individual
+                setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
+              }
               return
             }
           }}
