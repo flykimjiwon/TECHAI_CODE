@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -19,11 +20,13 @@ import (
 
 // App struct — Wails binds these methods to the frontend.
 type App struct {
-	ctx       context.Context
-	cwd       string
-	chat      *chatEngine
-	term      *termSession
-	shellPath string
+	ctx         context.Context
+	cwd         string
+	chat        *chatEngine
+	chatMu      sync.Mutex
+	term        *termSession
+	shellPath   string
+	watcherDone chan struct{}
 }
 
 func NewApp() *App {
@@ -45,42 +48,45 @@ func (a *App) startup(ctx context.Context) {
 	// Save to recent projects
 	a.saveRecentProject(a.cwd)
 
-	// File watcher — notify frontend of external changes
+	// File watcher with proper shutdown
+	a.watcherDone = make(chan struct{})
 	go a.watchFiles()
 }
 
 func (a *App) watchFiles() {
-	// Simple polling-based watcher (every 3 seconds)
-	// Checks if any open file was modified externally
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	modTimes := map[string]time.Time{}
 
-	for range ticker.C {
-		if a.ctx == nil {
+	for {
+		select {
+		case <-a.watcherDone:
 			return
-		}
-		// Scan known files (cwd top-level for now)
-		entries, _ := os.ReadDir(a.cwd)
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
+		case <-ticker.C:
+			entries, _ := os.ReadDir(a.cwd)
+			for _, e := range entries {
+				if e.IsDir() {
+					continue
+				}
+				info, err := e.Info()
+				if err != nil {
+					continue
+				}
+				path := filepath.Join(a.cwd, e.Name())
+				mt := info.ModTime()
+				if prev, ok := modTimes[path]; ok && mt.After(prev) {
+					wailsRuntime.EventsEmit(a.ctx, "file:changed", path)
+				}
+				modTimes[path] = mt
 			}
-			info, err := e.Info()
-			if err != nil {
-				continue
-			}
-			path := filepath.Join(a.cwd, e.Name())
-			mt := info.ModTime()
-			if prev, ok := modTimes[path]; ok && mt.After(prev) {
-				wailsRuntime.EventsEmit(a.ctx, "file:changed", path)
-			}
-			modTimes[path] = mt
 		}
 	}
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	if a.watcherDone != nil {
+		close(a.watcherDone)
+	}
 	a.StopTerminal()
 }
 
@@ -159,10 +165,27 @@ func listDir(dir string, maxDepth, curDepth int) ([]FileEntry, error) {
 	return result, nil
 }
 
-// ReadFile returns file content as string.
-func (a *App) ReadFile(path string) (string, error) {
+// safePath resolves a path and ensures it stays within the project directory.
+func (a *App) safePath(path string) (string, error) {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(a.cwd, path)
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	cwdAbs, _ := filepath.Abs(a.cwd)
+	if !strings.HasPrefix(abs, cwdAbs) {
+		return "", fmt.Errorf("access denied: path outside project")
+	}
+	return abs, nil
+}
+
+// ReadFile returns file content as string.
+func (a *App) ReadFile(path string) (string, error) {
+	path, err := a.safePath(path)
+	if err != nil {
+		return "", err
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -177,8 +200,10 @@ func (a *App) ReadFile(path string) (string, error) {
 
 // WriteFile saves content to a file.
 func (a *App) WriteFile(path, content string) error {
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(a.cwd, path)
+	var err error
+	path, err = a.safePath(path)
+	if err != nil {
+		return err
 	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {

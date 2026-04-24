@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -238,6 +237,11 @@ func (a *App) GetModel() string {
 
 // streamResponse handles the streaming + tool loop.
 func (ce *chatEngine) streamResponse() {
+	// Limit history to prevent context overflow
+	if len(ce.history) > 80 {
+		ce.history = append([]openai.ChatCompletionMessage{ce.history[0]}, ce.history[len(ce.history)-60:]...)
+	}
+
 	for iter := 0; iter < 15; iter++ {
 		req := openai.ChatCompletionRequest{
 			Model:    ce.model,
@@ -246,7 +250,7 @@ func (ce *chatEngine) streamResponse() {
 			Tools:    toolDefs(),
 		}
 
-		stream, err := ce.client.CreateChatCompletionStream(context.Background(), req)
+		stream, err := ce.client.CreateChatCompletionStream(ce.app.ctx, req)
 		if err != nil {
 			runtime.EventsEmit(ce.app.ctx, "chat:error", err.Error())
 			return

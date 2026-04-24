@@ -68,10 +68,7 @@ func (a *App) GitLog(n int) string {
 	if n <= 0 {
 		n = 10
 	}
-	out, _ := a.runGit("log", "--oneline", "-n", strings.Repeat("", 0)+string(rune('0'+n)))
-	if n > 9 {
-		out, _ = a.runGit("log", "--oneline", "-n", "10")
-	}
+	out, _ := a.runGit("log", "--oneline", "-n", fmt.Sprintf("%d", n))
 	return out
 }
 
