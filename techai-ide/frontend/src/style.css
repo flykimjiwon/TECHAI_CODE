@@ -24,15 +24,15 @@
   --error: #ef4444;
   --status-bg: #3b82f6;
   --status-fg: #ffffff;
-  --code-keyword: #b07cd8;
-  --code-function: #7ba8d4;
-  --code-string: #8eb573;
-  --code-number: #c9956a;
-  --code-comment: #636d83;
-  --code-type: #d4b76a;
-  --code-variable: #d4868c;
-  --code-operator: #89b8c2;
-  --code-text: #8b929e;
+  --code-keyword: #a78bba;
+  --code-function: #7ea8c9;
+  --code-string: #8aad72;
+  --code-number: #bf9070;
+  --code-comment: #5a6475;
+  --code-type: #c4a86a;
+  --code-variable: #c08088;
+  --code-operator: #7fa8b0;
+  --code-text: #7e8590;
   --font-ui: 'Geist', 'Pretendard', -apple-system, system-ui, sans-serif;
   --font-code: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
 }

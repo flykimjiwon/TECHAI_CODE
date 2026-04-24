@@ -35,28 +35,28 @@ const techaiTheme = EditorView.theme({
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(255,200,0,0.5)' },
   '.cm-foldGutter .cm-gutterElement': { color: 'var(--fg-dim)', cursor: 'pointer', fontSize: '11px' },
   '.cm-scroller': { overflow: 'auto' },
-  // Muted One Dark — designs-v3 기준 (채도 낮춤)
-  '.cm-keyword': { color: '#b07cd8' },       // 부드러운 퍼플
-  '.cm-atom': { color: '#c9956a' },           // 따뜻한 오렌지
-  '.cm-number': { color: '#c9956a' },
-  '.cm-string, .cm-string2': { color: '#8eb573' }, // 차분한 초록
-  '.cm-comment': { color: '#636d83', fontStyle: 'italic' }, // 좀 더 밝은 회색
-  '.cm-variableName': { color: '#d4868c' },   // 부드러운 레드
-  '.cm-variableName.cm-definition': { color: '#7ba8d4' }, // 차분한 파랑
-  '.cm-typeName': { color: '#d4b76a' },       // 부드러운 옐로
-  '.cm-className': { color: '#d4b76a' },
-  '.cm-definition': { color: '#7ba8d4' },
-  '.cm-function': { color: '#7ba8d4' },       // 차분한 파랑
-  '.cm-propertyName': { color: '#d4868c' },
-  '.cm-operator': { color: '#89b8c2' },       // 부드러운 시안
-  '.cm-punctuation': { color: '#8b929e' },    // 중간 회색
-  '.cm-meta': { color: '#8b929e' },
-  '.cm-tagName': { color: '#d4868c' },
-  '.cm-attributeName': { color: '#c9956a' },
-  '.cm-bool': { color: '#c9956a' },
-  '.cm-null': { color: '#8b929e' },
-  '.cm-regexp': { color: '#8eb573' },
-  '.cm-link': { color: '#7ba8d4', textDecoration: 'underline' },
+  // Pastel muted — 트렌디한 저채도 톤
+  '.cm-keyword': { color: '#a78bba' },       // 파스텔 퍼플
+  '.cm-atom': { color: '#bf9070' },           // 부드러운 오렌지
+  '.cm-number': { color: '#bf9070' },
+  '.cm-string, .cm-string2': { color: '#8aad72' }, // 내추럴 초록
+  '.cm-comment': { color: '#5a6475', fontStyle: 'italic' },
+  '.cm-variableName': { color: '#c08088' },   // 로즈
+  '.cm-variableName.cm-definition': { color: '#7ea8c9' }, // 스카이
+  '.cm-typeName': { color: '#c4a86a' },       // 머스타드
+  '.cm-className': { color: '#c4a86a' },
+  '.cm-definition': { color: '#7ea8c9' },
+  '.cm-function': { color: '#7ea8c9' },
+  '.cm-propertyName': { color: '#c08088' },
+  '.cm-operator': { color: '#7fa8b0' },       // 틸
+  '.cm-punctuation': { color: '#7e8590' },
+  '.cm-meta': { color: '#7e8590' },
+  '.cm-tagName': { color: '#c08088' },
+  '.cm-attributeName': { color: '#bf9070' },
+  '.cm-bool': { color: '#bf9070' },
+  '.cm-null': { color: '#7e8590' },
+  '.cm-regexp': { color: '#8aad72' },
+  '.cm-link': { color: '#7ea8c9', textDecoration: 'underline' },
   '.cm-heading': { color: '#e06c75', fontWeight: 'bold' },
   '.cm-emphasis': { fontStyle: 'italic' },
   '.cm-strong': { fontWeight: 'bold' },

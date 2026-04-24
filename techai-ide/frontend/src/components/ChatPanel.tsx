@@ -372,10 +372,10 @@ function highlightCode(code: string, lang: string): JSX.Element[] {
   return code.split('\n').map((line, i) => {
     let html = line
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(comments, '<span style="color:var(--code-comment,#636d83);font-style:italic">$&</span>')
-      .replace(strings, '<span style="color:var(--code-string,#8eb573)">$&</span>')
-      .replace(keywords, '<span style="color:var(--code-keyword,#b07cd8)">$&</span>')
-      .replace(numbers, '<span style="color:var(--code-number,#c9956a)">$&</span>')
+      .replace(comments, '<span style="color:var(--code-comment,#5a6475);font-style:italic">$&</span>')
+      .replace(strings, '<span style="color:var(--code-string,#8aad72)">$&</span>')
+      .replace(keywords, '<span style="color:var(--code-keyword,#a78bba)">$&</span>')
+      .replace(numbers, '<span style="color:var(--code-number,#bf9070)">$&</span>')
     return <div key={i} dangerouslySetInnerHTML={{ __html: html || '&nbsp;' }} />
   })
 }
