@@ -35,6 +35,13 @@ export default function ThemePicker({ open, onClose }: Props) {
     localStorage.setItem('techai-theme', id)
   }
 
+  useEffect(() => {
+    if (!open) return
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [open, onClose])
+
   if (!open) return null
 
   return (

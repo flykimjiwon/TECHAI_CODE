@@ -187,23 +187,25 @@ export default function ChatPanel() {
           padding: '1px 7px', borderRadius: 4, fontSize: 9, fontWeight: 700,
           textTransform: 'uppercase', letterSpacing: '0.03em'
         }}>{model || 'Loading...'}</span>
-        <button onClick={() => setShowPacks(p => !p)} style={{
+        <button title="Knowledge Packs" onClick={() => setShowPacks(p => !p)} style={{
           background: showPacks ? 'var(--accent-glow)' : 'none', border: 'none', cursor: 'pointer',
-          color: showPacks ? 'var(--accent)' : 'var(--fg-dim)', padding: 4, borderRadius: 4,
+          color: showPacks ? 'var(--accent)' : 'var(--fg-dim)', padding: 6, borderRadius: 4,
           marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3, fontSize: 10,
         }}>
           <BookOpen size={13} />
           <span>{packs.filter(p => p.enabled).length}</span>
         </button>
-        <button onClick={() => ExportChat().then(p => alert('Exported: ' + p)).catch(() => {})} style={{
+        <button title="Export chat" onClick={() => {
+          ExportChat().then(p => { import('./Toast').then(m => m.showToast('Exported: ' + p, 'success')) }).catch(() => {})
+        }} style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          color: 'var(--fg-dim)', padding: 4,
+          color: 'var(--fg-dim)', padding: 6,
         }}>
           <Download size={13} />
         </button>
-        <button onClick={handleClear} style={{
+        <button title="Clear chat" onClick={handleClear} style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          color: 'var(--fg-dim)', padding: 4
+          color: 'var(--fg-dim)', padding: 6
         }}>
           <Trash2 size={14} />
         </button>
@@ -215,8 +217,12 @@ export default function ChatPanel() {
         display: 'flex', flexDirection: 'column', gap: 8
       }}>
         {messages.length === 0 && (
-          <div style={{ color: 'var(--fg-dim)', fontSize: 13, textAlign: 'center', marginTop: 40 }}>
+          <div style={{ color: 'var(--fg-dim)', fontSize: 12, textAlign: 'center', marginTop: 40, lineHeight: 2 }}>
             Ask TECHAI anything about your code
+            <div style={{ fontSize: 11, marginTop: 8, color: 'var(--fg-dim)', opacity: 0.7 }}>
+              Try: "이 프로젝트 구조 설명해줘"<br />
+              /help · /clear · /save · /sessions
+            </div>
           </div>
         )}
         {messages.map((msg, i) => {
@@ -259,9 +265,10 @@ export default function ChatPanel() {
               {!msg.streaming && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
                   {msg.time && <span style={{ fontSize: 9, color: 'var(--fg-dim)' }}>{msg.time}</span>}
-                  <button onClick={() => navigator.clipboard.writeText(msg.content)} style={{
-                    background: 'none', border: 'none', cursor: 'pointer', fontSize: 9,
-                    color: 'var(--fg-dim)', padding: 0, marginLeft: 'auto',
+                  <button title="Copy message" onClick={() => navigator.clipboard.writeText(msg.content)} style={{
+                    background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 3,
+                    cursor: 'pointer', fontSize: 10, color: 'var(--fg-dim)',
+                    padding: '2px 6px', marginLeft: 'auto',
                   }}>Copy</button>
                 </div>
               )}
@@ -327,10 +334,11 @@ export default function ChatPanel() {
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
             <span style={{ fontSize: 10, color: 'var(--fg-dim)' }}>Enter send / Shift+Enter newline</span>
-            <Send size={16} style={{
-              color: streaming ? 'var(--fg-dim)' : 'var(--accent)',
-              cursor: streaming ? 'default' : 'pointer'
-            }} onClick={send} />
+            <button title="Send" disabled={streaming} onClick={send} style={{
+              background: 'none', border: 'none', cursor: streaming ? 'default' : 'pointer', padding: 4,
+            }}>
+              <Send size={16} style={{ color: streaming ? 'var(--fg-dim)' : 'var(--accent)' }} />
+            </button>
           </div>
         </div>
       </div>

@@ -41,8 +41,8 @@ export default function ResizeHandle({ direction, onResize }: Props) {
       onMouseDown={handleMouseDown}
       style={{
         ...(direction === 'horizontal'
-          ? { width: 4, cursor: 'col-resize', borderLeft: '1px solid var(--border)' }
-          : { height: 4, cursor: 'row-resize', borderTop: '1px solid var(--border)' }),
+          ? { width: 6, cursor: 'col-resize', borderLeft: '1px solid var(--border)' }
+          : { height: 6, cursor: 'row-resize', borderTop: '1px solid var(--border)' }),
         flexShrink: 0,
         background: 'transparent',
         transition: 'background 0.15s',

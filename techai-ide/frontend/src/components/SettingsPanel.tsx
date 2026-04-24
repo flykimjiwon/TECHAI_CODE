@@ -24,6 +24,13 @@ export default function SettingsPanel({ open, onClose }: Props) {
     }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [open, onClose])
+
   async function handleSave() {
     try {
       await SaveSettings(baseURL, apiKey, model)

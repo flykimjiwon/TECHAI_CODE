@@ -279,7 +279,7 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
             }} />}
             <FileCode size={14} style={{ color: '#61afef', flexShrink: 0 }} />
             <span>{tab.name}</span>
-            {tab.modified && <span style={{ color: 'var(--warning)', fontSize: 18, lineHeight: 1 }}>&#9679;</span>}
+            {tab.modified && <span style={{ color: 'var(--warning)', fontSize: 8, lineHeight: 1 }}>&#9679;</span>}
             <span onClick={(e) => closeTab(tab.path, e)} style={{
               marginLeft: 'auto', opacity: 0.4, cursor: 'pointer', lineHeight: 1
             }}>
