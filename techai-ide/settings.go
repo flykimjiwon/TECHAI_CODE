@@ -44,8 +44,10 @@ func (a *App) SaveSettings(baseURL, apiKey, model string) error {
 		return err
 	}
 
-	// Reinitialize chat engine with new config
+	// Reinitialize chat engine with new config (thread-safe)
+	a.chatMu.Lock()
 	a.chat = newChatEngine(cfg, a)
+	a.chatMu.Unlock()
 	return nil
 }
 

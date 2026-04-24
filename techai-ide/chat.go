@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -458,11 +459,37 @@ func (a *App) executeTool(name, argsJSON string) string {
 		if dir == "" {
 			dir = "."
 		}
-		out, _ := a.runShell("find", dir, "-name", pattern, "-not", "-path", "*/node_modules/*", "-not", "-path", "*/.git/*")
-		if out == "" {
+		// Use Go filepath.WalkDir instead of shell find (no injection risk)
+		var matches []string
+		base := dir
+		if !filepath.IsAbs(base) {
+			base = filepath.Join(a.cwd, base)
+		}
+		filepath.WalkDir(base, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			name := d.Name()
+			if strings.HasPrefix(name, ".") || name == "node_modules" || name == "dist" {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			matched, _ := filepath.Match(pattern, name)
+			if matched {
+				rel, _ := filepath.Rel(a.cwd, path)
+				matches = append(matches, rel)
+			}
+			if len(matches) >= 100 {
+				return fmt.Errorf("limit")
+			}
+			return nil
+		})
+		if len(matches) == 0 {
 			return "No files matched."
 		}
-		return out
+		return strings.Join(matches, "\n")
 
 	case "list_files":
 		dir, _ := args["path"].(string)

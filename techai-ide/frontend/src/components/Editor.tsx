@@ -80,8 +80,13 @@ function renderMarkdown(text: string) {
     }
     // Regular text
     else {
-      // Inline code
-      const rendered = line.split(/(`[^`]+`)/g).map((part, j) => {
+      // Links, inline code, bold
+      const rendered = line.split(/(\[.+?\]\(.+?\)|`[^`]+`|\*\*[^*]+\*\*)/g).map((part, j) => {
+        // Link [text](url)
+        const linkMatch = part.match(/^\[(.+?)\]\((.+?)\)$/)
+        if (linkMatch) {
+          return <a key={j} href={linkMatch[2]} target="_blank" rel="noopener" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>{linkMatch[1]}</a>
+        }
         if (part.startsWith('`') && part.endsWith('`')) {
           return <code key={j} style={{ fontFamily: 'var(--font-code)', fontSize: 12, background: 'var(--bg-active)', padding: '1px 5px', borderRadius: 3, color: 'var(--accent)' }}>{part.slice(1, -1)}</code>
         }

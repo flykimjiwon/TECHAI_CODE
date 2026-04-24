@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -293,10 +294,21 @@ func (a *App) StartLiveServer(dir string) (string, error) {
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(a.cwd, dir)
 	}
+	// Find available port
 	port := 5500
-	addr := fmt.Sprintf(":%d", port)
+	for port <= 5600 {
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err == nil {
+			ln.Close()
+			break
+		}
+		port++
+	}
+	if port > 5600 {
+		return "", fmt.Errorf("no available ports (5500-5600)")
+	}
 	go func() {
-		http.ListenAndServe(addr, http.FileServer(http.Dir(dir)))
+		http.ListenAndServe(fmt.Sprintf(":%d", port), http.FileServer(http.Dir(dir)))
 	}()
 	url := fmt.Sprintf("http://localhost:%d", port)
 	openURL(url)
@@ -407,6 +419,9 @@ func (a *App) SearchInFiles(pattern, dir string) ([]SearchResult, error) {
 
 	return results, nil
 }
+
+// GetSearchLimit returns the max results limit (for UI display).
+func (a *App) GetSearchLimit() int { return 100 }
 
 // SearchResult holds a single search match.
 type SearchResult struct {
