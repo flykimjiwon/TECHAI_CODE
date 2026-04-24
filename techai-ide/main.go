@@ -2,6 +2,9 @@ package main
 
 import (
 	"embed"
+	"fmt"
+	"os"
+	"runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -17,10 +20,26 @@ import (
 var assets embed.FS
 
 func main() {
-	app := NewApp()
+	// Debug log to file (helps diagnose Windows issues)
+	logFile, _ := os.Create("techai-ide-debug.log")
+	if logFile != nil {
+		defer logFile.Close()
+		fmt.Fprintf(logFile, "TECHAI IDE starting...\n")
+		fmt.Fprintf(logFile, "OS: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+		fmt.Fprintf(logFile, "CWD: %s\n", func() string { d, _ := os.Getwd(); return d }())
+	}
+	log := func(msg string) {
+		if logFile != nil {
+			fmt.Fprintf(logFile, "%s\n", msg)
+		}
+	}
 
+	log("Creating app...")
+	app := NewApp()
+	log("Building menu...")
 	appMenu := buildMenu(app)
 
+	log("Starting Wails...")
 	err := wails.Run(&options.App{
 		Menu: appMenu,
 		Title:            "TECHAI CODE IDE",
@@ -53,8 +72,10 @@ func main() {
 	})
 
 	if err != nil {
+		log("ERROR: " + err.Error())
 		println("Error:", err.Error())
 	}
+	log("App exited.")
 }
 
 func buildMenu(app *App) *menu.Menu {
