@@ -11,7 +11,6 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// termSession holds a running terminal session.
 type termSession struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
@@ -19,20 +18,18 @@ type termSession struct {
 	closed bool
 }
 
-// GetAvailableShells returns shells found on the system.
 func (a *App) GetAvailableShells() []string {
 	if runtime.GOOS == "windows" {
 		var found []string
-		for _, s := range []string{"powershell.exe", "cmd.exe", "pwsh.exe"} {
+		for _, s := range []string{"powershell.exe", "cmd.exe"} {
 			if p, err := exec.LookPath(s); err == nil {
 				found = append(found, p)
 			}
 		}
 		return found
 	}
-	candidates := []string{"/bin/zsh", "/bin/bash", "/bin/sh"}
 	var found []string
-	for _, s := range candidates {
+	for _, s := range []string{"/bin/zsh", "/bin/bash", "/bin/sh"} {
 		if _, err := os.Stat(s); err == nil {
 			found = append(found, s)
 		}
@@ -40,7 +37,6 @@ func (a *App) GetAvailableShells() []string {
 	return found
 }
 
-// GetCurrentShell returns the current shell path.
 func (a *App) GetCurrentShell() string {
 	if a.shellPath != "" {
 		return a.shellPath
@@ -51,35 +47,33 @@ func (a *App) GetCurrentShell() string {
 		}
 		return "cmd.exe"
 	}
-	s := os.Getenv("SHELL")
-	if s == "" {
-		s = "/bin/bash"
+	if s := os.Getenv("SHELL"); s != "" {
+		return s
 	}
-	return s
+	return "/bin/bash"
 }
 
-// SetShell changes the shell and restarts the terminal.
 func (a *App) SetShell(shell string) error {
 	a.shellPath = shell
 	a.StopTerminal()
 	return a.StartTerminal()
 }
 
-// StartTerminal spawns a new shell session.
 func (a *App) StartTerminal() error {
 	if a.term != nil && !a.term.closed {
 		return nil
 	}
 
 	shell := a.GetCurrentShell()
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command(shell)
-	} else {
-		cmd = exec.Command(shell)
+	cmd := exec.Command(shell)
+	cmd.Dir = a.cwd
+
+	if runtime.GOOS != "windows" {
 		cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	}
-	cmd.Dir = a.cwd
+
+	// Platform-specific: hide console window on Windows
+	hideConsoleWindow(cmd)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -89,7 +83,7 @@ func (a *App) StartTerminal() error {
 	if err != nil {
 		return err
 	}
-	cmd.Stderr = cmd.Stdout // merge stderr into stdout
+	cmd.Stderr = cmd.Stdout
 
 	if err := cmd.Start(); err != nil {
 		return err
@@ -98,7 +92,6 @@ func (a *App) StartTerminal() error {
 	term := &termSession{cmd: cmd, stdin: stdin}
 	a.term = term
 
-	// Read output
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		scanner.Buffer(make([]byte, 4096), 1024*1024)
@@ -117,7 +110,6 @@ func (a *App) StartTerminal() error {
 	return nil
 }
 
-// WriteTerminal sends input to the terminal.
 func (a *App) WriteTerminal(input string) {
 	if a.term == nil {
 		return
@@ -130,10 +122,8 @@ func (a *App) WriteTerminal(input string) {
 	_, _ = a.term.stdin.Write([]byte(input))
 }
 
-// ResizeTerminal — no-op without PTY (pipe-based).
 func (a *App) ResizeTerminal(rows, cols int) {}
 
-// StopTerminal kills the terminal session.
 func (a *App) StopTerminal() {
 	if a.term == nil {
 		return
@@ -141,7 +131,6 @@ func (a *App) StopTerminal() {
 	a.term.mu.Lock()
 	a.term.closed = true
 	a.term.mu.Unlock()
-
 	if a.term.stdin != nil {
 		a.term.stdin.Close()
 	}
