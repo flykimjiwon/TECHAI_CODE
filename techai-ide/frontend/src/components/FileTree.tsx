@@ -225,10 +225,25 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         <div
           onClick={(e) => {
             if (entry.isDir) { toggleDir(entry.path); return }
-            if (e.metaKey || e.ctrlKey || e.shiftKey) {
+            // Alt+Click: toggle individual selection
+            if (e.altKey) {
               e.preventDefault()
-              e.stopPropagation()
               setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
+              return
+            }
+            // Shift+Click: range selection
+            if (e.shiftKey && selectedFile) {
+              e.preventDefault()
+              const allFiles: string[] = []
+              function collect(items: FileEntry[]) { for (const f of items) { if (!f.isDir) allFiles.push(f.path); if (f.kids) collect(f.kids) } }
+              collect(tree)
+              const startIdx = allFiles.indexOf(selectedFile)
+              const endIdx = allFiles.indexOf(entry.path)
+              if (startIdx >= 0 && endIdx >= 0) {
+                const from = Math.min(startIdx, endIdx)
+                const to = Math.max(startIdx, endIdx)
+                setSelected(new Set(allFiles.slice(from, to + 1)))
+              }
               return
             }
             setSelected(new Set())
