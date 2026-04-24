@@ -17,6 +17,8 @@ export default function ChatPanel() {
   const [model, setModel] = useState('')
   const [showPacks, setShowPacks] = useState(false)
   const [packs, setPacks] = useState<{ id: string; name: string; category: string; enabled: boolean }[]>([])
+  const [inputHistory, setInputHistory] = useState<string[]>([])
+  const [historyIdx, setHistoryIdx] = useState(-1)
   const chatRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -92,6 +94,8 @@ export default function ChatPanel() {
     }
 
     setMessages(prev => [...prev, { role: 'user', content: text, time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) }])
+    setInputHistory(prev => [text, ...prev].slice(0, 30))
+    setHistoryIdx(-1)
     setInput('')
     SendMessage(text)
   }
@@ -151,6 +155,17 @@ export default function ChatPanel() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       send()
+    }
+    if (e.key === 'ArrowUp' && !input && inputHistory.length > 0) {
+      e.preventDefault()
+      const next = Math.min(historyIdx + 1, inputHistory.length - 1)
+      setHistoryIdx(next)
+      setInput(inputHistory[next])
+    }
+    if (e.key === 'ArrowDown' && historyIdx >= 0) {
+      e.preventDefault()
+      if (historyIdx > 0) { setHistoryIdx(historyIdx - 1); setInput(inputHistory[historyIdx - 1]) }
+      else { setHistoryIdx(-1); setInput('') }
     }
   }
 

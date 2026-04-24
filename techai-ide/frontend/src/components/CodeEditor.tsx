@@ -147,22 +147,70 @@ export default function CodeEditor({ content, filename, onChange, onCursorChange
         updateListener,
         EditorState.tabSize.of(4),
         EditorView.clickAddsSelectionRange.of(e => e.altKey),
-        // Cmd+G go to line
-        keymap.of([{
-          key: 'Mod-g',
-          run: (view) => {
+        keymap.of([
+          // Cmd+G go to line
+          { key: 'Mod-g', run: (view) => {
             const line = prompt('Go to line:')
-            if (line) {
-              const n = parseInt(line)
+            if (line) { const n = parseInt(line)
               if (n > 0 && n <= view.state.doc.lines) {
-                const pos = view.state.doc.line(n).from
-                view.dispatch({ selection: { anchor: pos }, scrollIntoView: true })
-                view.focus()
+                view.dispatch({ selection: { anchor: view.state.doc.line(n).from }, scrollIntoView: true }); view.focus()
+              }}; return true
+          }},
+          // Cmd+Shift+D duplicate line
+          { key: 'Mod-Shift-d', run: (view) => {
+            const { from } = view.state.selection.main
+            const line = view.state.doc.lineAt(from)
+            view.dispatch({ changes: { from: line.to, insert: '\n' + line.text } }); return true
+          }},
+          // Cmd+Shift+K delete line
+          { key: 'Mod-Shift-k', run: (view) => {
+            const { from } = view.state.selection.main
+            const line = view.state.doc.lineAt(from)
+            const delFrom = line.from === 0 ? line.from : line.from - 1
+            view.dispatch({ changes: { from: delFrom, to: line.to } }); return true
+          }},
+          // Alt+Up/Down move line
+          { key: 'Alt-ArrowUp', run: (view) => {
+            const { from } = view.state.selection.main
+            const line = view.state.doc.lineAt(from)
+            if (line.number <= 1) return true
+            const prev = view.state.doc.line(line.number - 1)
+            view.dispatch({ changes: [
+              { from: prev.from, to: line.to, insert: line.text + '\n' + prev.text }
+            ], selection: { anchor: prev.from + line.text.length - (from - line.from) } }); return true
+          }},
+          { key: 'Alt-ArrowDown', run: (view) => {
+            const { from } = view.state.selection.main
+            const line = view.state.doc.lineAt(from)
+            if (line.number >= view.state.doc.lines) return true
+            const next = view.state.doc.line(line.number + 1)
+            view.dispatch({ changes: [
+              { from: line.from, to: next.to, insert: next.text + '\n' + line.text }
+            ], selection: { anchor: line.from + next.text.length + 1 + (from - line.from) } }); return true
+          }},
+          // Cmd+/ toggle line comment
+          { key: 'Mod-/', run: (view) => {
+            const { from, to } = view.state.selection.main
+            const fromLine = view.state.doc.lineAt(from).number
+            const toLine = view.state.doc.lineAt(to).number
+            const changes: {from: number; to: number; insert: string}[] = []
+            let allCommented = true
+            for (let i = fromLine; i <= toLine; i++) {
+              const l = view.state.doc.line(i)
+              if (!l.text.trimStart().startsWith('//')) { allCommented = false; break }
+            }
+            for (let i = fromLine; i <= toLine; i++) {
+              const l = view.state.doc.line(i)
+              if (allCommented) {
+                const idx = l.text.indexOf('//')
+                changes.push({ from: l.from + idx, to: l.from + idx + (l.text[idx+2] === ' ' ? 3 : 2), insert: '' })
+              } else {
+                changes.push({ from: l.from, to: l.from, insert: '// ' })
               }
             }
-            return true
-          }
-        }]),
+            view.dispatch({ changes }); return true
+          }},
+        ]),
       ],
     })
 
