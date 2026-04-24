@@ -149,10 +149,22 @@ function App() {
                         padding: '0 12px', gap: 8, borderBottom: '1px solid var(--border)', fontSize: 12,
                       }}>
                         <span style={{ color: 'var(--success)', fontSize: 10 }}>●</span>
-                        <span style={{ color: 'var(--fg-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-code)', fontSize: 11 }}>{previewUrl}</span>
+                        <input value={previewUrl} onChange={e => setPreviewUrl(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              const f = document.getElementById('preview-frame') as HTMLIFrameElement
+                              if (f) f.src = previewUrl || ''
+                            }
+                          }}
+                          style={{
+                            flex: 1, background: 'var(--bg-base)', border: '1px solid var(--border)',
+                            borderRadius: 4, padding: '2px 8px', color: 'var(--fg-primary)',
+                            fontFamily: 'var(--font-code)', fontSize: 11, outline: 'none',
+                          }}
+                        />
                         <button title="Reload" onClick={() => {
                           const f = document.getElementById('preview-frame') as HTMLIFrameElement
-                          if (f) f.src = f.src
+                          if (f) f.src = previewUrl || ''
                         }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-dim)', fontSize: 13 }}>↻</button>
                         <button title="Close preview" onClick={() => setPreviewUrl(null)} style={{
                           background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-dim)', fontSize: 14

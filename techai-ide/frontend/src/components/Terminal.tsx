@@ -56,7 +56,14 @@ export default function Terminal() {
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
-    term.loadAddon(new WebLinksAddon())
+    term.loadAddon(new WebLinksAddon((_event, url) => {
+      // Open localhost URLs in IDE preview, others in external browser
+      if (url.includes('localhost') || url.includes('127.0.0.1')) {
+        import('../../wailsjs/runtime/runtime').then(r => r.EventsEmit('preview:open', url))
+      } else {
+        window.open(url, '_blank')
+      }
+    }))
     term.open(termRef.current)
     setTimeout(() => { fit.fit(); ResizeTerminal(term.rows, term.cols).catch(() => {}) }, 100)
     term.onData(data => WriteTerminal(data))
