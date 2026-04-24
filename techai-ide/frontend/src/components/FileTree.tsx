@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronDown, ChevronRight, Folder, FolderOpen, FileCode, FileText, File, RefreshCw, FolderPlus, FilePlus, Trash2, FileJson, FileType, Cog, Image, Database, Terminal as TermIcon, Globe, Lock, FileVideo, FileAudio, FileArchive, FileSpreadsheet, BookOpen, Palette, Package, Shield, TestTube, Wrench, GitBranch } from 'lucide-react'
 import { ListFiles, OpenFolder, WriteFile, DeleteFile, RenameFile, GetCwd, OpenInBrowser, StartLiveServer } from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
@@ -24,6 +24,15 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
   const [filter, setFilter] = useState('')
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  // Track modifier keys globally (Wails may not pass them in click events)
+  const modKeyDown = useRef(false)
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.metaKey || e.ctrlKey) modKeyDown.current = true }
+    const up = (e: KeyboardEvent) => { if (!e.metaKey && !e.ctrlKey) modKeyDown.current = false }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+  }, [])
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null) // path pending delete
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
@@ -224,9 +233,8 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
       <div key={entry.path}>
         <div
           onMouseDown={(e) => {
-            if (entry.isDir) return
-            // Cmd/Ctrl+Click: toggle individual
-            if (e.metaKey || e.ctrlKey) {
+            // Cmd/Ctrl+Click: toggle individual (files and folders)
+            if (e.metaKey || e.ctrlKey || modKeyDown.current) {
               e.preventDefault()
               e.stopPropagation()
               setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
@@ -244,8 +252,10 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
               return
             }
           }}
-          onClick={() => {
-            if (entry.isDir) { toggleDir(entry.path); return }
+          onClick={(e) => {
+            if (entry.isDir && !modKeyDown.current) { toggleDir(entry.path); return }
+            // Skip if modifier was used (handled by onMouseDown)
+            if (e.metaKey || e.ctrlKey || e.shiftKey || modKeyDown.current) return
             setSelected(new Set())
             onFileSelect(entry.path)
           }}
@@ -350,11 +360,7 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         letterSpacing: '0.05em', color: 'var(--fg-muted)',
         display: 'flex', alignItems: 'center', gap: 6
       }}>
-        <span style={{ flex: 1 }}>
-          {selected.size > 0
-            ? <span style={{ color: 'var(--accent)', fontSize: 11 }}>{selected.size} selected</span>
-            : (projectName || 'Explorer')}
-        </span>
+        <span style={{ flex: 1 }}>{projectName || 'Explorer'}</span>
         <FilePlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => handleNewFile()} />
         <FolderPlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={handleOpenFolder} />
         <RefreshCw size={12} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={refresh} />
