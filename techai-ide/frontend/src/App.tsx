@@ -35,6 +35,7 @@ function App() {
   const [terminalHeight, setTerminalHeight] = useState(200)
   const [chatWidth, setChatWidth] = useState(360)
   const [showTerminal, setShowTerminal] = useState(true)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   function handlePanelSelect(panel: string) {
     if (panel === 'settings') { setShowTheme(true); return }
@@ -58,6 +59,7 @@ function App() {
       EventsOn('menu:panel', (panel: string) => handlePanelSelect(panel)),
       EventsOn('menu:findinfiles', () => setActivePanel('search')),
       EventsOn('menu:about', () => setShowAbout(true)),
+      EventsOn('preview:open', (url: string) => setPreviewUrl(url)),
       EventsOn('menu:openfolder', () => {
         import('../wailsjs/go/main/App').then(({ OpenFolder }) => {
           OpenFolder().then(dir => { if (dir) window.location.reload() })
@@ -129,12 +131,36 @@ function App() {
                   <Editor filePath={selectedFile} onCursorChange={(l, c, lang) => setCursor({ line: l, col: c, lang })}
                     onAskAI={(prompt) => { import('../wailsjs/go/main/App').then(m => m.SendMessage(prompt)) }} />
                 </div>
-                {splitFile && (
+                {splitFile && !previewUrl && (
                   <>
                     <div style={{ width: 3, background: 'transparent', borderLeft: '1px solid var(--border)', cursor: 'col-resize' }} />
                     <div style={{ flex: 1, overflow: 'hidden' }}>
                       <Editor filePath={splitFile} onCursorChange={(l, c, lang) => setCursor({ line: l, col: c, lang })}
                         onAskAI={(prompt) => { import('../wailsjs/go/main/App').then(m => m.SendMessage(prompt)) }} />
+                    </div>
+                  </>
+                )}
+                {previewUrl && (
+                  <>
+                    <div style={{ width: 3, background: 'transparent', borderLeft: '1px solid var(--border)' }} />
+                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{
+                        height: 32, background: 'var(--bg-activity)', display: 'flex', alignItems: 'center',
+                        padding: '0 12px', gap: 8, borderBottom: '1px solid var(--border)', fontSize: 12,
+                      }}>
+                        <span style={{ color: 'var(--success)', fontSize: 10 }}>●</span>
+                        <span style={{ color: 'var(--fg-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-code)', fontSize: 11 }}>{previewUrl}</span>
+                        <button title="Reload" onClick={() => {
+                          const f = document.getElementById('preview-frame') as HTMLIFrameElement
+                          if (f) f.src = f.src
+                        }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-dim)', fontSize: 13 }}>↻</button>
+                        <button title="Close preview" onClick={() => setPreviewUrl(null)} style={{
+                          background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-dim)', fontSize: 14
+                        }}>×</button>
+                      </div>
+                      <iframe id="preview-frame" src={previewUrl} style={{
+                        flex: 1, border: 'none', background: '#fff', width: '100%',
+                      }} />
                     </div>
                   </>
                 )}
@@ -187,6 +213,7 @@ function App() {
           exportChat: () => { import('../wailsjs/go/main/App').then(m => m.ExportChat()) },
           openFolder: () => { import('../wailsjs/go/main/App').then(m => m.OpenFolder().then(d => { if(d) window.location.reload() })) },
           toggleSplit: () => setSplitFile(prev => prev ? null : selectedFile),
+          openPreview: (url: string) => setPreviewUrl(url),
         }}
       />
     </div>

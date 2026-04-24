@@ -311,7 +311,8 @@ func (a *App) StartLiveServer(dir string) (string, error) {
 		http.ListenAndServe(fmt.Sprintf(":%d", port), http.FileServer(http.Dir(dir)))
 	}()
 	url := fmt.Sprintf("http://localhost:%d", port)
-	openURL(url)
+	// Open in IDE preview panel instead of external browser
+	wailsRuntime.EventsEmit(a.ctx, "preview:open", url)
 	return url, nil
 }
 
