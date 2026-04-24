@@ -394,7 +394,14 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
             color: 'var(--fg-dim)', fontSize: 13, flexDirection: 'column', gap: 16,
             fontFamily: 'var(--font-ui)',
           }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent)', opacity: 0.2, letterSpacing: -1 }}>
+            {/* Logo */}
+            <div style={{ opacity: 0.15, marginBottom: 8 }}>
+              <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                <rect width="64" height="64" rx="14" fill="var(--accent)"/>
+                <text x="32" y="44" textAnchor="middle" fill="white" fontSize="32" fontWeight="800" fontFamily="var(--font-ui)">T</text>
+              </svg>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', opacity: 0.25, letterSpacing: -1 }}>
               TECHAI IDE
             </div>
             <div style={{ textAlign: 'center', lineHeight: 1.8 }}>

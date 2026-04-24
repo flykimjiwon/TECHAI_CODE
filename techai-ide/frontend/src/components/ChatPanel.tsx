@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Sparkles, Send, Trash2, BookOpen, Download } from 'lucide-react'
 import { SendMessage, ClearChat, GetModel, GetKnowledgePacks, ToggleKnowledgePack, ExportChat, SaveSession, ListSessions, LoadSession } from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
@@ -229,17 +229,26 @@ export default function ChatPanel() {
           if (msg.role === 'tool') {
             const isCall = msg.content.startsWith('>>')
             const isResult = msg.content.startsWith('<<')
+            const isLong = msg.content.length > 120
             return (
-              <div key={i} style={{
-                fontFamily: 'var(--font-code)', fontSize: 11, padding: '3px 10px',
-                color: isCall ? 'var(--accent)' : isResult ? 'var(--success)' : 'var(--fg-muted)',
-                opacity: 0.8, display: 'flex', alignItems: 'center', gap: 4,
+              <details key={i} open={!isLong} style={{
+                fontFamily: 'var(--font-code)', fontSize: 11,
                 borderLeft: isCall ? '2px solid var(--accent)' : isResult ? '2px solid var(--success)' : '2px solid var(--fg-dim)',
-                marginLeft: 8,
-                background: 'var(--bg-hover)', borderRadius: '0 4px 4px 0',
+                marginLeft: 8, background: 'var(--bg-hover)', borderRadius: '0 4px 4px 0',
               }}>
-                {msg.content}
-              </div>
+                <summary style={{
+                  padding: '3px 10px', cursor: 'pointer',
+                  color: isCall ? 'var(--accent)' : isResult ? 'var(--success)' : 'var(--fg-muted)',
+                  opacity: 0.8, listStyle: 'none', display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                  {isLong ? msg.content.slice(0, 80) + '...' : msg.content}
+                </summary>
+                {isLong && (
+                  <div style={{ padding: '4px 10px 6px', maxHeight: 150, overflow: 'auto', fontSize: 10, color: 'var(--fg-dim)', whiteSpace: 'pre-wrap' }}>
+                    {msg.content}
+                  </div>
+                )}
+              </details>
             )
           }
           return (
@@ -265,11 +274,7 @@ export default function ChatPanel() {
               {!msg.streaming && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
                   {msg.time && <span style={{ fontSize: 9, color: 'var(--fg-dim)' }}>{msg.time}</span>}
-                  <button title="Copy message" onClick={() => navigator.clipboard.writeText(msg.content)} style={{
-                    background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 3,
-                    cursor: 'pointer', fontSize: 10, color: 'var(--fg-dim)',
-                    padding: '2px 6px', marginLeft: 'auto',
-                  }}>Copy</button>
+                  <CopyBtn text={msg.content} />
                 </div>
               )}
             </div>
@@ -346,48 +351,117 @@ export default function ChatPanel() {
   )
 }
 
-// Simple markdown renderer — handles code blocks and inline code.
+// Syntax color map for code blocks
+const syntaxColors: Record<string, Record<string, string>> = {
+  keyword: { color: 'var(--code-keyword, #b07cd8)' },
+  string: { color: 'var(--code-string, #8eb573)' },
+  comment: { color: 'var(--code-comment, #636d83)', fontStyle: 'italic' },
+  function: { color: 'var(--code-function, #7ba8d4)' },
+  type: { color: 'var(--code-type, #d4b76a)' },
+  number: { color: 'var(--code-number, #c9956a)' },
+}
+
+function highlightCode(code: string, lang: string): JSX.Element[] {
+  const keywords = /\b(import|export|from|const|let|var|function|return|if|else|for|while|class|extends|new|this|typeof|interface|type|async|await|default|switch|case|break|try|catch|throw|null|undefined|true|false|void|enum|implements|static|public|private|protected|yield|of|in|do)\b/g
+  const strings = /(["'`])(?:(?=(\\?))\2.)*?\1/g
+  const comments = /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm
+  const numbers = /\b\d+\.?\d*\b/g
+  const functions = /\b([a-zA-Z_]\w*)\s*(?=\()/g
+
+  // Simple token-based highlighting
+  return code.split('\n').map((line, i) => {
+    let html = line
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(comments, '<span style="color:var(--code-comment,#636d83);font-style:italic">$&</span>')
+      .replace(strings, '<span style="color:var(--code-string,#8eb573)">$&</span>')
+      .replace(keywords, '<span style="color:var(--code-keyword,#b07cd8)">$&</span>')
+      .replace(numbers, '<span style="color:var(--code-number,#c9956a)">$&</span>')
+    return <div key={i} dangerouslySetInnerHTML={{ __html: html || '&nbsp;' }} />
+  })
+}
+
+// Copy button with feedback
+function CopyBtn({ text, label }: { text: string; label?: string }) {
+  const [copied, setCopied] = React.useState(false)
+  return (
+    <button onClick={() => {
+      navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }} style={{
+      background: copied ? 'var(--success)' : 'var(--bg-active)',
+      border: '1px solid var(--border)', borderRadius: 4,
+      color: copied ? '#fff' : 'var(--fg-muted)',
+      padding: '2px 8px', fontSize: 10, cursor: 'pointer',
+      fontFamily: 'var(--font-ui)', transition: 'all 0.15s',
+    }}
+    onMouseEnter={e => { if (!copied) e.currentTarget.style.background = 'var(--bg-hover)' }}
+    onMouseLeave={e => { if (!copied) e.currentTarget.style.background = 'var(--bg-active)' }}
+    >
+      {copied ? '✓ Copied' : (label || 'Copy')}
+    </button>
+  )
+}
+
+// Markdown renderer with syntax highlighting
 function renderContent(text: string) {
   const parts: JSX.Element[] = []
   let key = 0
 
-  // Split by code blocks ```...```
   const blocks = text.split(/(```[\s\S]*?```)/g)
   for (const block of blocks) {
     if (block.startsWith('```')) {
       const lines = block.slice(3, -3).split('\n')
       const lang = lines[0]?.trim() || ''
       const code = (lang ? lines.slice(1) : lines).join('\n')
+      const isShellCmd = ['bash', 'sh', 'shell', 'zsh', ''].includes(lang) && code.split('\n').length <= 3
+
       parts.push(
         <pre key={key++} style={{
           background: 'var(--bg-base)', padding: '8px 10px', borderRadius: 6,
           margin: '6px 0', overflow: 'auto', border: '1px solid var(--border)',
-          fontFamily: 'var(--font-code)', fontSize: 11.5, lineHeight: 1.5,
-          position: 'relative',
+          fontFamily: 'var(--font-code)', fontSize: 11.5, lineHeight: 1.6,
+          maxHeight: 300,
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
             {lang && <span style={{ fontSize: 10, color: 'var(--fg-dim)' }}>{lang}</span>}
             <span style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-              <button onClick={() => navigator.clipboard.writeText(code)} style={{
-                background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 4,
-                color: 'var(--fg-muted)', padding: '1px 6px', fontSize: 10, cursor: 'pointer',
-                fontFamily: 'var(--font-ui)',
-              }}>Copy</button>
+              {isShellCmd && (
+                <button onClick={() => {
+                  import('../../wailsjs/go/main/App').then(m => m.WriteTerminal(code.trim() + '\n'))
+                  import('./Toast').then(m => m.showToast('Sent to terminal', 'success'))
+                }} style={{
+                  background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 4,
+                  color: 'var(--success)', padding: '2px 8px', fontSize: 10, cursor: 'pointer',
+                  fontFamily: 'var(--font-ui)',
+                }}>▶ Run</button>
+              )}
+              <CopyBtn text={code} />
             </span>
           </div>
-          {code}
+          {lang && ['js', 'jsx', 'ts', 'tsx', 'javascript', 'typescript', 'go', 'python', 'py', 'java', 'rust', 'css', 'html', 'sql', 'php', 'c', 'cpp'].includes(lang.toLowerCase())
+            ? highlightCode(code, lang)
+            : code
+          }
         </pre>
       )
     } else {
-      // Handle inline code `...`
-      const inlineParts = block.split(/(`[^`]+`)/g)
+      // Inline formatting: `code`, **bold**, [link](url)
+      const inlineParts = block.split(/(\[.+?\]\(.+?\)|`[^`]+`|\*\*[^*]+\*\*)/g)
       const spans = inlineParts.map((part, i) => {
+        const linkMatch = part.match(/^\[(.+?)\]\((.+?)\)$/)
+        if (linkMatch) {
+          return <a key={i} href={linkMatch[2]} target="_blank" rel="noopener" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>{linkMatch[1]}</a>
+        }
         if (part.startsWith('`') && part.endsWith('`')) {
           return <code key={i} style={{
             fontFamily: 'var(--font-code)', fontSize: 11.5,
             background: 'var(--bg-active)', padding: '1px 5px', borderRadius: 3,
             color: 'var(--accent)',
           }}>{part.slice(1, -1)}</code>
+        }
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={i}>{part.slice(2, -2)}</strong>
         }
         return <span key={i}>{part}</span>
       })
