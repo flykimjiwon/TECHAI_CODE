@@ -146,6 +146,10 @@ export function ResizeTerminal(arg1, arg2) {
   return window['go']['main']['App']['ResizeTerminal'](arg1, arg2);
 }
 
+export function SaveDroppedFile(arg1, arg2) {
+  return window['go']['main']['App']['SaveDroppedFile'](arg1, arg2);
+}
+
 export function SaveSession(arg1) {
   return window['go']['main']['App']['SaveSession'](arg1);
 }

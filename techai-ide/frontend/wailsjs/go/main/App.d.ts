@@ -74,6 +74,8 @@ export function RenameFile(arg1:string,arg2:string):Promise<void>;
 
 export function ResizeTerminal(arg1:number,arg2:number):Promise<void>;
 
+export function SaveDroppedFile(arg1:string,arg2:Array<number>):Promise<string>;
+
 export function SaveSession(arg1:string):Promise<string>;
 
 export function SaveSettings(arg1:string,arg2:string,arg3:string):Promise<void>;

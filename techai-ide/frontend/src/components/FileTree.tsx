@@ -33,11 +33,11 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
 
   useEffect(() => {
     refresh()
-    // Auto-refresh when AI writes files
-    const cancel = EventsOn('file:changed', () => {
-      setTimeout(refresh, 300)
-    })
-    return cancel
+    const cancels = [
+      EventsOn('file:changed', () => setTimeout(refresh, 300)),
+      EventsOn('tree:refresh', () => setTimeout(refresh, 300)),
+    ]
+    return () => cancels.forEach(fn => fn())
   }, [refresh])
 
   function toggleDir(path: string) {
@@ -214,7 +214,21 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     <aside style={{
       width: '100%', height: '100%', background: 'var(--bg-sidebar)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden'
-    }} onClick={() => setContextMenu(null)}>
+    }} onClick={() => setContextMenu(null)}
+      onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
+      onDrop={async e => {
+        e.preventDefault(); e.stopPropagation()
+        const files = e.dataTransfer.files
+        if (!files.length) return
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]
+          const buf = await file.arrayBuffer()
+          await WriteFile(file.name, new TextDecoder().decode(buf))
+        }
+        import('./Toast').then(m => m.showToast(`${files.length} file(s) added`, 'success'))
+        refresh()
+      }}
+    >
       <div style={{
         padding: '10px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
         letterSpacing: '0.05em', color: 'var(--fg-muted)',

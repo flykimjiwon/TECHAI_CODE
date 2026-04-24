@@ -55,33 +55,63 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) watchFiles() {
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
-	modTimes := map[string]time.Time{}
+	prevSnapshot := a.dirSnapshot()
 
 	for {
 		select {
 		case <-a.watcherDone:
 			return
 		case <-ticker.C:
-			entries, _ := os.ReadDir(a.cwd)
-			for _, e := range entries {
-				if e.IsDir() {
-					continue
-				}
-				info, err := e.Info()
-				if err != nil {
-					continue
-				}
-				path := filepath.Join(a.cwd, e.Name())
-				mt := info.ModTime()
-				if prev, ok := modTimes[path]; ok && mt.After(prev) {
-					wailsRuntime.EventsEmit(a.ctx, "file:changed", path)
-				}
-				modTimes[path] = mt
+			cur := a.dirSnapshot()
+			if cur != prevSnapshot {
+				wailsRuntime.EventsEmit(a.ctx, "tree:refresh")
+				// Also emit file:changed for modified files
+				wailsRuntime.EventsEmit(a.ctx, "file:changed", "")
+				prevSnapshot = cur
 			}
 		}
 	}
+}
+
+// dirSnapshot returns a quick hash of the directory state (file count + total size).
+func (a *App) dirSnapshot() string {
+	var count int
+	var totalSize int64
+	filepath.WalkDir(a.cwd, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		name := d.Name()
+		if strings.HasPrefix(name, ".") || name == "node_modules" || name == "dist" || name == ".git" {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !d.IsDir() {
+			count++
+			if info, err := d.Info(); err == nil {
+				totalSize += info.Size()
+			}
+		}
+		if count > 500 {
+			return fmt.Errorf("limit")
+		}
+		return nil
+	})
+	return fmt.Sprintf("%d:%d", count, totalSize)
+}
+
+// SaveDroppedFile saves a file dropped from the OS file manager.
+func (a *App) SaveDroppedFile(name string, data []byte) (string, error) {
+	path := filepath.Join(a.cwd, name)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return "", err
+	}
+	wailsRuntime.EventsEmit(a.ctx, "tree:refresh")
+	return path, nil
 }
 
 func (a *App) shutdown(ctx context.Context) {
