@@ -223,31 +223,14 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
     return filtered.map(entry => (
       <div key={entry.path}>
         <div
-          onClick={(e) => {
+          onClick={() => {
             if (entry.isDir) { toggleDir(entry.path); return }
-            // Alt+Click: toggle individual selection
-            if (e.altKey) {
-              e.preventDefault()
+            if (selected.size > 0) {
+              // Already in multi-select mode — toggle this file
               setSelected(prev => { const n = new Set(prev); n.has(entry.path) ? n.delete(entry.path) : n.add(entry.path); return n })
-              return
+            } else {
+              onFileSelect(entry.path)
             }
-            // Shift+Click: range selection
-            if (e.shiftKey && selectedFile) {
-              e.preventDefault()
-              const allFiles: string[] = []
-              function collect(items: FileEntry[]) { for (const f of items) { if (!f.isDir) allFiles.push(f.path); if (f.kids) collect(f.kids) } }
-              collect(tree)
-              const startIdx = allFiles.indexOf(selectedFile)
-              const endIdx = allFiles.indexOf(entry.path)
-              if (startIdx >= 0 && endIdx >= 0) {
-                const from = Math.min(startIdx, endIdx)
-                const to = Math.max(startIdx, endIdx)
-                setSelected(new Set(allFiles.slice(from, to + 1)))
-              }
-              return
-            }
-            setSelected(new Set())
-            onFileSelect(entry.path)
           }}
           onContextMenu={e => handleContextMenu(e, entry.path, entry.isDir)}
           draggable={!entry.isDir}
@@ -267,6 +250,27 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         >
           {entry.isDir ? (expanded.has(entry.path) ? <ChevronDown size={14} style={{ color: 'var(--fg-dim)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--fg-dim)', flexShrink: 0 }} />) : <span style={{ width: 14, flexShrink: 0 }} />}
           {getIcon(entry)}
+          {/* Checkbox for multi-select */}
+          {!entry.isDir && (
+            <input type="checkbox" checked={selected.has(entry.path)}
+              onChange={e => {
+                e.stopPropagation()
+                setSelected(prev => {
+                  const n = new Set(prev)
+                  e.target.checked ? n.add(entry.path) : n.delete(entry.path)
+                  return n
+                })
+              }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: 13, height: 13, flexShrink: 0, cursor: 'pointer',
+                accentColor: 'var(--accent)',
+                opacity: selected.size > 0 || selected.has(entry.path) ? 1 : 0,
+                transition: 'opacity 0.1s',
+              }}
+              className="file-checkbox"
+            />
+          )}
           {renamingPath === entry.path ? (
             <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') submitRename(); if (e.key === 'Escape') setRenamingPath(null) }}
@@ -346,7 +350,16 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
         letterSpacing: '0.05em', color: 'var(--fg-muted)',
         display: 'flex', alignItems: 'center', gap: 6
       }}>
-        <span style={{ flex: 1 }}>{projectName || 'Explorer'}</span>
+        <span style={{ flex: 1 }}>
+          {selected.size > 0 ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ color: 'var(--accent)' }}>{selected.size} selected</span>
+              <button onClick={() => setSelected(new Set())} style={{
+                background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-dim)', fontSize: 10, padding: 0,
+              }}>✕ clear</button>
+            </span>
+          ) : (projectName || 'Explorer')}
+        </span>
         <FilePlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => handleNewFile()} />
         <FolderPlus size={13} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={handleOpenFolder} />
         <RefreshCw size={12} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={refresh} />
