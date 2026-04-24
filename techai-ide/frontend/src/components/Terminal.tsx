@@ -71,6 +71,39 @@ export default function Terminal() {
     return cancel
   }, [])
 
+  // Watch for theme changes and update xterm colors
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      if (!xtermRef.current) return
+      const cs = getComputedStyle(document.documentElement)
+      const cv = (v: string, fb: string) => cs.getPropertyValue(v).trim() || fb
+      xtermRef.current.options.theme = {
+        background: cv('--term-bg', cv('--bg-terminal', '#08080a')),
+        foreground: cv('--term-fg', cv('--fg-secondary', '#a1a1aa')),
+        cursor: cv('--term-cursor', cv('--accent', '#3b82f6')),
+        selectionBackground: 'rgba(59,130,246,0.3)',
+        black: cv('--term-bg', '#08080a'),
+        red: cv('--code-variable', '#c08088'),
+        green: cv('--code-string', '#8aad72'),
+        yellow: cv('--code-type', '#c4a86a'),
+        blue: cv('--code-function', '#7ea8c9'),
+        magenta: cv('--code-keyword', '#a78bba'),
+        cyan: cv('--code-operator', '#7fa8b0'),
+        white: cv('--term-fg', '#a1a1aa'),
+        brightBlack: cv('--code-comment', '#5a6475'),
+        brightRed: cv('--error', '#ef4444'),
+        brightGreen: cv('--success', '#10b981'),
+        brightYellow: cv('--warning', '#f59e0b'),
+        brightBlue: cv('--accent', '#3b82f6'),
+        brightMagenta: cv('--code-keyword', '#a78bba'),
+        brightCyan: cv('--code-operator', '#7fa8b0'),
+        brightWhite: cv('--fg-primary', '#e4e4e7'),
+      }
+    })
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+
   useEffect(() => {
     GetAvailableShells().then(setShells).catch(() => {})
     GetCurrentShell().then(s => {

@@ -35,29 +35,29 @@ const techaiTheme = EditorView.theme({
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(255,200,0,0.5)' },
   '.cm-foldGutter .cm-gutterElement': { color: 'var(--fg-dim)', cursor: 'pointer', fontSize: '11px' },
   '.cm-scroller': { overflow: 'auto' },
-  // Pastel muted — 트렌디한 저채도 톤
-  '.cm-keyword': { color: '#a78bba' },       // 파스텔 퍼플
-  '.cm-atom': { color: '#bf9070' },           // 부드러운 오렌지
-  '.cm-number': { color: '#bf9070' },
-  '.cm-string, .cm-string2': { color: '#8aad72' }, // 내추럴 초록
-  '.cm-comment': { color: '#5a6475', fontStyle: 'italic' },
-  '.cm-variableName': { color: '#c08088' },   // 로즈
-  '.cm-variableName.cm-definition': { color: '#7ea8c9' }, // 스카이
-  '.cm-typeName': { color: '#c4a86a' },       // 머스타드
-  '.cm-className': { color: '#c4a86a' },
-  '.cm-definition': { color: '#7ea8c9' },
-  '.cm-function': { color: '#7ea8c9' },
-  '.cm-propertyName': { color: '#c08088' },
-  '.cm-operator': { color: '#7fa8b0' },       // 틸
-  '.cm-punctuation': { color: '#7e8590' },
-  '.cm-meta': { color: '#7e8590' },
-  '.cm-tagName': { color: '#c08088' },
-  '.cm-attributeName': { color: '#bf9070' },
-  '.cm-bool': { color: '#bf9070' },
-  '.cm-null': { color: '#7e8590' },
-  '.cm-regexp': { color: '#8aad72' },
-  '.cm-link': { color: '#7ea8c9', textDecoration: 'underline' },
-  '.cm-heading': { color: '#e06c75', fontWeight: 'bold' },
+  // Theme-aware syntax — reads from CSS variables (--code-*)
+  '.cm-keyword': { color: 'var(--code-keyword, #a78bba)' },
+  '.cm-atom': { color: 'var(--code-number, #bf9070)' },
+  '.cm-number': { color: 'var(--code-number, #bf9070)' },
+  '.cm-string, .cm-string2': { color: 'var(--code-string, #8aad72)' },
+  '.cm-comment': { color: 'var(--code-comment, #5a6475)', fontStyle: 'italic' },
+  '.cm-variableName': { color: 'var(--code-variable, #c08088)' },
+  '.cm-variableName.cm-definition': { color: 'var(--code-function, #7ea8c9)' },
+  '.cm-typeName': { color: 'var(--code-type, #c4a86a)' },
+  '.cm-className': { color: 'var(--code-type, #c4a86a)' },
+  '.cm-definition': { color: 'var(--code-function, #7ea8c9)' },
+  '.cm-function': { color: 'var(--code-function, #7ea8c9)' },
+  '.cm-propertyName': { color: 'var(--code-variable, #c08088)' },
+  '.cm-operator': { color: 'var(--code-operator, #7fa8b0)' },
+  '.cm-punctuation': { color: 'var(--code-text, #7e8590)' },
+  '.cm-meta': { color: 'var(--code-text, #7e8590)' },
+  '.cm-tagName': { color: 'var(--code-variable, #c08088)' },
+  '.cm-attributeName': { color: 'var(--code-number, #bf9070)' },
+  '.cm-bool': { color: 'var(--code-number, #bf9070)' },
+  '.cm-null': { color: 'var(--code-text, #7e8590)' },
+  '.cm-regexp': { color: 'var(--code-string, #8aad72)' },
+  '.cm-link': { color: 'var(--code-function, #7ea8c9)', textDecoration: 'underline' },
+  '.cm-heading': { color: 'var(--code-variable, #c08088)', fontWeight: 'bold' },
   '.cm-emphasis': { fontStyle: 'italic' },
   '.cm-strong': { fontWeight: 'bold' },
 }, { dark: true })
