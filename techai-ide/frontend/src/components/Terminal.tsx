@@ -22,17 +22,35 @@ export default function Terminal() {
 
   useEffect(() => {
     if (!termRef.current) return
+    // Read terminal colors from CSS variables (theme-aware)
+    const cs = getComputedStyle(document.documentElement)
+    const cv = (v: string, fb: string) => cs.getPropertyValue(v).trim() || fb
+    const termBg = cv('--term-bg', cv('--bg-terminal', '#08080a'))
+    const termFg = cv('--term-fg', cv('--fg-secondary', '#a1a1aa'))
+    const termCursor = cv('--term-cursor', cv('--accent', '#3b82f6'))
+
     const term = new XTerm({
       fontSize: 12,
       fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
       theme: {
-        background: '#08080a', foreground: '#a1a1aa', cursor: '#3b82f6',
+        background: termBg, foreground: termFg, cursor: termCursor,
         selectionBackground: 'rgba(59,130,246,0.3)',
-        black: '#08080a', red: '#d4868c', green: '#8eb573', yellow: '#d4b76a',
-        blue: '#7ba8d4', magenta: '#b07cd8', cyan: '#89b8c2', white: '#a1a1aa',
-        brightBlack: '#636d83', brightRed: '#e06c75', brightGreen: '#98c379',
-        brightYellow: '#e5c07b', brightBlue: '#61afef', brightMagenta: '#c678dd',
-        brightCyan: '#56b6c2', brightWhite: '#e4e4e7',
+        black: termBg,
+        red: cv('--code-variable', '#c08088'),
+        green: cv('--code-string', '#8aad72'),
+        yellow: cv('--code-type', '#c4a86a'),
+        blue: cv('--code-function', '#7ea8c9'),
+        magenta: cv('--code-keyword', '#a78bba'),
+        cyan: cv('--code-operator', '#7fa8b0'),
+        white: termFg,
+        brightBlack: cv('--code-comment', '#5a6475'),
+        brightRed: cv('--error', '#ef4444'),
+        brightGreen: cv('--success', '#10b981'),
+        brightYellow: cv('--warning', '#f59e0b'),
+        brightBlue: cv('--accent', '#3b82f6'),
+        brightMagenta: cv('--code-keyword', '#a78bba'),
+        brightCyan: cv('--code-operator', '#7fa8b0'),
+        brightWhite: cv('--fg-primary', '#e4e4e7'),
       },
       cursorBlink: true, scrollback: 5000, allowTransparency: true,
     })
