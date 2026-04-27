@@ -31,12 +31,20 @@ export default function GitPanel({ onFileSelect }: Props) {
   useEffect(() => { refresh() }, [])
 
   async function handleStage(file: string) {
-    await GitStage(file)
+    try {
+      await GitStage(file)
+    } catch (e) {
+      import('./Toast').then(m => m.showToast(`Stage failed: ${e}`, 'error'))
+    }
     refresh()
   }
 
   async function handleUnstage(file: string) {
-    await GitUnstage(file)
+    try {
+      await GitUnstage(file)
+    } catch (e) {
+      import('./Toast').then(m => m.showToast(`Unstage failed: ${e}`, 'error'))
+    }
     refresh()
   }
 

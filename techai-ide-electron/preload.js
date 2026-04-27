@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
-// Expose menu events to React frontend
+// Expose menu events and native dialogs to React frontend
 contextBridge.exposeInMainWorld('electronAPI', {
   onMenuEvent: (callback) => ipcRenderer.on('menu:openfolder', callback),
   onMenuSave: (callback) => ipcRenderer.on('menu:save', callback),
@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMenuTerminal: (callback) => ipcRenderer.on('menu:terminal', callback),
   onMenuQuickOpen: (callback) => ipcRenderer.on('menu:quickopen', callback),
   onMenuAbout: (callback) => ipcRenderer.on('menu:about', callback),
+  // Native folder dialog result
+  onFolderOpened: (callback) => ipcRenderer.on('folder:opened', (_, dir) => callback(dir)),
 })

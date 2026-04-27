@@ -203,4 +203,254 @@ func registerAPI(mux *http.ServeMux, app *App) {
 	mux.HandleFunc("/api/recentProjects", cors(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(app.GetRecentProjects())
 	}))
+
+	// ── Missing endpoints (Electron parity) ──
+
+	// File operations
+	mux.HandleFunc("/api/renameFile", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			OldPath string `json:"oldPath"`
+			NewPath string `json:"newPath"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		if err := app.RenameFile(req.OldPath, req.NewPath); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		sseEmit("tree:refresh", "")
+		w.Write([]byte("ok"))
+	}))
+
+	mux.HandleFunc("/api/setCwd", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Path string `json:"path"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		if err := app.SetCwd(req.Path); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		sseEmit("tree:refresh", "")
+		w.Write([]byte("ok"))
+	}))
+
+	mux.HandleFunc("/api/fileExists", cors(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Query().Get("path")
+		json.NewEncoder(w).Encode(app.FileExists(path))
+	}))
+
+	// Settings
+	mux.HandleFunc("/api/saveSettings", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			BaseURL string `json:"baseURL"`
+			APIKey  string `json:"apiKey"`
+			Model   string `json:"model"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		if err := app.SaveSettings(req.BaseURL, req.APIKey, req.Model); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte("ok"))
+	}))
+
+	mux.HandleFunc("/api/setLanguage", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Lang string `json:"lang"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		app.SetLanguage(req.Lang)
+		w.Write([]byte("ok"))
+	}))
+
+	// Git operations
+	mux.HandleFunc("/api/gitCheckout", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Branch string `json:"branch"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		result, err := app.GitCheckout(req.Branch)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte(result))
+	}))
+
+	mux.HandleFunc("/api/gitCreateBranch", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Name string `json:"name"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		result, err := app.GitCreateBranch(req.Name)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte(result))
+	}))
+
+	mux.HandleFunc("/api/gitPull", cors(func(w http.ResponseWriter, r *http.Request) {
+		result, err := app.GitPull()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte(result))
+	}))
+
+	mux.HandleFunc("/api/gitPush", cors(func(w http.ResponseWriter, r *http.Request) {
+		result, err := app.GitPush()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte(result))
+	}))
+
+	mux.HandleFunc("/api/gitStage", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Path string `json:"path"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		if err := app.GitStage(req.Path); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte("ok"))
+	}))
+
+	mux.HandleFunc("/api/gitUnstage", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Path string `json:"path"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		if err := app.GitUnstage(req.Path); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte("ok"))
+	}))
+
+	mux.HandleFunc("/api/gitCommit", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Message string `json:"message"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		result, err := app.GitCommit(req.Message)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte(result))
+	}))
+
+	mux.HandleFunc("/api/gitDiff", cors(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(app.GitDiff()))
+	}))
+
+	mux.HandleFunc("/api/gitDiffFile", cors(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Query().Get("path")
+		w.Write([]byte(app.GitDiffFile(path)))
+	}))
+
+	mux.HandleFunc("/api/gitLog", cors(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(app.GitLog(50)))
+	}))
+
+	// Terminal
+	mux.HandleFunc("/api/stopTerminal", cors(func(w http.ResponseWriter, r *http.Request) {
+		app.StopTerminal()
+		w.Write([]byte("ok"))
+	}))
+
+	mux.HandleFunc("/api/setShell", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Shell string `json:"shell"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		if err := app.SetShell(req.Shell); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte("ok"))
+	}))
+
+	// Knowledge packs
+	mux.HandleFunc("/api/toggleKnowledgePack", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID      string `json:"id"`
+			Enabled bool   `json:"enabled"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		app.ToggleKnowledgePack(req.ID, req.Enabled)
+		w.Write([]byte("ok"))
+	}))
+
+	// Chat sessions
+	mux.HandleFunc("/api/chatHistory", cors(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(app.GetChatHistory())
+	}))
+
+	mux.HandleFunc("/api/exportChat", cors(func(w http.ResponseWriter, r *http.Request) {
+		result, err := app.ExportChat()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte(result))
+	}))
+
+	mux.HandleFunc("/api/saveSession", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Title string `json:"title"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		id, err := app.SaveSession(req.Title)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte(id))
+	}))
+
+	mux.HandleFunc("/api/listSessions", cors(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(app.ListSessions())
+	}))
+
+	mux.HandleFunc("/api/loadSession", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ ID string `json:"id"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		if err := app.LoadSession(req.ID); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte("ok"))
+	}))
+
+	mux.HandleFunc("/api/deleteSession", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ ID string `json:"id"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		if err := app.DeleteSession(req.ID); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte("ok"))
+	}))
+
+	// Live server
+	mux.HandleFunc("/api/startLiveServer", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Dir string `json:"dir"` }
+		json.NewDecoder(r.Body).Decode(&req)
+		url, err := app.StartLiveServer(req.Dir)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write([]byte(url))
+	}))
+
+	// EventsEmit from frontend
+	mux.HandleFunc("/api/emit", cors(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Name string      `json:"name"`
+			Data interface{} `json:"data"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		if req.Name != "" {
+			payload := ""
+			if req.Data != nil {
+				if s, ok := req.Data.(string); ok {
+					payload = s
+				} else {
+					b, _ := json.Marshal(req.Data)
+					payload = string(b)
+				}
+			}
+			sseEmit(req.Name, payload)
+		}
+		w.Write([]byte("ok"))
+	}))
 }

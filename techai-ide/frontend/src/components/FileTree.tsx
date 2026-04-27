@@ -36,22 +36,28 @@ export default function FileTree({ onFileSelect, selectedFile }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null) // path pending delete
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
+  const refreshTimer = useRef<number>(0)
   const refresh = useCallback(() => {
     ListFiles('.', 3).then(setTree).catch(console.error)
     GetCwd().then(cwd => {
-      const parts = cwd.split('/')
+      const parts = cwd.replace(/\\/g, '/').split('/')
       setProjectName(parts[parts.length - 1] || cwd)
     }).catch(() => {})
   }, [])
 
+  const debouncedRefresh = useCallback(() => {
+    clearTimeout(refreshTimer.current)
+    refreshTimer.current = window.setTimeout(refresh, 400)
+  }, [refresh])
+
   useEffect(() => {
     refresh()
     const cancels = [
-      EventsOn('file:changed', () => setTimeout(refresh, 300)),
-      EventsOn('tree:refresh', () => setTimeout(refresh, 300)),
+      EventsOn('file:changed', debouncedRefresh),
+      EventsOn('tree:refresh', debouncedRefresh),
     ]
-    return () => cancels.forEach(fn => fn())
-  }, [refresh])
+    return () => { cancels.forEach(fn => fn()); clearTimeout(refreshTimer.current) }
+  }, [refresh, debouncedRefresh])
 
   function toggleDir(path: string) {
     setExpanded(prev => {

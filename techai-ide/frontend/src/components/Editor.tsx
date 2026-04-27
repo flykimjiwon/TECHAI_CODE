@@ -1,10 +1,31 @@
-import { useState, useEffect, useRef, useCallback, CSSProperties } from 'react'
+import { useState, useEffect, useRef, useCallback, CSSProperties, Component, ReactNode } from 'react'
 import { FileCode, X, Save } from 'lucide-react'
 import { ReadFile, WriteFile, GetRecentProjects, SetCwd } from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import CodeEditor from './CodeEditor'
 import { showToast } from './Toast'
 import { modKey } from '../utils'
+
+// Error boundary to prevent black screen on editor crash
+class EditorErrorBoundary extends Component<{ children: ReactNode; onReset: () => void }, { hasError: boolean }> {
+  state = { hasError: false }
+  static getDerivedStateFromError() { return { hasError: true } }
+  componentDidCatch(err: Error) { console.error('[Editor crash]', err) }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: 'var(--fg-dim)' }}>
+          <div style={{ fontSize: 14 }}>Editor crashed — click to reload</div>
+          <button onClick={() => { this.setState({ hasError: false }); this.props.onReset() }}
+            style={{ padding: '6px 16px', borderRadius: 6, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12 }}>
+            Reload Editor
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 interface Tab {
   path: string
@@ -197,6 +218,11 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
     return () => window.removeEventListener('keydown', handleKey)
   }, [activeTab, tabs, findOpen])
 
+  // Cleanup auto-save timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(autoSaveTimer.current)
+  }, [])
+
   const saveCurrentFile = useCallback(() => {
     const tab = tabs.find(t => t.path === activeTab)
     if (!tab || !tab.modified) return
@@ -360,6 +386,7 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
 
       {/* Code Area — CodeMirror / Image Preview / Welcome */}
       <div style={{ flex: 1, overflow: 'hidden', background: 'var(--bg-editor)', minHeight: 0 }}>
+        <EditorErrorBoundary onReset={() => setActiveTab(null)}>
         {current && isImage(current.name) ? (
           <div style={{
             height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -381,6 +408,7 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
           </div>
         ) : current ? (
           <CodeEditor
+            key={current.path}
             content={current.content}
             filename={current.name}
             onChange={handleContentChange}
@@ -442,6 +470,7 @@ export default function Editor({ filePath, onCursorChange, onAskAI }: Props) {
             )}
           </div>
         )}
+        </EditorErrorBoundary>
       </div>
     </div>
   )

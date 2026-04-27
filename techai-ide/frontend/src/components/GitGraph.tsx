@@ -116,6 +116,7 @@ export default function GitGraph() {
           <button onClick={async () => {
             try { const r = await GitPush(); showToast('Pushed: ' + (r || 'done'), 'success') }
             catch (e) { showToast(`Push failed: ${e}`, 'error') }
+            refresh()
           }} style={gitActionBtn}>
             <ArrowUp size={11} /> Push
           </button>

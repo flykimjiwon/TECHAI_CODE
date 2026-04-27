@@ -7,8 +7,11 @@
     "start": "electron .",
     "build:go": "cd ../techai-ide && go build -o ../techai-ide-electron/go-server/techai-server ./",
     "build:go:win": "cd ../techai-ide && GOOS=windows GOARCH=amd64 go build -o ../techai-ide-electron/go-server/techai-server.exe ./",
+    "build:go:win-arm64": "cd ../techai-ide && GOOS=windows GOARCH=arm64 go build -o ../techai-ide-electron/go-server/techai-server.exe ./",
     "build:react": "cd ../techai-ide/frontend && npm run build && cp -r dist ../../techai-ide-electron/frontend-dist",
     "build": "npm run build:go && npm run build:react",
+    "build:all:mac": "npm run build:go && npm run build:react && npm run dist:mac",
+    "build:all:win": "npm run build:go:win && npm run build:react && npm run dist:win",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
@@ -27,18 +30,24 @@
       {
         "from": "go-server",
         "to": "go-server"
+      },
+      {
+        "from": "icons",
+        "to": "icons"
       }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "target": ["dmg", "zip"]
+      "target": ["dmg", "zip"],
+      "icon": "icons/icon.icns"
     },
     "win": {
       "target": ["portable", "nsis"],
-      "icon": "icon.png"
+      "icon": "icons/icon.ico"
     },
     "linux": {
-      "target": ["AppImage", "deb"]
+      "target": ["AppImage", "deb"],
+      "icon": "icons/icon.png"
     },
     "portable": {
       "artifactName": "TECHAI-IDE-${version}-portable.exe"
