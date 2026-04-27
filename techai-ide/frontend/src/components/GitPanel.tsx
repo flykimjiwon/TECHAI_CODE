@@ -1,3 +1,6 @@
+// Copyright 2025-2026 Kim Jiwon (flykimjiwon). All rights reserved.
+// TECHAI CODE IDE — github.com/flykimjiwon/TECHAI_CODE
+
 import { useState, useEffect } from 'react'
 import { GitBranch, RefreshCw, FileCode, Plus, Minus, Check } from 'lucide-react'
 import { GetGitInfo, GitStage, GitUnstage, GitCommit, GitDiffFile } from '../../wailsjs/go/main/App'

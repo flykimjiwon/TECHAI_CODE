@@ -1,3 +1,5 @@
+// Copyright 2025-2026 Kim Jiwon (github.com/flykimjiwon)
+// TECHAI IDE — forked from hanimo-code
 import { useState, useEffect } from 'react'
 import { Files, Search, GitBranch, User, Settings } from 'lucide-react'
 import { GetGitInfo } from '../../wailsjs/go/main/App'

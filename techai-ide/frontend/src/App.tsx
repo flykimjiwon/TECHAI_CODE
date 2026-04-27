@@ -1,3 +1,5 @@
+// Copyright 2025-2026 Kim Jiwon (github.com/flykimjiwon)
+// TECHAI IDE — forked from hanimo-code
 import { useState, useEffect, useCallback } from 'react'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import ActivityBar from './components/ActivityBar'
@@ -82,7 +84,7 @@ function App() {
       if (mod && e.key === '`') { e.preventDefault(); setShowTerminal(t => !t) }
       if (mod && e.key === 'j') { e.preventDefault(); setShowTerminal(t => !t) }
       if (mod && e.shiftKey && e.key === 'p') { e.preventDefault(); setShowCommandPalette(true) }
-      if (mod && e.key === '\\') { e.preventDefault(); setSplitFile(prev => prev ? null : selectedFile) }
+      if (mod && e.key === '\') { e.preventDefault(); setSplitFile(prev => prev ? null : selectedFile) }
       if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); document.documentElement.style.fontSize = (parseFloat(getComputedStyle(document.documentElement).fontSize) + 1) + 'px' }
       if (mod && e.key === '-') { e.preventDefault(); document.documentElement.style.fontSize = Math.max(10, parseFloat(getComputedStyle(document.documentElement).fontSize) - 1) + 'px' }
       if (mod && e.key === '0') { e.preventDefault(); document.documentElement.style.fontSize = '13px' }

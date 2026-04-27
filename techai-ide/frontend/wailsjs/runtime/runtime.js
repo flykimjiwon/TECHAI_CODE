@@ -1,4 +1,6 @@
-// TECHAI IDE — Wails runtime wrapper with SSE fallback for Electron/browser mode
+// Copyright 2025-2026 Kim Jiwon (flykimjiwon). All rights reserved.
+// TECHAI CODE — github.com/flykimjiwon/TECHAI_CODE
+// Wails runtime wrapper with SSE fallback for Electron/browser mode
 
 var _sseCallbacks = {};
 var _sseCancelId = 0;

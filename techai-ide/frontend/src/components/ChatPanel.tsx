@@ -1,3 +1,6 @@
+// Copyright 2025-2026 Kim Jiwon (flykimjiwon). All rights reserved.
+// TECHAI CODE IDE — github.com/flykimjiwon/TECHAI_CODE
+
 import React, { useState, useRef, useEffect } from 'react'
 import { Sparkles, Send, Trash2, BookOpen, Download } from 'lucide-react'
 import { SendMessage, ClearChat, GetModel, GetKnowledgePacks, ToggleKnowledgePack, ExportChat, SaveSession, ListSessions, LoadSession } from '../../wailsjs/go/main/App'

@@ -1,3 +1,6 @@
+// Copyright 2025-2026 Kim Jiwon (flykimjiwon). All rights reserved.
+// TECHAI CODE IDE — github.com/flykimjiwon/TECHAI_CODE
+
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronDown, ChevronRight, Folder, FolderOpen, FileCode, FileText, File, RefreshCw, FolderPlus, FilePlus, Trash2, FileJson, FileType, Cog, Image, Database, Terminal as TermIcon, Globe, Lock, FileVideo, FileAudio, FileArchive, FileSpreadsheet, BookOpen, Palette, Package, Shield, TestTube, Wrench, GitBranch } from 'lucide-react'
 import { ListFiles, OpenFolder, WriteFile, DeleteFile, RenameFile, GetCwd, OpenInBrowser, StartLiveServer } from '../../wailsjs/go/main/App'

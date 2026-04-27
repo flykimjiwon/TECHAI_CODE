@@ -1,3 +1,6 @@
+// Copyright 2025-2026 Kim Jiwon (flykimjiwon). All rights reserved.
+// TECHAI CODE IDE — github.com/flykimjiwon/TECHAI_CODE
+
 import { useState, useEffect, useRef, useCallback, CSSProperties, Component, ReactNode } from 'react'
 import { FileCode, X, Save } from 'lucide-react'
 import { ReadFile, WriteFile, GetRecentProjects, SetCwd } from '../../wailsjs/go/main/App'

@@ -1,0 +1,35 @@
+TECHAI CODE
+Copyright 2025-2026 Kim Jiwon (김지원). All rights reserved.
+
+This project was originally created and developed by Kim Jiwon (김지원)
+as a personal open-source project. This is NOT a work-for-hire product.
+
+ORIGIN & LINEAGE
+================
+TECHAI CODE is forked from and builds upon "Hanimo Code" (하니모 코드),
+another project independently created by the same author, Kim Jiwon.
+  - Hanimo Code: https://github.com/flykimjiwon/hanimo
+  - TECHAI CODE: https://github.com/flykimjiwon/TECHAI_CODE
+
+Both projects share foundational architecture and were conceived,
+designed, and implemented solely by Kim Jiwon during personal time,
+using personal equipment, outside the scope of any employment agreement.
+
+AUTHOR DECLARATION
+==================
+I, Kim Jiwon (김지원), hereby declare that:
+  1. I am the sole original author of this software.
+  2. Development began in 2025 as a personal project.
+  3. All architectural decisions, code, and design are my own work.
+  4. This software was not created as part of any employment obligation.
+  5. No employer resources (hardware, software, time) were used in creation.
+  6. Git commit history serves as timestamped proof of authorship.
+
+COMPONENTS
+==========
+  - TECHAI CODE TUI: Go + Bubble Tea CLI AI coding assistant
+  - TECHAI CODE IDE: Electron + Go desktop IDE with AI integration
+  - SuperSOL Demo: Banking demo application for testing
+
+Licensed under the Apache License, Version 2.0.
+See LICENSE file for full license text.

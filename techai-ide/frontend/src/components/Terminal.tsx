@@ -1,3 +1,6 @@
+// Copyright 2025-2026 Kim Jiwon (flykimjiwon). All rights reserved.
+// TECHAI CODE IDE — github.com/flykimjiwon/TECHAI_CODE
+
 import { useEffect, useRef, useState } from 'react'
 import { Plus, X, ChevronDown, Trash2 } from 'lucide-react'
 import { Terminal as XTerm } from 'xterm'

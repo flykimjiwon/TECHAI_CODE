@@ -1,3 +1,8 @@
+// Copyright 2025-2026 Kim Jiwon (김지원). All rights reserved.
+// TECHAI CODE — AI-powered code editor, created by flykimjiwon
+// Forked from Hanimo Code: github.com/flykimjiwon/hanimo
+// Licensed under Apache-2.0. See LICENSE and NOTICE files.
+
 package main
 
 import (

@@ -1,3 +1,6 @@
+// Copyright 2025-2026 Kim Jiwon (김지원). All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+// Origin: github.com/flykimjiwon — personal project, not work-for-hire.
 package app
 
 import (
@@ -215,7 +218,10 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	// Load project context
 	projectCtx := ""
 	if data, err := os.ReadFile(".techai.md"); err == nil && len(data) > 0 {
-		projectCtx = "\n\n## Project Context (.techai.md)\n" + string(data)
+		projectCtx = "
+
+## Project Context (.techai.md)
+" + string(data)
 	}
 	projectCtx += llm.GatherSystemContext()
 	// envCtx and userDocsTOC are appended after env probe runs (below)
@@ -249,7 +255,10 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	projInfo := tools.DetectProject(".")
 	projCtxStr := tools.FormatProjectContext(projInfo)
 	if projCtxStr != "" {
-		projectCtx += "\n\n## Detected Project\n" + projCtxStr
+		projectCtx += "
+
+## Detected Project
+" + projCtxStr
 	}
 
 	// Append environment + user docs context to projectCtx
@@ -582,8 +591,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			case "shift+enter", "ctrl+j", "ctrl+enter":
-				m.textarea.InsertString("\n")
-				lines := strings.Count(m.textarea.Value(), "\n") + 1
+				m.textarea.InsertString("
+")
+				lines := strings.Count(m.textarea.Value(), "
+") + 1
 				newH := min(lines, 10)
 				if newH != m.textarea.Height() {
 					m.textarea.SetHeight(newH)
@@ -596,7 +607,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Forward other keys to textarea for typing
 			var taCmd tea.Cmd
 			m.textarea, taCmd = m.textarea.Update(msg)
-			lines := strings.Count(m.textarea.Value(), "\n") + 1
+			lines := strings.Count(m.textarea.Value(), "
+") + 1
 			if lines > m.textarea.Height() && lines <= 10 {
 				m.textarea.SetHeight(lines)
 				m.recalcLayout()
@@ -700,8 +712,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "shift+enter", "ctrl+j", "ctrl+enter":
 			// Shift+Enter or Ctrl+J = newline (Ctrl+J fallback for Windows CMD/PowerShell)
-			m.textarea.InsertString("\n")
-			lines := strings.Count(m.textarea.Value(), "\n") + 1
+			m.textarea.InsertString("
+")
+			lines := strings.Count(m.textarea.Value(), "
+") + 1
 			newH := min(lines, 10)
 			if newH != m.textarea.Height() {
 				m.textarea.SetHeight(newH)
@@ -785,7 +799,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var taCmd tea.Cmd
 		m.textarea, taCmd = m.textarea.Update(msg)
 		// Auto-grow/shrink textarea after content changes
-		lines := strings.Count(m.textarea.Value(), "\n") + 1
+		lines := strings.Count(m.textarea.Value(), "
+") + 1
 		if lines > m.textarea.Height() && lines <= 10 {
 			m.textarea.SetHeight(lines)
 			m.recalcLayout()
@@ -803,8 +818,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.textarea.InsertString(text)
 		charCount := len([]rune(text))
-		lineCount := strings.Count(text, "\n") + 1
-		lines := strings.Count(m.textarea.Value(), "\n") + 1
+		lineCount := strings.Count(text, "
+") + 1
+		lines := strings.Count(m.textarea.Value(), "
+") + 1
 
 		// Auto-grow textarea (up to 10 lines)
 		newH := min(lines, 10)
@@ -1098,7 +1115,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.wasThinking = true
 		} else if !msg.isThinking && m.wasThinking {
 			// Transition from thinking to actual content — add separator
-			m.streamBuf += "\n\n---\n\n"
+			m.streamBuf += "
+
+---
+
+"
 			m.wasThinking = false
 		}
 		m.streamBuf += msg.content
@@ -1565,7 +1586,8 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			})
 		} else {
 			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[MCP] 서버 상태:\n" + m.mcpManager.Status(), Timestamp: time.Now(),
+				Role: ui.RoleSystem, Content: "[MCP] 서버 상태:
+" + m.mcpManager.Status(), Timestamp: time.Now(),
 			})
 		}
 		m.updateViewport()
@@ -1579,9 +1601,13 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			for _, msg := range m.msgs {
 				switch msg.Role {
 				case ui.RoleUser:
-					sb.WriteString("[사용자] " + msg.Content + "\n\n")
+					sb.WriteString("[사용자] " + msg.Content + "
+
+")
 				case ui.RoleAssistant:
-					sb.WriteString("[AI] " + msg.Content + "\n\n")
+					sb.WriteString("[AI] " + msg.Content + "
+
+")
 				}
 			}
 			target = sb.String()
@@ -1629,13 +1655,23 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			}
 		}
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("# TECHAI 세션 (%s)\n\n", time.Now().Format("2006-01-02 15:04")))
+		sb.WriteString(fmt.Sprintf("# TECHAI 세션 (%s)
+
+", time.Now().Format("2006-01-02 15:04")))
 		for _, msg := range m.msgs {
 			switch msg.Role {
 			case ui.RoleUser:
-				sb.WriteString(fmt.Sprintf("## 사용자\n\n%s\n\n", msg.Content))
+				sb.WriteString(fmt.Sprintf("## 사용자
+
+%s
+
+", msg.Content))
 			case ui.RoleAssistant:
-				sb.WriteString(fmt.Sprintf("## AI\n\n%s\n\n", msg.Content))
+				sb.WriteString(fmt.Sprintf("## AI
+
+%s
+
+", msg.Content))
 			}
 		}
 		if err := os.WriteFile(filename, []byte(sb.String()), 0644); err != nil {
@@ -1660,7 +1696,9 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			}
 			diff := result.Stdout
 			if len(diff) > 5000 {
-				diff = diff[:5000] + "\n\n... (truncated)"
+				diff = diff[:5000] + "
+
+... (truncated)"
 			}
 			return slashResultMsg{content: diff}
 		}
@@ -1741,12 +1779,16 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 		if err := os.WriteFile(".techai.md", []byte(profile), 0644); err != nil {
 			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("Failed to write .techai.md: %v", err), Timestamp: time.Now()})
 		} else {
-			m.projectCtx = "\n\n## Project Context (.techai.md)\n" + profile
+			m.projectCtx = "
+
+## Project Context (.techai.md)
+" + profile
 			if len(m.history) > 0 {
 				md := llm.Mode(m.activeTab)
 				m.history[0].Content = llm.SystemPrompt(md) + m.projectCtx
 			}
-			lines := strings.Count(profile, "\n")
+			lines := strings.Count(profile, "
+")
 			label := "simple"
 			if mode == "deep" {
 				label = "deep (AI-analyzed)"
@@ -1843,7 +1885,8 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 			}
 			m.msgs = append(m.msgs, ui.Message{
 				Role:      ui.RoleSystem,
-				Content:   strings.Join(lines, "\n"),
+				Content:   strings.Join(lines, "
+"),
 				Timestamp: time.Now(),
 			})
 		}
@@ -1859,7 +1902,8 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 			if arg == "list" {
 				list := tools.FormatSnapshotList(20)
 				m.msgs = append(m.msgs, ui.Message{
-					Role: ui.RoleSystem, Content: "  스냅샷 목록:\n" + list, Timestamp: time.Now(),
+					Role: ui.RoleSystem, Content: "  스냅샷 목록:
+" + list, Timestamp: time.Now(),
 				})
 				m.updateViewport()
 				return true, nil
@@ -1916,11 +1960,13 @@ func (m Model) View() tea.View {
 	if m.inSetup {
 		content = m.viewSetup()
 	} else if !m.ready {
-		content = "\n  로딩중..."
+		content = "
+  로딩중..."
 	} else {
 		vpContent := m.viewport.View()
 		// Constrain viewport output to allocated height
-		contentLines := strings.Split(vpContent, "\n")
+		contentLines := strings.Split(vpContent, "
+")
 		if len(contentLines) > m.viewport.Height() {
 			contentLines = contentLines[:m.viewport.Height()]
 		}
@@ -1928,7 +1974,8 @@ func (m Model) View() tea.View {
 		if m.selecting || (m.selStartX != m.selEndX || m.selStartY != m.selEndY) {
 			contentLines = m.highlightSelection(contentLines)
 		}
-		vpContent = strings.Join(contentLines, "\n")
+		vpContent = strings.Join(contentLines, "
+")
 
 		// Input box with gray border
 		inputBox := lipgloss.NewStyle().
@@ -1985,16 +2032,25 @@ func (m Model) viewSetup() string {
 	step := lipgloss.NewStyle().Foreground(ui.ColorSuccess).Bold(true)
 
 	var b strings.Builder
-	b.WriteString("\n\n")
-	b.WriteString(title.Render("  택가이코드 설정"))
-	b.WriteString("\n")
-	b.WriteString(dim.Render("  OpenAI-compatible API 연결"))
-	b.WriteString("\n\n")
+	b.WriteString("
 
-	b.WriteString(step.Render("  API Key") + "\n\n")
+")
+	b.WriteString(title.Render("  택가이코드 설정"))
+	b.WriteString("
+")
+	b.WriteString(dim.Render("  OpenAI-compatible API 연결"))
+	b.WriteString("
+
+")
+
+	b.WriteString(step.Render("  API Key") + "
+
+")
 	b.WriteString("  " + m.setupInput.View())
 
-	b.WriteString("\n\n")
+	b.WriteString("
+
+")
 	b.WriteString(hint.Render("  Enter 다음 · Ctrl+C 종료"))
 	return b.String()
 }
@@ -2025,7 +2081,8 @@ func (m *Model) clearSelection() {
 func (m *Model) extractSelectedText() string {
 	content := m.viewport.GetContent()
 	plain := ansi.Strip(content)
-	lines := strings.Split(plain, "\n")
+	lines := strings.Split(plain, "
+")
 
 	startY, endY := m.selStartY, m.selEndY
 	startX, endX := m.selStartX, m.selEndX
@@ -2061,13 +2118,15 @@ func (m *Model) extractSelectedText() string {
 	runes := []rune(lines[startY])
 	sx := min(startX, len(runes))
 	sb.WriteString(string(runes[sx:]))
-	sb.WriteByte('\n')
+	sb.WriteByte('
+')
 
 	// Middle lines: full content
 	for y := startY + 1; y < endY; y++ {
 		if y < len(lines) {
 			sb.WriteString(lines[y])
-			sb.WriteByte('\n')
+			sb.WriteByte('
+')
 		}
 	}
 
@@ -2157,7 +2216,9 @@ func (m *Model) streamStatus() string {
 				icon, p.Agent, detail, p.Tokens, p.Elapsed.Seconds())
 			lines = append(lines, line)
 		}
-		return fmt.Sprintf("%s Multi 실행중 (%.1fs)\n%s", frame, elapsed.Seconds(), strings.Join(lines, "\n"))
+		return fmt.Sprintf("%s Multi 실행중 (%.1fs)
+%s", frame, elapsed.Seconds(), strings.Join(lines, "
+"))
 	}
 
 	if m.multiRunning {
@@ -2451,7 +2512,9 @@ func (m *Model) cancelStream() {
 	m.lastElapsed = time.Since(m.streamStart)
 	if m.streamBuf != "" {
 		m.msgs = append(m.msgs, ui.Message{
-			Role: ui.RoleAssistant, Content: m.streamBuf + "\n\n[중단됨]", Timestamp: time.Now(),
+			Role: ui.RoleAssistant, Content: m.streamBuf + "
+
+[중단됨]", Timestamp: time.Now(),
 		})
 		m.history = append(m.history, openai.ChatCompletionMessage{
 			Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
@@ -2649,12 +2712,17 @@ func formatToolResultPreview(name, output string) string {
 		return formatListPreview(output)
 
 	case "shell_exec":
-		lines := strings.Split(strings.TrimSpace(output), "\n")
+		lines := strings.Split(strings.TrimSpace(output), "
+")
 		if len(lines) <= 4 {
-			return "<< " + name + ":\n" + indentPreview(output, 3)
+			return "<< " + name + ":
+" + indentPreview(output, 3)
 		}
-		preview := strings.Join(lines[:3], "\n") + fmt.Sprintf("\n... (%d lines total)", len(lines))
-		return "<< " + name + ":\n" + indentPreview(preview, 3)
+		preview := strings.Join(lines[:3], "
+") + fmt.Sprintf("
+... (%d lines total)", len(lines))
+		return "<< " + name + ":
+" + indentPreview(preview, 3)
 
 	default:
 		return fmt.Sprintf("<< %s: %s", name, truncateArgs(output, 120))
@@ -2662,7 +2730,8 @@ func formatToolResultPreview(name, output string) string {
 }
 
 func formatFileReadPreview(output string) string {
-	lines := strings.Split(output, "\n")
+	lines := strings.Split(output, "
+")
 	total := len(lines)
 
 	// Show first 5 lines + total count
@@ -2670,15 +2739,19 @@ func formatFileReadPreview(output string) string {
 	if total < showLines {
 		showLines = total
 	}
-	preview := strings.Join(lines[:showLines], "\n")
+	preview := strings.Join(lines[:showLines], "
+")
 	if total > showLines {
-		preview += fmt.Sprintf("\n... (%d lines)", total)
+		preview += fmt.Sprintf("
+... (%d lines)", total)
 	}
-	return "<< file_read:\n" + indentPreview(preview, 3)
+	return "<< file_read:
+" + indentPreview(preview, 3)
 }
 
 func formatGrepPreview(output string) string {
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	lines := strings.Split(strings.TrimSpace(output), "
+")
 	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
 		return "<< grep_search: No matches found."
 	}
@@ -2688,15 +2761,19 @@ func formatGrepPreview(output string) string {
 	if len(lines) < showLines {
 		showLines = len(lines)
 	}
-	preview := strings.Join(lines[:showLines], "\n")
+	preview := strings.Join(lines[:showLines], "
+")
 	if len(lines) > showLines {
-		preview += fmt.Sprintf("\n... (%d matches total)", len(lines))
+		preview += fmt.Sprintf("
+... (%d matches total)", len(lines))
 	}
-	return "<< grep_search:\n" + indentPreview(preview, 3)
+	return "<< grep_search:
+" + indentPreview(preview, 3)
 }
 
 func formatGlobPreview(output string) string {
-	files := strings.Split(strings.TrimSpace(output), "\n")
+	files := strings.Split(strings.TrimSpace(output), "
+")
 	if len(files) == 0 || (len(files) == 1 && files[0] == "") {
 		return "<< glob_search: No files matched."
 	}
@@ -2715,7 +2792,8 @@ func formatEditPreview(output string) string {
 }
 
 func formatPatchPreview(output string) string {
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	lines := strings.Split(strings.TrimSpace(output), "
+")
 	// Show summary line + first few diff lines (bounded)
 	var summary []string
 	var diffLines []string
@@ -2736,13 +2814,16 @@ func formatPatchPreview(output string) string {
 		if len(diffLines) < showLines {
 			showLines = len(diffLines)
 		}
-		result += "\n" + indentPreview(strings.Join(diffLines[:showLines], "\n"), 3)
+		result += "
+" + indentPreview(strings.Join(diffLines[:showLines], "
+"), 3)
 	}
 	return result
 }
 
 func formatListPreview(output string) string {
-	items := strings.Split(strings.TrimSpace(output), "\n")
+	items := strings.Split(strings.TrimSpace(output), "
+")
 	if len(items) <= 8 {
 		return "<< list_files: " + strings.Join(items, " ")
 	}
@@ -2751,15 +2832,18 @@ func formatListPreview(output string) string {
 
 func indentPreview(s string, spaces int) string {
 	prefix := strings.Repeat(" ", spaces)
-	lines := strings.Split(s, "\n")
+	lines := strings.Split(s, "
+")
 	for i, line := range lines {
 		lines[i] = prefix + line
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "
+")
 }
 
 func truncateArgs(s string, max int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "
+", " ")
 	runes := []rune(s)
 	if len(runes) > max {
 		return string(runes[:max]) + "..."
@@ -2835,7 +2919,12 @@ func autoPrefetchFiles(input string) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("\n\n---\n[자동 첨부된 파일 내용 — 도구 호출 없이 바로 수정하세요]\n\n")
+	sb.WriteString("
+
+---
+[자동 첨부된 파일 내용 — 도구 호출 없이 바로 수정하세요]
+
+")
 
 	totalBytes := 0
 	const maxTotalBytes = 50000 // 50KB cap to prevent context overflow
@@ -2870,23 +2959,34 @@ func autoPrefetchFiles(input string) string {
 			}
 		}
 		content := string(data)
-		lines := strings.Split(content, "\n")
+		lines := strings.Split(content, "
+")
 		// Skip files > 300 lines
 		if len(lines) > 300 {
-			sb.WriteString(fmt.Sprintf("### %s (%d lines — 너무 길어 생략, file_read로 읽으세요)\n\n", p, len(lines)))
+			sb.WriteString(fmt.Sprintf("### %s (%d lines — 너무 길어 생략, file_read로 읽으세요)
+
+", p, len(lines)))
 			continue
 		}
 		// Cumulative byte cap
 		if totalBytes+len(content) > maxTotalBytes {
-			sb.WriteString(fmt.Sprintf("### %s (용량 초과 — file_read로 읽으세요)\n\n", p))
+			sb.WriteString(fmt.Sprintf("### %s (용량 초과 — file_read로 읽으세요)
+
+", p))
 			continue
 		}
 		totalBytes += len(content)
-		sb.WriteString(fmt.Sprintf("### %s (%d lines)\n```\n%s\n```\n\n", p, len(lines), content))
+		sb.WriteString(fmt.Sprintf("### %s (%d lines)
+```
+%s
+```
+
+", p, len(lines), content))
 	}
 
 	// Add instruction to use file_write for the edit
-	sb.WriteString("[중요: 위 파일을 수정할 때 file_write로 전체 파일을 한 번에 교체하세요. apply_patch보다 안전합니다.]\n")
+	sb.WriteString("[중요: 위 파일을 수정할 때 file_write로 전체 파일을 한 번에 교체하세요. apply_patch보다 안전합니다.]
+")
 
 	return sb.String()
 }
@@ -2895,7 +2995,8 @@ func autoPrefetchFiles(input string) string {
 // Looks for a line like: "- **Knowledge packs**: react, database, css"
 // or "knowledge_packs: react, database, css"
 func parseKnowledgePacks(projectCtx string) []string {
-	for _, line := range strings.Split(projectCtx, "\n") {
+	for _, line := range strings.Split(projectCtx, "
+") {
 		lower := strings.ToLower(strings.TrimSpace(line))
 
 		// Match "knowledge_packs: ..." or "- **Knowledge packs**: ..."

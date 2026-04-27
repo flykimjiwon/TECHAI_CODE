@@ -1,3 +1,8 @@
+// Copyright 2025-2026 Kim Jiwon (김지원). All rights reserved.
+// TECHAI CODE IDE — forked from Hanimo Code (github.com/flykimjiwon/hanimo)
+// Licensed under the Apache License, Version 2.0.
+// Original author: github.com/flykimjiwon
+
 package main
 
 import (

@@ -1,3 +1,4 @@
+// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
 package llm
 
 import (
@@ -458,7 +459,8 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []openai
 }
 
 func truncateForLog(s string, max int) string {
-	s = strings.ReplaceAll(s, "\n", "\\n")
+	s = strings.ReplaceAll(s, "
+", "\n")
 	if len(s) > max {
 		return s[:max] + "..."
 	}
@@ -620,7 +622,8 @@ func parseToolCallJSON(jsonStr string, idx int) (ToolCallInfo, bool) {
 	if len(jsonStr) == 0 {
 		return ToolCallInfo{}, false
 	}
-	// Some models prepend text before JSON: "Sure!\n{"name":"..."}
+	// Some models prepend text before JSON: "Sure!
+{"name":"..."}
 	// Find the first '{' and try from there.
 	if jsonStr[0] != '{' {
 		braceIdx := strings.Index(jsonStr, "{")

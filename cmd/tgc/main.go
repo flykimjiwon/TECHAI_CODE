@@ -1,3 +1,6 @@
+// Copyright 2025-2026 Kim Jiwon (김지원). All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+// Origin: github.com/flykimjiwon — personal project, not work-for-hire.
 package main
 
 import (
@@ -19,11 +22,16 @@ func printDebugBanner(cfg config.Config) {
 	fmt.Println("  ╔══════════════════════════════════════════════╗")
 	fmt.Println("  ║          [DEBUG MODE] 택가이코드             ║")
 	fmt.Println("  ╚══════════════════════════════════════════════╝")
-	fmt.Printf("  Version:   %s\n", version)
-	fmt.Printf("  BaseURL:   %s\n", cfg.API.BaseURL)
-	fmt.Printf("  Model:     %s\n", cfg.Models.Super)
-	fmt.Printf("  ConfigDir: %s\n", config.ConfigDir())
-	fmt.Printf("  LogFile:   %s\n", config.DebugLogPath())
+	fmt.Printf("  Version:   %s
+", version)
+	fmt.Printf("  BaseURL:   %s
+", cfg.API.BaseURL)
+	fmt.Printf("  Model:     %s
+", cfg.Models.Super)
+	fmt.Printf("  ConfigDir: %s
+", config.ConfigDir())
+	fmt.Printf("  LogFile:   %s
+", config.DebugLogPath())
 	fmt.Println()
 }
 
@@ -54,7 +62,8 @@ func main() {
 	config.AppVersion = version
 
 	if *versionFlag {
-		fmt.Printf("택가이코드 (techai) %s\n", version)
+		fmt.Printf("택가이코드 (techai) %s
+", version)
 		os.Exit(0)
 	}
 
@@ -112,12 +121,16 @@ func main() {
 	p := tea.NewProgram(m)
 
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "실행 오류: %v\n", err)
+		fmt.Fprintf(os.Stderr, "실행 오류: %v
+", err)
 		os.Exit(1)
 	}
 
 	if config.IsDebug() {
-		fmt.Printf("\n  [DEBUG] 로그 파일: %s\n\n", config.DebugLogPath())
+		fmt.Printf("
+  [DEBUG] 로그 파일: %s
+
+", config.DebugLogPath())
 	}
 }
 
@@ -173,7 +186,9 @@ func runExec(args []string) {
 				break
 			}
 			if len(data) > 100000 {
-				data = append(data[:100000], []byte("\n\n... [truncated]")...)
+				data = append(data[:100000], []byte("
+
+... [truncated]")...)
 				break
 			}
 		}
@@ -181,7 +196,8 @@ func runExec(args []string) {
 	}
 
 	if err := execpkg.Run(cfg, opts); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v
+", err)
 		os.Exit(1)
 	}
 }

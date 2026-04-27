@@ -1,3 +1,6 @@
+// Copyright 2025-2026 Kim Jiwon (김지원). All rights reserved.
+// TECHAI IDE — github.com/flykimjiwon/TECHAI_CODE
+// Forked from Hanimo Code: github.com/flykimjiwon/hanimo
 package main
 
 import (

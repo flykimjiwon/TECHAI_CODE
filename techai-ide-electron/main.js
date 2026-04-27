@@ -1,3 +1,8 @@
+// Copyright 2025-2026 Kim Jiwon (flykimjiwon). All rights reserved.
+// TECHAI CODE IDE — Electron shell. github.com/flykimjiwon/TECHAI_CODE
+// Forked from Hanimo Code: github.com/flykimjiwon/hanimo
+// Licensed under Apache-2.0. See LICENSE and NOTICE files.
+
 const { app, BrowserWindow, Menu, shell, dialog } = require('electron')
 const { spawn } = require('child_process')
 const path = require('path')

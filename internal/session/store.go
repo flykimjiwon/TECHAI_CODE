@@ -1,3 +1,4 @@
+// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
 // Package session provides SQLite-backed persistence for chat sessions,
 // so users can restore prior conversations across process restarts.
 package session

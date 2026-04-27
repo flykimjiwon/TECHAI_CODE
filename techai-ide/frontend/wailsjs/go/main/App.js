@@ -1,4 +1,6 @@
-// TECHAI IDE — Wails API wrapper with REST API fallback for Electron/browser mode
+// Copyright 2025-2026 Kim Jiwon (flykimjiwon). All rights reserved.
+// TECHAI CODE — github.com/flykimjiwon/TECHAI_CODE
+// Wails API wrapper with REST API fallback for Electron/browser mode
 // If window.go.main.App exists (Wails), use it. Otherwise, use REST API.
 
 function api(method, args) {
