@@ -5,22 +5,27 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"runtime"
 )
 
-// runBrowserMode starts an HTTP server and opens the default browser.
-// Used on Windows where WebView2 may not work properly.
+// runBrowserMode starts an HTTP server.
+// Used as Electron backend or standalone browser mode.
 func runBrowserMode(app *App, assets fs.FS) error {
-	// Find available port
+	// Use TECHAI_PORT env or find available port
 	port := 8080
-	for port <= 8100 {
-		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-		if err == nil {
-			ln.Close()
-			break
+	if p := os.Getenv("TECHAI_PORT"); p != "" {
+		fmt.Sscanf(p, "%d", &port)
+	} else {
+		for port <= 8100 {
+			ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+			if err == nil {
+				ln.Close()
+				break
+			}
+			port++
 		}
-		port++
 	}
 
 	// Serve embedded frontend

@@ -1,0 +1,51 @@
+{
+  "name": "techai-ide",
+  "version": "0.3.0",
+  "description": "TECHAI IDE — AI-Powered Code Editor",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:go": "cd ../techai-ide && go build -o ../techai-ide-electron/go-server/techai-server ./",
+    "build:go:win": "cd ../techai-ide && GOOS=windows GOARCH=amd64 go build -o ../techai-ide-electron/go-server/techai-server.exe ./",
+    "build:react": "cd ../techai-ide/frontend && npm run build && cp -r dist ../../techai-ide-electron/frontend-dist",
+    "build": "npm run build:go && npm run build:react",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.techai.ide",
+    "productName": "TECHAI IDE",
+    "files": [
+      "main.js",
+      "preload.js",
+      "frontend-dist/**/*",
+      "go-server/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "go-server",
+        "to": "go-server"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "target": ["portable", "nsis"],
+      "icon": "icon.png"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"]
+    },
+    "portable": {
+      "artifactName": "TECHAI-IDE-${version}-portable.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

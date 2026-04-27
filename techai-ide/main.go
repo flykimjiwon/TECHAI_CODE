@@ -21,6 +21,25 @@ import (
 var assets embed.FS
 
 func main() {
+	// CLI flags for Electron mode
+	portFlag := ""
+	cwdFlag := ""
+	for i, arg := range os.Args[1:] {
+		if arg == "--port" && i+1 < len(os.Args)-1 { portFlag = os.Args[i+2] }
+		if arg == "--cwd" && i+1 < len(os.Args)-1 { cwdFlag = os.Args[i+2] }
+	}
+
+	// If --port provided, run as HTTP server (Electron backend)
+	if portFlag != "" {
+		app := NewApp()
+		if cwdFlag != "" { app.cwd = cwdFlag }
+		fmt.Printf("TECHAI server starting on port %s (cwd: %s)\n", portFlag, app.cwd)
+		if err := runBrowserMode(app, assets); err != nil {
+			fmt.Println("Error:", err)
+		}
+		return
+	}
+
 	// Debug log to file (helps diagnose Windows issues)
 	logFile, _ := os.Create("techai-ide-debug.log")
 	if logFile != nil {

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>TECHAI IDE</title>
+    <style>
+      body { margin: 0; background: #0a0a0c; color: #e4e4e7; font-family: 'Segoe UI', -apple-system, sans-serif; }
+      #loading { display: flex; align-items: center; justify-content: center; height: 100vh; font-size: 24px; color: #ffffff; flex-direction: column; gap: 12px; }
+    </style>
+  <script type="module" crossorigin src="/assets/index.6ca882b5.js"></script>
+  <link rel="stylesheet" href="/assets/style.9860493c.css">
+</head>
+<body>
+<div id="root"><div id="loading">
+  <div>TECHAI IDE</div>
+  <div style="font-size:14px;color:#888">Loading...</div>
+  <div id="debug-info" style="font-size:11px;color:#555"></div>
+</div></div>
+<script>
+  // Show debug info immediately
+  try {
+    var info = document.getElementById('debug-info');
+    info.textContent = 'UA: ' + navigator.userAgent.slice(0, 80);
+  } catch(e) {}
+  // Catch all JS errors
+  window.onerror = function(msg, src, line) {
+    var el = document.getElementById('loading');
+    if (el) el.innerHTML = '<div style="color:red">Error: ' + msg + '</div><div style="font-size:11px">' + src + ':' + line + '</div>';
+  };
+</script>
+
+<script>
+  setTimeout(function() {
+    var el = document.getElementById('loading');
+    if (el) {
+      el.innerHTML += '<div style="color:orange;font-size:14px;margin-top:20px">App failed to load after 5s</div>';
+      el.innerHTML += '<div style="font-size:11px;color:#666">Check techai-ide-debug.log</div>';
+    }
+  }, 5000);
+</script>
+</body>
+</html>
