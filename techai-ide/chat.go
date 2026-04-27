@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -273,7 +274,9 @@ func (ce *chatEngine) streamResponse() {
 			Tools:    toolDefs(),
 		}
 
-		stream, err := ce.client.CreateChatCompletionStream(ce.app.ctx, req)
+		ctx := ce.app.ctx
+		if ctx == nil { ctx = context.Background() }
+		stream, err := ce.client.CreateChatCompletionStream(ctx, req)
 		if err != nil {
 			ce.app.emitEvent("chat:error", err.Error())
 			return

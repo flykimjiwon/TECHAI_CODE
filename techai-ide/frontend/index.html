@@ -40,7 +40,7 @@
     A.WalkProject = function() { return get('walkProject'); };
     A.GetCwd = function() { return get('getCwd'); };
     A.SetCwd = function(a) { return api('setCwd',{path:a}); };
-    A.SendMessage = function(a) { return api('sendMessage',a); };
+    A.SendMessage = function(a) { fetch('/api/sendMessage',{method:'POST',headers:{'Content-Type':'text/plain'},body:a}); return Promise.resolve(); };
     A.ClearChat = function() { return api('clearChat'); };
     A.GetModel = function() { return get('getModel'); };
     A.GetSettings = function() { return get('getSettings'); };

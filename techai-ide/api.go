@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -118,9 +119,10 @@ func registerAPI(mux *http.ServeMux, app *App) {
 	// Chat
 	mux.HandleFunc("/api/sendMessage", cors(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		prompt := string(body)
+		prompt := strings.TrimSpace(string(body))
 		go app.SendMessage(prompt)
-		w.Write([]byte("ok"))
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true}`))
 	}))
 
 	mux.HandleFunc("/api/clearChat", cors(func(w http.ResponseWriter, r *http.Request) {
