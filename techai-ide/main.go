@@ -46,7 +46,18 @@ func main() {
 
 	log("Creating app...")
 	app := NewApp()
-	log("Building menu...")
+
+	// Windows: browser mode (Chrome), macOS: Wails native
+	if runtime.GOOS == "windows" {
+		log("Windows detected — starting browser mode (localhost)...")
+		if err := runBrowserMode(app, assets); err != nil {
+			log("Browser mode error: " + err.Error())
+			fmt.Println("Error:", err)
+		}
+		return
+	}
+
+	log("Building menu (macOS)...")
 	appMenu := buildMenu(app)
 
 	log("Starting Wails...")
