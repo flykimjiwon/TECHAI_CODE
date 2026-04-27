@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"sync"
 
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type termSession struct {
@@ -98,12 +97,12 @@ func (a *App) StartTerminal() error {
 		for scanner.Scan() {
 			term.mu.Lock()
 			if !term.closed {
-				wailsRuntime.EventsEmit(a.ctx, "term:output", scanner.Text()+"\r\n")
+				a.emitEvent("term:output", scanner.Text()+"\r\n")
 			}
 			term.mu.Unlock()
 		}
 		if !term.closed {
-			wailsRuntime.EventsEmit(a.ctx, "term:output", "\r\n[Process exited]\r\n")
+			a.emitEvent("term:output", "\r\n[Process exited]\r\n")
 		}
 	}()
 

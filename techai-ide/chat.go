@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -244,7 +242,7 @@ func (a *App) ClearChat() {
 	a.chat.history = []openai.ChatCompletionMessage{
 		{Role: openai.ChatMessageRoleSystem, Content: systemPrompt()},
 	}
-	runtime.EventsEmit(a.ctx, "chat:cleared")
+	a.emitEvent("chat:cleared")
 }
 
 // GetModel returns the current model name.
@@ -277,7 +275,7 @@ func (ce *chatEngine) streamResponse() {
 
 		stream, err := ce.client.CreateChatCompletionStream(ce.app.ctx, req)
 		if err != nil {
-			runtime.EventsEmit(ce.app.ctx, "chat:error", err.Error())
+			ce.app.emitEvent("chat:error", err.Error())
 			return
 		}
 
@@ -285,7 +283,7 @@ func (ce *chatEngine) streamResponse() {
 		toolCalls := make(map[int]*openai.ToolCall)
 
 		// Signal stream start
-		runtime.EventsEmit(ce.app.ctx, "chat:stream_start")
+		ce.app.emitEvent("chat:stream_start")
 
 		for {
 			resp, err := stream.Recv()
@@ -293,7 +291,7 @@ func (ce *chatEngine) streamResponse() {
 				break
 			}
 			if err != nil {
-				runtime.EventsEmit(ce.app.ctx, "chat:error", err.Error())
+				ce.app.emitEvent("chat:error", err.Error())
 				stream.Close()
 				return
 			}
@@ -307,7 +305,7 @@ func (ce *chatEngine) streamResponse() {
 			// Stream content chunks
 			if delta.Content != "" {
 				contentBuf.WriteString(delta.Content)
-				runtime.EventsEmit(ce.app.ctx, "chat:chunk", delta.Content)
+				ce.app.emitEvent("chat:chunk", delta.Content)
 			}
 
 			// Accumulate tool calls
@@ -339,7 +337,7 @@ func (ce *chatEngine) streamResponse() {
 		stream.Close()
 
 		// Signal stream done
-		runtime.EventsEmit(ce.app.ctx, "chat:stream_done")
+		ce.app.emitEvent("chat:stream_done")
 
 		// Text-based tool_call parsing fallback (Qwen3 proxy compat).
 		// If the proxy didn't convert tool calls, parse from content.
@@ -380,14 +378,14 @@ func (ce *chatEngine) streamResponse() {
 					continue
 				}
 
-				runtime.EventsEmit(ce.app.ctx, "chat:tool_start", map[string]string{
+				ce.app.emitEvent("chat:tool_start", map[string]string{
 					"name": tc.Function.Name,
 					"args": tc.Function.Arguments,
 				})
 
 				result := ce.app.executeTool(tc.Function.Name, tc.Function.Arguments)
 
-				runtime.EventsEmit(ce.app.ctx, "chat:tool_done", map[string]string{
+				ce.app.emitEvent("chat:tool_done", map[string]string{
 					"name":   tc.Function.Name,
 					"result": truncate(result, 200),
 				})
@@ -443,7 +441,7 @@ func (a *App) executeTool(name, argsJSON string) string {
 			return fmt.Sprintf("Error: %v", err)
 		}
 		// Notify frontend to refresh
-		runtime.EventsEmit(a.ctx, "file:changed", path)
+		a.emitEvent("file:changed", path)
 		return fmt.Sprintf("OK: wrote %d bytes to %s", len(content), path)
 
 	case "grep_search", "search_files":
@@ -558,7 +556,7 @@ func (a *App) executeTool(name, argsJSON string) string {
 			}
 			out = out2
 		}
-		runtime.EventsEmit(a.ctx, "file:changed", path)
+		a.emitEvent("file:changed", path)
 		return fmt.Sprintf("OK: patch applied to %s\n%s", path, out)
 
 	case "git_status":

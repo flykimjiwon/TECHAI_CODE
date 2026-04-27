@@ -16,6 +16,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/x/ansi"
 	openai "github.com/sashabaranov/go-openai"
 
 	tgc "github.com/kimjiwon/tgc"
@@ -164,6 +165,13 @@ type Model struct {
 	wasThinking      bool   // tracks thinking→content transition in stream
 	pendingPrefetch  string // auto-prefetched file contents, injected once then cleared
 	streamRetries   int
+
+	// Text selection: in-app mouse drag selection for copy
+	selecting    bool
+	selStartX    int
+	selStartY    int // content line (viewport offset + screen Y)
+	selEndX      int
+	selEndY      int
 
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
@@ -616,6 +624,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.recalcLayout()
 			return m, nil
 
+
+		case "ctrl+y":
+			// Quick copy: last AI response to clipboard
+			var target string
+			for i := len(m.msgs) - 1; i >= 0; i-- {
+				if m.msgs[i].Role == ui.RoleAssistant {
+					target = m.msgs[i].Content
+					break
+				}
+			}
+			if target == "" {
+				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: "복사할 AI 응답이 없습니다.", Timestamp: time.Now()})
+			} else {
+				if err := clipboard.WriteAll(target); err != nil {
+					m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("클립보드 복사 실패: %v", err), Timestamp: time.Now()})
+				} else {
+					runes := []rune(target)
+					preview := string(runes)
+					if len(runes) > 60 {
+						preview = string(runes[:60]) + "..."
+					}
+					m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("📋 복사됨 (%d자): %s", len(runes), preview), Timestamp: time.Now()})
+				}
+			}
+			m.updateViewport()
+			return m, nil
 
 		case "ctrl+l":
 			// Keep system prompt, clear conversation
@@ -1187,9 +1221,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward mouse wheel events to viewport for touchpad scroll
 	case tea.MouseWheelMsg:
+		m.clearSelection()
 		var vpCmd tea.Cmd
 		m.viewport, vpCmd = m.viewport.Update(msg)
 		return m, vpCmd
+
+	// In-app text selection: click to start, drag to select, release to copy
+	case tea.MouseClickMsg:
+		if msg.Button == tea.MouseLeft && msg.Y < m.viewport.Height() {
+			m.selecting = true
+			m.selStartX = msg.X
+			m.selStartY = m.viewport.YOffset() + msg.Y
+			m.selEndX = msg.X
+			m.selEndY = m.selStartY
+			m.applySelectionHighlight()
+		}
+		return m, nil
+
+	case tea.MouseMotionMsg:
+		if m.selecting && msg.Y < m.viewport.Height() {
+			m.selEndX = msg.X
+			m.selEndY = m.viewport.YOffset() + msg.Y
+			m.applySelectionHighlight()
+		}
+		return m, nil
+
+	case tea.MouseReleaseMsg:
+		if m.selecting {
+			m.selecting = false
+			text := m.extractSelectedText()
+			if text != "" {
+				if err := clipboard.WriteAll(text); err == nil {
+					runes := []rune(text)
+					preview := string(runes)
+					if len(runes) > 60 {
+						preview = string(runes[:60]) + "..."
+					}
+					m.msgs = append(m.msgs, ui.Message{
+						Role: ui.RoleSystem, Content: fmt.Sprintf("📋 선택 복사됨 (%d자): %s", len(runes), preview), Timestamp: time.Now(),
+					})
+				}
+			}
+			m.clearSelection()
+			m.updateViewport()
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -1793,8 +1869,9 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 	case "/help":
 		help := fmt.Sprintf(`  TECHAI CODE %s
   Enter — Send    Shift+Enter — Newline (Ctrl+J on Windows)
-  Ctrl+K — Palette    Esc — Menu    Ctrl+C — Quit
+  Ctrl+K — Palette    Esc — Menu    Ctrl+Y — Copy last reply    Ctrl+C — Quit
   ↑/↓ — Scroll (input empty) / History    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
+  Shift+Drag — Select text (bypasses mouse capture)
 
   /init — Quick scan    /init deep — AI-powered deep analysis
   /remember <text> — Save memory    /remember list — Show all
@@ -1885,6 +1962,7 @@ func (m Model) View() tea.View {
 
 	v := tea.NewView(content)
 	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 
@@ -1922,6 +2000,121 @@ func (m *Model) recalcLayout() {
 	m.viewport.SetWidth(m.width)
 	m.viewport.SetHeight(vpHeight)
 	m.textarea.SetWidth(m.width - 6)
+}
+
+// --- Text selection helpers ---
+
+func (m *Model) clearSelection() {
+	m.selecting = false
+	m.selStartX, m.selStartY = 0, 0
+	m.selEndX, m.selEndY = 0, 0
+	m.viewport.ClearHighlights()
+}
+
+func (m *Model) extractSelectedText() string {
+	content := m.viewport.GetContent()
+	plain := ansi.Strip(content)
+	lines := strings.Split(plain, "\n")
+
+	startY, endY := m.selStartY, m.selEndY
+	startX, endX := m.selStartX, m.selEndX
+
+	// Normalize: ensure start is before end
+	if startY > endY || (startY == endY && startX > endX) {
+		startY, endY = endY, startY
+		startX, endX = endX, startX
+	}
+
+	if startY >= len(lines) {
+		return ""
+	}
+	if endY >= len(lines) {
+		endY = len(lines) - 1
+		endX = len([]rune(lines[endY]))
+	}
+
+	if startY == endY {
+		// Single line selection
+		runes := []rune(lines[startY])
+		sx := min(startX, len(runes))
+		ex := min(endX, len(runes))
+		if sx == ex {
+			return ""
+		}
+		return string(runes[sx:ex])
+	}
+
+	// Multi-line selection
+	var sb strings.Builder
+	// First line: from startX to end
+	runes := []rune(lines[startY])
+	sx := min(startX, len(runes))
+	sb.WriteString(string(runes[sx:]))
+	sb.WriteByte('\n')
+
+	// Middle lines: full content
+	for y := startY + 1; y < endY; y++ {
+		if y < len(lines) {
+			sb.WriteString(lines[y])
+			sb.WriteByte('\n')
+		}
+	}
+
+	// Last line: from start to endX
+	runes = []rune(lines[endY])
+	ex := min(endX, len(runes))
+	sb.WriteString(string(runes[:ex]))
+	return sb.String()
+}
+
+func (m *Model) applySelectionHighlight() {
+	content := m.viewport.GetContent()
+	if content == "" {
+		return
+	}
+
+	startY, endY := m.selStartY, m.selEndY
+	startX, endX := m.selStartX, m.selEndX
+
+	// Normalize
+	if startY > endY || (startY == endY && startX > endX) {
+		startY, endY = endY, startY
+		startX, endX = endX, startX
+	}
+
+	// Convert line+col to byte offset in the stripped content
+	plain := ansi.Strip(content)
+	lines := strings.Split(plain, "\n")
+
+	if startY >= len(lines) || endY >= len(lines) {
+		return
+	}
+
+	// Calculate byte offset for start position
+	byteStart := 0
+	for y := 0; y < startY; y++ {
+		byteStart += len(lines[y]) + 1 // +1 for \n
+	}
+	runes := []rune(lines[startY])
+	sx := min(startX, len(runes))
+	byteStart += len(string(runes[:sx]))
+
+	// Calculate byte offset for end position
+	byteEnd := 0
+	for y := 0; y < endY; y++ {
+		byteEnd += len(lines[y]) + 1
+	}
+	runes = []rune(lines[endY])
+	ex := min(endX, len(runes))
+	byteEnd += len(string(runes[:ex]))
+
+	if byteStart >= byteEnd {
+		m.viewport.ClearHighlights()
+		return
+	}
+
+	m.viewport.HighlightStyle = lipgloss.NewStyle().Reverse(true)
+	m.viewport.SetHighlights([][]int{{byteStart, byteEnd}})
 }
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}

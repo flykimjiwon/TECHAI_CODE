@@ -51,7 +51,7 @@ func (a *App) startup(ctx context.Context) {
 		a.chat = newChatEngine(cfg, a)
 		a.chatMu.Unlock()
 
-		wailsRuntime.WindowSetTitle(ctx, "TECHAI IDE — "+a.cwd)
+		if ctx != nil { wailsRuntime.WindowSetTitle(ctx, "TECHAI IDE — "+a.cwd) }
 		a.saveRecentProject(a.cwd)
 
 		a.watcherDone = make(chan struct{})
@@ -71,9 +71,9 @@ func (a *App) watchFiles() {
 		case <-ticker.C:
 			cur := a.dirSnapshot()
 			if cur != prevSnapshot {
-				wailsRuntime.EventsEmit(a.ctx, "tree:refresh")
+				a.emitEvent("tree:refresh")
 				// Also emit file:changed for modified files
-				wailsRuntime.EventsEmit(a.ctx, "file:changed", "")
+				a.emitEvent("file:changed", "")
 				prevSnapshot = cur
 			}
 		}
@@ -115,7 +115,7 @@ func (a *App) SaveDroppedFile(name string, data []byte) (string, error) {
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return "", err
 	}
-	wailsRuntime.EventsEmit(a.ctx, "tree:refresh")
+	a.emitEvent("tree:refresh")
 	return path, nil
 }
 
@@ -128,6 +128,9 @@ func (a *App) shutdown(ctx context.Context) {
 
 // OpenFolder opens a native folder picker and switches the project.
 func (a *App) OpenFolder() (string, error) {
+	if a.ctx == nil {
+		return "", fmt.Errorf("not available in browser mode")
+	}
 	dir, err := wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Open Project Folder",
 	})
@@ -135,7 +138,7 @@ func (a *App) OpenFolder() (string, error) {
 		return "", err
 	}
 	a.cwd = dir
-	wailsRuntime.WindowSetTitle(a.ctx, "TECHAI IDE — "+dir)
+	if a.ctx != nil { wailsRuntime.WindowSetTitle(a.ctx, "TECHAI IDE — "+dir) }
 	// Stop old terminal — new one starts on-demand
 	a.StopTerminal()
 	a.saveRecentProject(dir)
@@ -350,7 +353,7 @@ func (a *App) StartLiveServer(dir string) (string, error) {
 	}()
 	url := fmt.Sprintf("http://localhost:%d", port)
 	// Open in IDE preview panel instead of external browser
-	wailsRuntime.EventsEmit(a.ctx, "preview:open", url)
+	a.emitEvent("preview:open", url)
 	return url, nil
 }
 
