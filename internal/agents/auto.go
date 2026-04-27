@@ -1,4 +1,3 @@
-// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
 package agents
 
 import "strings"

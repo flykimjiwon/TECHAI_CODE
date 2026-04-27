@@ -1,4 +1,3 @@
-// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
 package multi
 
 import (
@@ -176,24 +175,16 @@ func (o *Orchestrator) runScan(ctx context.Context, history []openai.ChatComplet
 		if history1[lastIdx].Role == openai.ChatMessageRoleUser {
 			group1, group2 := SplitSubdirs(o.workDir)
 			if len(group1) > 0 && len(group2) > 0 {
-				hint1 := fmt.Sprintf("
-
-[SCAN NOTE: 당신은 Agent1입니다. 다음 디렉토리를 중점 탐색하세요: %s]",
+				hint1 := fmt.Sprintf("\n\n[SCAN NOTE: 당신은 Agent1입니다. 다음 디렉토리를 중점 탐색하세요: %s]",
 					strings.Join(group1, ", "))
-				hint2 := fmt.Sprintf("
-
-[SCAN NOTE: 당신은 Agent2입니다. 다음 디렉토리를 중점 탐색하세요: %s]",
+				hint2 := fmt.Sprintf("\n\n[SCAN NOTE: 당신은 Agent2입니다. 다음 디렉토리를 중점 탐색하세요: %s]",
 					strings.Join(group2, ", "))
 				history1[lastIdx].Content += hint1
 				history2[lastIdx].Content += hint2
 			} else {
 				// Fallback: alphabetical split
-				history1[lastIdx].Content += "
-
-[SCAN NOTE: 당신은 Agent1입니다. 프로젝트의 전반부(A-M 파일명)를 중점 탐색하세요.]"
-				history2[lastIdx].Content += "
-
-[SCAN NOTE: 당신은 Agent2입니다. 프로젝트의 후반부(N-Z 파일명)를 중점 탐색하세요.]"
+				history1[lastIdx].Content += "\n\n[SCAN NOTE: 당신은 Agent1입니다. 프로젝트의 전반부(A-M 파일명)를 중점 탐색하세요.]"
+				history2[lastIdx].Content += "\n\n[SCAN NOTE: 당신은 Agent2입니다. 프로젝트의 후반부(N-Z 파일명)를 중점 탐색하세요.]"
 			}
 		}
 	}

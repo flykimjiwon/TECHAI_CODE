@@ -1,4 +1,3 @@
-// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
 package tools
 
 import (
@@ -46,13 +45,11 @@ func HashlineRead(path string) (string, error) {
 		return "", fmt.Errorf("cannot read file: %v", err)
 	}
 
-	lines := strings.Split(string(data), "
-")
+	lines := strings.Split(string(data), "\n")
 	var sb strings.Builder
 	for i, line := range lines {
 		h := hashLine(line)
-		fmt.Fprintf(&sb, "%d#%s| %s
-", i+1, h, line)
+		fmt.Fprintf(&sb, "%d#%s| %s\n", i+1, h, line)
 	}
 	return sb.String(), nil
 }
@@ -84,8 +81,7 @@ func HashlineEdit(path, startAnchor, endAnchor, newContent string) (string, erro
 		return "", fmt.Errorf("cannot read file: %v", err)
 	}
 
-	lines := strings.Split(string(data), "
-")
+	lines := strings.Split(string(data), "\n")
 
 	if startLine > len(lines) {
 		return "", fmt.Errorf("start line %d exceeds file length %d", startLine, len(lines))
@@ -105,8 +101,7 @@ func HashlineEdit(path, startAnchor, endAnchor, newContent string) (string, erro
 	}
 
 	// Replace lines[startLine-1:endLine] with newContent lines
-	newLines := strings.Split(newContent, "
-")
+	newLines := strings.Split(newContent, "\n")
 	oldCount := endLine - startLine + 1
 
 	result := make([]string, 0, len(lines)-oldCount+len(newLines))
@@ -114,8 +109,7 @@ func HashlineEdit(path, startAnchor, endAnchor, newContent string) (string, erro
 	result = append(result, newLines...)
 	result = append(result, lines[endLine:]...)
 
-	if err := SnapshotAndWrite(absPath, []byte(strings.Join(result, "
-"))); err != nil {
+	if err := SnapshotAndWrite(absPath, []byte(strings.Join(result, "\n"))); err != nil {
 		return "", fmt.Errorf("cannot write file: %v", err)
 	}
 

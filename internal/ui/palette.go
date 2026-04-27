@@ -1,4 +1,3 @@
-// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
 package ui
 
 import (
@@ -143,8 +142,7 @@ func RenderPalette(items []PaletteItem, selected int, query string, width int) s
 	hintStyle := lipgloss.NewStyle().Foreground(ColorMuted)
 	lines = append(lines, hintStyle.Render("↑↓ Move  Enter Select  Esc Close"))
 
-	content := strings.Join(lines, "
-")
+	content := strings.Join(lines, "\n")
 
 	// Floating box
 	box := lipgloss.NewStyle().

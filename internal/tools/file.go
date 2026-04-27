@@ -1,4 +1,3 @@
-// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
 package tools
 
 import (
@@ -89,17 +88,14 @@ func FileEdit(path, oldStr, newStr string) (int, string, error) {
 	if len(previewRunes) > 500 {
 		preview = string(previewRunes[:500]) + "..."
 	}
-	return 0, "", fmt.Errorf("old_string not found in %s (tried 4 fuzzy stages). File preview:
-%s", path, preview)
+	return 0, "", fmt.Errorf("old_string not found in %s (tried 4 fuzzy stages). File preview:\n%s", path, preview)
 }
 
 // lineTrimmedFind finds oldStr in content by comparing lines with trimmed whitespace.
 // Returns the start index and the actual matched substring from content.
 func lineTrimmedFind(content, oldStr string) (int, string) {
-	contentLines := strings.Split(content, "
-")
-	searchLines := strings.Split(oldStr, "
-")
+	contentLines := strings.Split(content, "\n")
+	searchLines := strings.Split(oldStr, "\n")
 	if len(searchLines) == 0 {
 		return -1, ""
 	}
@@ -119,8 +115,7 @@ func lineTrimmedFind(content, oldStr string) (int, string) {
 		}
 		if match {
 			// Reconstruct the actual matched text from content
-			matched := strings.Join(contentLines[i:i+len(searchLines)], "
-")
+			matched := strings.Join(contentLines[i:i+len(searchLines)], "\n")
 			idx := strings.Index(content, matched)
 			return idx, matched
 		}
@@ -130,17 +125,15 @@ func lineTrimmedFind(content, oldStr string) (int, string) {
 
 // indentFlexFind normalizes all whitespace at line starts before comparing.
 func indentFlexFind(content, oldStr string) (int, string) {
-	contentLines := strings.Split(content, "
-")
-	searchLines := strings.Split(oldStr, "
-")
+	contentLines := strings.Split(content, "\n")
+	searchLines := strings.Split(oldStr, "\n")
 	if len(searchLines) == 0 {
 		return -1, ""
 	}
 
 	// Normalize: collapse all leading whitespace to single space
 	normalizeIndent := func(s string) string {
-		trimmed := strings.TrimLeft(s, " 	")
+		trimmed := strings.TrimLeft(s, " \t")
 		if len(trimmed) < len(s) {
 			return " " + trimmed
 		}
@@ -161,8 +154,7 @@ func indentFlexFind(content, oldStr string) (int, string) {
 			}
 		}
 		if match {
-			matched := strings.Join(contentLines[i:i+len(searchLines)], "
-")
+			matched := strings.Join(contentLines[i:i+len(searchLines)], "\n")
 			idx := strings.Index(content, matched)
 			return idx, matched
 		}
@@ -173,10 +165,8 @@ func indentFlexFind(content, oldStr string) (int, string) {
 // levenshteinFind searches content for a block similar to oldStr using Levenshtein distance.
 // Only considers blocks of similar line count. Returns matched text and similarity ratio.
 func levenshteinFind(content, oldStr string, threshold float64) (string, float64) {
-	contentLines := strings.Split(content, "
-")
-	searchLines := strings.Split(oldStr, "
-")
+	contentLines := strings.Split(content, "\n")
+	searchLines := strings.Split(oldStr, "\n")
 	searchLen := len(searchLines)
 	if searchLen == 0 || searchLen > len(contentLines) {
 		return "", 0
@@ -192,8 +182,7 @@ func levenshteinFind(content, oldStr string, threshold float64) (string, float64
 
 	// Slide a window of searchLen lines across content
 	for i := 0; i <= len(contentLines)-searchLen; i++ {
-		candidate := strings.Join(contentLines[i:i+searchLen], "
-")
+		candidate := strings.Join(contentLines[i:i+searchLen], "\n")
 		sim := levenshteinSimilarity(candidate, oldStr)
 		if sim > bestSimilarity {
 			bestSimilarity = sim
@@ -314,8 +303,7 @@ func ListFiles(dir string, recursive bool) ([]string, error) {
 
 	// Append total count so LLM knows the full picture even if output gets truncated
 	if recursive && len(files) > 500 {
-		files = append(files, fmt.Sprintf("
-[Total: %d items]", len(files)))
+		files = append(files, fmt.Sprintf("\n[Total: %d items]", len(files)))
 	}
 
 	return files, err

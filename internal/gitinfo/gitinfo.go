@@ -1,5 +1,3 @@
-// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
-//
 // Package gitinfo provides a lightweight read-only snapshot of the git
 // state of the current working directory. It is used by the HUD and the
 // /git slash command to show branch and dirty-status at a glance.

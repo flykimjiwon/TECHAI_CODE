@@ -1,6 +1,3 @@
-// Copyright 2025-2026 Kim Jiwon (김지원). All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-// Origin: github.com/flykimjiwon — personal project, not work-for-hire.
 package main
 
 import (
@@ -22,16 +19,11 @@ func printDebugBanner(cfg config.Config) {
 	fmt.Println("  ╔══════════════════════════════════════════════╗")
 	fmt.Println("  ║          [DEBUG MODE] 택가이코드             ║")
 	fmt.Println("  ╚══════════════════════════════════════════════╝")
-	fmt.Printf("  Version:   %s
-", version)
-	fmt.Printf("  BaseURL:   %s
-", cfg.API.BaseURL)
-	fmt.Printf("  Model:     %s
-", cfg.Models.Super)
-	fmt.Printf("  ConfigDir: %s
-", config.ConfigDir())
-	fmt.Printf("  LogFile:   %s
-", config.DebugLogPath())
+	fmt.Printf("  Version:   %s\n", version)
+	fmt.Printf("  BaseURL:   %s\n", cfg.API.BaseURL)
+	fmt.Printf("  Model:     %s\n", cfg.Models.Super)
+	fmt.Printf("  ConfigDir: %s\n", config.ConfigDir())
+	fmt.Printf("  LogFile:   %s\n", config.DebugLogPath())
 	fmt.Println()
 }
 
@@ -62,8 +54,7 @@ func main() {
 	config.AppVersion = version
 
 	if *versionFlag {
-		fmt.Printf("택가이코드 (techai) %s
-", version)
+		fmt.Printf("택가이코드 (techai) %s\n", version)
 		os.Exit(0)
 	}
 
@@ -73,9 +64,6 @@ func main() {
 		fmt.Println("  설정이 초기화되었습니다.")
 		*setupFlag = true
 	}
-
-	// Migrate config models if needed (onprem: GPT-OSS → Qwen3-Coder)
-	config.MigrateModelsIfNeeded(version)
 
 	// Load config
 	cfg, err := config.Load()
@@ -113,24 +101,17 @@ func main() {
 	// Parse initial mode
 	initialMode := parseMode(*modeFlag)
 
-	// Enable mouse input on Windows (legacy console compatibility)
-	enableWindowsMouse()
-
 	// Create and run the app (AltScreen and Mouse are set in View)
 	m := app.NewModel(cfg, initialMode, needsSetup)
 	p := tea.NewProgram(m)
 
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "실행 오류: %v
-", err)
+		fmt.Fprintf(os.Stderr, "실행 오류: %v\n", err)
 		os.Exit(1)
 	}
 
 	if config.IsDebug() {
-		fmt.Printf("
-  [DEBUG] 로그 파일: %s
-
-", config.DebugLogPath())
+		fmt.Printf("\n  [DEBUG] 로그 파일: %s\n\n", config.DebugLogPath())
 	}
 }
 
@@ -186,9 +167,7 @@ func runExec(args []string) {
 				break
 			}
 			if len(data) > 100000 {
-				data = append(data[:100000], []byte("
-
-... [truncated]")...)
+				data = append(data[:100000], []byte("\n\n... [truncated]")...)
 				break
 			}
 		}
@@ -196,8 +175,7 @@ func runExec(args []string) {
 	}
 
 	if err := execpkg.Run(cfg, opts); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v
-", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }

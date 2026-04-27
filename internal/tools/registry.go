@@ -1,4 +1,3 @@
-// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
 package tools
 
 import (
@@ -552,8 +551,7 @@ func executeInner(name string, argsJSON string) string {
 		}
 
 		if offset > 0 || limit > 0 {
-			lines := strings.Split(content, "
-")
+			lines := strings.Split(content, "\n")
 			start := offset - 1 // 1-indexed to 0-indexed
 			if start < 0 {
 				start = 0
@@ -568,16 +566,12 @@ func executeInner(name string, argsJSON string) string {
 					end = len(lines)
 				}
 			}
-			content = strings.Join(lines[start:end], "
-")
-			content = fmt.Sprintf("[lines %d-%d of %d]
-%s", start+1, end, len(lines), content)
+			content = strings.Join(lines[start:end], "\n")
+			content = fmt.Sprintf("[lines %d-%d of %d]\n%s", start+1, end, len(lines), content)
 		}
 
 		if len(content) > 50000 {
-			return content[:50000] + "
-
-... [truncated, file too large]"
+			return content[:50000] + "\n\n... [truncated, file too large]"
 		}
 		return content
 
@@ -597,8 +591,7 @@ func executeInner(name string, argsJSON string) string {
 		}
 		result := fmt.Sprintf("OK: written %d bytes to %s", len(content), path)
 		if secretWarn != "" {
-			result += "
-" + secretWarn
+			result += "\n" + secretWarn
 		}
 		return result
 
@@ -615,9 +608,7 @@ func executeInner(name string, argsJSON string) string {
 		}
 		result := fmt.Sprintf("OK: replaced %d occurrence(s) in %s", count, path)
 		if diff != "" {
-			result += "
-
-" + diff
+			result += "\n\n" + diff
 		}
 		return result
 
@@ -637,8 +628,7 @@ func executeInner(name string, argsJSON string) string {
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
-		return strings.Join(files, "
-")
+		return strings.Join(files, "\n")
 
 	case "shell_exec":
 		command, _ := args["command"].(string)
@@ -669,23 +659,17 @@ func executeInner(name string, argsJSON string) string {
 		}
 		output := ""
 		if warning != "" {
-			output = warning + "
-
-"
+			output = warning + "\n\n"
 		}
 		output += result.Stdout
 		if result.Stderr != "" {
-			output += "
-STDERR: " + result.Stderr
+			output += "\nSTDERR: " + result.Stderr
 		}
 		if result.ExitCode != 0 {
-			output += fmt.Sprintf("
-Exit code: %d", result.ExitCode)
+			output += fmt.Sprintf("\nExit code: %d", result.ExitCode)
 		}
 		if len(output) > 30000 {
-			output = output[:30000] + "
-
-... [truncated]"
+			output = output[:30000] + "\n\n... [truncated]"
 		}
 		return output
 
@@ -747,19 +731,13 @@ Exit code: %d", result.ExitCode)
 				}
 				// co_search no intersection — search each individually
 				var sb strings.Builder
-				sb.WriteString("Individual search results:
-
-")
+				sb.WriteString("Individual search results:\n\n")
 				for _, term := range validTerms {
 					termResult, _ := GrepSearch(term, searchPath, glob, ignoreCase, 2)
 					if !strings.HasPrefix(termResult, "No matches") {
-						sb.WriteString(fmt.Sprintf("--- %q ---
-%s
-", term, termResult))
+						sb.WriteString(fmt.Sprintf("--- %q ---\n%s\n", term, termResult))
 					} else {
-						sb.WriteString(fmt.Sprintf("--- %q --- No matches
-
-", term))
+						sb.WriteString(fmt.Sprintf("--- %q --- No matches\n\n", term))
 					}
 				}
 				return sb.String()
@@ -810,10 +788,7 @@ Exit code: %d", result.ExitCode)
 					config.DebugLog("[GREP-XREF] auto cross-reference: searched=%q, adding=%v", pattern, otherTerms)
 					coResult, coErr := CoSearch(allTerms, searchPath, glob, ignoreCase)
 					if coErr == nil && !strings.HasPrefix(coResult, "No files") {
-						result += "
-
-[Auto cross-reference with user keywords]
-" + coResult
+						result += "\n\n[Auto cross-reference with user keywords]\n" + coResult
 					}
 					// Clear keywords so we don't re-cross-reference on next grep
 					userKeywordsMu.Lock()
@@ -851,9 +826,7 @@ Exit code: %d", result.ExitCode)
 			return fmt.Sprintf("Error: %v", err)
 		}
 		if len(content) > 50000 {
-			return content[:50000] + "
-
-... [truncated]"
+			return content[:50000] + "\n\n... [truncated]"
 		}
 		return content
 
@@ -902,9 +875,7 @@ Exit code: %d", result.ExitCode)
 			return "no changes"
 		}
 		if len(result) > 30000 {
-			return result[:30000] + "
-
-... [truncated]"
+			return result[:30000] + "\n\n... [truncated]"
 		}
 		return result
 

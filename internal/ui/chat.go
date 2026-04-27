@@ -1,7 +1,3 @@
-// Copyright 2025-2026 Kim Jiwon (flykimjiwon). All rights reserved.
-// TECHAI CODE TUI — github.com/flykimjiwon/TECHAI_CODE
-// Forked from Hanimo Code: github.com/flykimjiwon/hanimo
-
 package ui
 
 import (
@@ -64,52 +60,12 @@ func renderUserBlock(content string, width int) string {
 
 // renderAssistantBlock prefixes markdown-rendered assistant content
 // with a muted left accent bar — no background fill, so long answers
-// stay readable. Thinking text (💭) gets dimmed, code blocks get highlighted.
+// stay readable.
 func renderAssistantBlock(rendered string) string {
 	barStyle := lipgloss.NewStyle().Foreground(ColorSuccess)
-	thinkBar := lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")) // gray for thinking
-	thinkText := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF")).Italic(true)
-	codeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD")) // light blue for code
-	diffAdd := lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399"))   // green for +lines
-	diffRem := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171"))   // red for -lines
-
-	inThinking := false
-	inCodeBlock := false
 	var out []string
-
 	for _, line := range strings.Split(rendered, "\n") {
-		trimmed := strings.TrimSpace(line)
-
-		// Track thinking section (💭 marker)
-		if strings.HasPrefix(trimmed, "💭") {
-			inThinking = true
-		}
-		if trimmed == "---" && inThinking {
-			inThinking = false
-			out = append(out, thinkBar.Render("  ▎ ")+thinkText.Render("───"))
-			continue
-		}
-
-		// Track code blocks
-		if strings.HasPrefix(trimmed, "```") {
-			inCodeBlock = !inCodeBlock
-		}
-
-		// Apply styles based on context
-		if inThinking {
-			out = append(out, thinkBar.Render("  ▎ ")+thinkText.Render(line))
-		} else if inCodeBlock {
-			// Diff coloring inside code blocks
-			if strings.HasPrefix(trimmed, "+") && !strings.HasPrefix(trimmed, "+++") {
-				out = append(out, barStyle.Render("  ▎ ")+diffAdd.Render(line))
-			} else if strings.HasPrefix(trimmed, "-") && !strings.HasPrefix(trimmed, "---") {
-				out = append(out, barStyle.Render("  ▎ ")+diffRem.Render(line))
-			} else {
-				out = append(out, barStyle.Render("  ▎ ")+codeStyle.Render(line))
-			}
-		} else {
-			out = append(out, barStyle.Render("  ▎ ")+line)
-		}
+		out = append(out, barStyle.Render("  ▎ ")+line)
 	}
 	return strings.Join(out, "\n")
 }
@@ -142,23 +98,11 @@ func RenderMessages(messages []Message, streaming string, width int) string {
 			lines = append(lines, "")
 			continue
 		case RoleTool:
-			toolCallStyle := lipgloss.NewStyle().Foreground(ColorAccent)            // >> 호출: 파란색
-			toolResultStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")) // << 결과 헤더: 회색
-			codePreviewStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD")) // 코드 미리보기: 연파란
+			toolStyle := lipgloss.NewStyle().Foreground(ColorAccent)
 			for _, rawLine := range strings.Split(msg.Content, "\n") {
 				wrapped := wrapText(rawLine, contentWidth-2)
 				for _, l := range strings.Split(wrapped, "\n") {
-					trimmed := strings.TrimSpace(l)
-					if strings.HasPrefix(trimmed, ">>") {
-						lines = append(lines, toolCallStyle.Render("  "+l))
-					} else if strings.HasPrefix(trimmed, "<<") {
-						lines = append(lines, toolResultStyle.Render("  "+l))
-					} else if strings.HasPrefix(l, "   ") && l != "" {
-						// Indented lines = code preview
-						lines = append(lines, codePreviewStyle.Render("  "+l))
-					} else {
-						lines = append(lines, toolResultStyle.Render("  "+l))
-					}
+					lines = append(lines, toolStyle.Render("  "+l))
 				}
 			}
 		}

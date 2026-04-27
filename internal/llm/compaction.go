@@ -1,4 +1,3 @@
-// Author: Kim Jiwon (github.com/flykimjiwon) — forked from hanimo-code
 package llm
 
 import (
@@ -84,8 +83,7 @@ func Compact(messages []openai.ChatCompletionMessage) []openai.ChatCompletionMes
 		if len(messages[i].Content) <= compactToolSnipThreshold {
 			continue
 		}
-		lines := strings.Count(messages[i].Content, "
-") + 1
+		lines := strings.Count(messages[i].Content, "\n") + 1
 		messages[i].Content = fmt.Sprintf("[snipped: %d lines]", lines)
 		snipped++
 	}
@@ -105,9 +103,7 @@ func Compact(messages []openai.ChatCompletionMessage) []openai.ChatCompletionMes
 		content := messages[i].Content
 		head := content[:compactKeepChars]
 		tail := content[len(content)-compactKeepChars:]
-		messages[i].Content = head + "
-...[truncated]...
-" + tail
+		messages[i].Content = head + "\n...[truncated]...\n" + tail
 		truncated++
 	}
 	if truncated > 0 {
@@ -156,8 +152,7 @@ func CompactWithLLM(ctx context.Context, client *Client, model string, messages 
 
 	var sb strings.Builder
 	for _, m := range middle {
-		sb.WriteString(fmt.Sprintf("[%s]: %s
-", m.Role, m.Content))
+		sb.WriteString(fmt.Sprintf("[%s]: %s\n", m.Role, m.Content))
 	}
 
 	summaryReq := []openai.ChatCompletionMessage{
@@ -184,8 +179,7 @@ func CompactWithLLM(ctx context.Context, client *Client, model string, messages 
 	result = append(result, sysMsg)
 	result = append(result, openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
-		Content: "[Previous conversation summary]
-" + summary,
+		Content: "[Previous conversation summary]\n" + summary,
 	})
 	result = append(result, tail...)
 

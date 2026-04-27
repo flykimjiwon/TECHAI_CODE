@@ -1,6 +1,3 @@
-// Copyright 2025-2026 Kim Jiwon (김지원). All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-// Origin: github.com/flykimjiwon — personal project, not work-for-hire.
 package exec
 
 import (
@@ -52,20 +49,13 @@ func Run(cfg config.Config, opts Options) error {
 
 	// Load project context (.techai.md)
 	if data, err := os.ReadFile(".techai.md"); err == nil {
-		systemPrompt += "
-
-## Project Context
-" + string(data)
+		systemPrompt += "\n\n## Project Context\n" + string(data)
 	}
 
 	// Build user message — append stdin if piped
 	userMsg := opts.Prompt
 	if opts.Stdin != "" {
-		userMsg += "
-
-<stdin>
-" + opts.Stdin + "
-</stdin>"
+		userMsg += "\n\n<stdin>\n" + opts.Stdin + "\n</stdin>"
 	}
 
 	// Initialize hooks
@@ -118,8 +108,7 @@ func Run(cfg config.Config, opts Options) error {
 
 		// No tool calls — we're done
 		if len(toolCalls) == 0 {
-			if contentBuf.Len() > 0 && !strings.HasSuffix(contentBuf.String(), "
-") {
+			if contentBuf.Len() > 0 && !strings.HasSuffix(contentBuf.String(), "\n") {
 				fmt.Println()
 			}
 			break
@@ -130,8 +119,7 @@ func Run(cfg config.Config, opts Options) error {
 			// Pre-hook
 			hookResult := hookMgr.RunPreToolUse(tc.Name, tc.Arguments)
 			if hookResult == hooks.HookFailAbort {
-				fmt.Fprintf(os.Stderr, "[hook] pre_tool_use aborted: %s
-", tc.Name)
+				fmt.Fprintf(os.Stderr, "[hook] pre_tool_use aborted: %s\n", tc.Name)
 				toolResult := "Aborted by pre_tool_use hook"
 				messages = append(messages, openai.ChatCompletionMessage{
 					Role:       openai.ChatMessageRoleTool,

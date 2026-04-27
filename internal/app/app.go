@@ -1,6 +1,3 @@
-// Copyright 2025-2026 Kim Jiwon (김지원). All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-// Origin: github.com/flykimjiwon — personal project, not work-for-hire.
 package app
 
 import (
@@ -19,7 +16,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/atotto/clipboard"
-	"github.com/charmbracelet/x/ansi"
 	openai "github.com/sashabaranov/go-openai"
 
 	tgc "github.com/kimjiwon/tgc"
@@ -38,12 +34,11 @@ import (
 )
 
 type streamChunkMsg struct {
-	content    string
-	isThinking bool // true = reasoning_content (thinking phase)
-	done       bool
-	err        error
-	toolCalls  []llm.ToolCallInfo
-	usage      *openai.Usage
+	content   string
+	done      bool
+	err       error
+	toolCalls []llm.ToolCallInfo
+	usage     *openai.Usage
 }
 
 type toolResultMsg struct {
@@ -165,16 +160,11 @@ type Model struct {
 
 	// Stream warning and retry
 	streamWarnShown  bool
-	wasThinking      bool   // tracks thinking→content transition in stream
 	pendingPrefetch  string // auto-prefetched file contents, injected once then cleared
 	streamRetries   int
 
-	// Text selection: in-app mouse drag selection for copy
-	selecting    bool
-	selStartX    int
-	selStartY    int // content line (viewport offset + screen Y)
-	selEndX      int
-	selEndY      int
+	// Mouse mode: toggleable for text selection vs scroll
+	mouseEnabled bool
 
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
@@ -218,10 +208,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	// Load project context
 	projectCtx := ""
 	if data, err := os.ReadFile(".techai.md"); err == nil && len(data) > 0 {
-		projectCtx = "
-
-## Project Context (.techai.md)
-" + string(data)
+		projectCtx = "\n\n## Project Context (.techai.md)\n" + string(data)
 	}
 	projectCtx += llm.GatherSystemContext()
 	// envCtx and userDocsTOC are appended after env probe runs (below)
@@ -255,10 +242,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	projInfo := tools.DetectProject(".")
 	projCtxStr := tools.FormatProjectContext(projInfo)
 	if projCtxStr != "" {
-		projectCtx += "
-
-## Detected Project
-" + projCtxStr
+		projectCtx += "\n\n## Detected Project\n" + projCtxStr
 	}
 
 	// Append environment + user docs context to projectCtx
@@ -313,6 +297,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		setupInput:     setupTa,
 		store:          sessionStore,
 		customCommands: customCmds,
+		mouseEnabled:  true,
 	}
 
 	// Initialize lifecycle hooks
@@ -385,7 +370,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	}
 
 	// Show newline shortcut hint based on OS
-	newlineHint := "  Newline: Ctrl+J  |  /help for all shortcuts"
+	newlineHint := "  Newline: Shift+Enter  |  /help for all shortcuts"
 	if runtime.GOOS == "windows" {
 		newlineHint = "  Newline: Ctrl+J (Windows)  |  /help for all shortcuts"
 	}
@@ -591,15 +576,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			case "shift+enter", "ctrl+j", "ctrl+enter":
-				m.textarea.InsertString("
-")
-				lines := strings.Count(m.textarea.Value(), "
-") + 1
-				newH := min(lines, 10)
-				if newH != m.textarea.Height() {
-					m.textarea.SetHeight(newH)
-					m.recalcLayout()
-				}
+				m.textarea.InsertString("\n")
 				return m, nil
 			case "tab":
 				return m, nil // ignore tab during streaming
@@ -607,8 +584,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Forward other keys to textarea for typing
 			var taCmd tea.Cmd
 			m.textarea, taCmd = m.textarea.Update(msg)
-			lines := strings.Count(m.textarea.Value(), "
-") + 1
+			lines := strings.Count(m.textarea.Value(), "\n") + 1
 			if lines > m.textarea.Height() && lines <= 10 {
 				m.textarea.SetHeight(lines)
 				m.recalcLayout()
@@ -642,30 +618,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.recalcLayout()
 			return m, nil
 
-
-		case "ctrl+y":
-			// Quick copy: last AI response to clipboard
-			var target string
-			for i := len(m.msgs) - 1; i >= 0; i-- {
-				if m.msgs[i].Role == ui.RoleAssistant {
-					target = m.msgs[i].Content
-					break
-				}
+		case "ctrl+b":
+			// Toggle mouse mode (scroll vs text selection)
+			m.mouseEnabled = !m.mouseEnabled
+			label := "ON (scroll)"
+			if !m.mouseEnabled {
+				label = "OFF (text select enabled)"
 			}
-			if target == "" {
-				m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: "복사할 AI 응답이 없습니다.", Timestamp: time.Now()})
-			} else {
-				if err := clipboard.WriteAll(target); err != nil {
-					m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("클립보드 복사 실패: %v", err), Timestamp: time.Now()})
-				} else {
-					runes := []rune(target)
-					preview := string(runes)
-					if len(runes) > 60 {
-						preview = string(runes[:60]) + "..."
-					}
-					m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("📋 복사됨 (%d자): %s", len(runes), preview), Timestamp: time.Now()})
-				}
-			}
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: fmt.Sprintf("  Mouse: %s", label), Timestamp: time.Now(),
+			})
 			m.updateViewport()
 			return m, nil
 
@@ -712,13 +674,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "shift+enter", "ctrl+j", "ctrl+enter":
 			// Shift+Enter or Ctrl+J = newline (Ctrl+J fallback for Windows CMD/PowerShell)
-			m.textarea.InsertString("
-")
-			lines := strings.Count(m.textarea.Value(), "
-") + 1
-			newH := min(lines, 10)
-			if newH != m.textarea.Height() {
-				m.textarea.SetHeight(newH)
+			m.textarea.InsertString("\n")
+			lines := strings.Count(m.textarea.Value(), "\n") + 1
+			if lines > m.textarea.Height() && lines <= 10 {
+				m.textarea.SetHeight(lines)
 				m.recalcLayout()
 			}
 			return m, nil
@@ -747,9 +706,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "up":
-			// Up arrow: history when single-line with history, else scroll viewport
+			// Up arrow: browse input history (only when textarea is single-line)
 			if m.textarea.Height() == 1 && len(m.inputHistory) > 0 {
 				if m.historyIdx == -1 {
+					// Entering history mode — save current draft
 					m.historyDraft = m.textarea.Value()
 					m.historyIdx = 0
 				} else if m.historyIdx < len(m.inputHistory)-1 {
@@ -759,25 +719,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textarea.InsertString(m.inputHistory[m.historyIdx])
 				return m, nil
 			}
-			if m.textarea.Value() == "" {
-				m.viewport.ScrollUp(3)
-				return m, nil
-			}
 
 		case "down":
-			// Down arrow: history forward when browsing, else scroll viewport
+			// Down arrow: browse input history forward
 			if m.historyIdx >= 0 {
 				m.historyIdx--
 				m.textarea.Reset()
 				if m.historyIdx < 0 {
+					// Back to draft
 					m.textarea.InsertString(m.historyDraft)
 				} else {
 					m.textarea.InsertString(m.inputHistory[m.historyIdx])
 				}
-				return m, nil
-			}
-			if m.textarea.Value() == "" {
-				m.viewport.ScrollDown(3)
 				return m, nil
 			}
 
@@ -792,15 +745,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "alt+down":
 			m.viewport.ScrollDown(3)
 			return m, nil
-
 		}
 
 		// Default: forward to textarea
 		var taCmd tea.Cmd
 		m.textarea, taCmd = m.textarea.Update(msg)
 		// Auto-grow/shrink textarea after content changes
-		lines := strings.Count(m.textarea.Value(), "
-") + 1
+		lines := strings.Count(m.textarea.Value(), "\n") + 1
 		if lines > m.textarea.Height() && lines <= 10 {
 			m.textarea.SetHeight(lines)
 			m.recalcLayout()
@@ -817,25 +768,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.textarea.InsertString(text)
-		charCount := len([]rune(text))
-		lineCount := strings.Count(text, "
-") + 1
-		lines := strings.Count(m.textarea.Value(), "
-") + 1
-
-		// Auto-grow textarea (up to 10 lines)
-		newH := min(lines, 10)
-		if newH != m.textarea.Height() {
-			m.textarea.SetHeight(newH)
-		}
-
-		// Always show paste info
-		if lineCount > 1 {
-			m.pasteHint = fmt.Sprintf("[Pasted %d lines, %d chars — Enter to send, Ctrl+U to clear]", lineCount, charCount)
+		// Auto-grow textarea for multi-line pastes (max 5 lines for short, hint for long)
+		lines := strings.Count(m.textarea.Value(), "\n") + 1
+		lineCount := strings.Count(text, "\n") + 1
+		if lineCount <= 5 {
+			// Short paste: expand textarea to show content
+			if lines > m.textarea.Height() && lines <= 5 {
+				m.textarea.SetHeight(lines)
+				m.recalcLayout()
+			}
 		} else {
-			m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", charCount)
+			// Long paste: keep textarea compact, show hint above it
+			m.textarea.SetHeight(1)
+			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+			m.recalcLayout()
 		}
-		m.recalcLayout()
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -903,14 +850,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Check if AI wants to call tools
 			if len(msg.toolCalls) > 0 {
 				config.DebugLog("[APP-STREAM] done reason=tool_call | toolCalls=%d | bufLen=%d", len(msg.toolCalls), len(m.streamBuf))
-
-				// Clean streamBuf when text-based tool calls were parsed from content.
-				// The streaming suppression in client.go prevents most tag leakage,
-				// but edge cases (tag split across chunks) may leave partial tags.
-				if len(msg.toolCalls) > 0 && strings.HasPrefix(msg.toolCalls[0].ID, "text-tc-") {
-					m.streamBuf = llm.StripToolCallTags(m.streamBuf)
-				}
-
 				if m.streamBuf != "" {
 					m.msgs = append(m.msgs, ui.Message{
 						Role: ui.RoleAssistant, Content: m.streamBuf, Timestamp: time.Now(),
@@ -1108,20 +1047,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		// Track thinking → content transition
-		if msg.isThinking && !m.wasThinking && m.streamBuf == "" {
-			// First thinking chunk — add marker
-			m.streamBuf += "💭 "
-			m.wasThinking = true
-		} else if !msg.isThinking && m.wasThinking {
-			// Transition from thinking to actual content — add separator
-			m.streamBuf += "
-
----
-
-"
-			m.wasThinking = false
-		}
 		m.streamBuf += msg.content
 		if m.companionHub != nil {
 			m.companionHub.Emit("stream_chunk", map[string]interface{}{"content": msg.content, "total": len(m.streamBuf)})
@@ -1160,7 +1085,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Show processing indicator so user knows AI is working
 		m.msgs = append(m.msgs, ui.Message{
-			Role: ui.RoleSystem, Content: fmt.Sprintf("  🔧 도구 실행 완료 (%d/20) — 다음 단계 진행중...", m.toolIter), Timestamp: time.Now(), Tag: "processing",
+			Role: ui.RoleSystem, Content: fmt.Sprintf("  Processing... (tool %d/20)", m.toolIter), Timestamp: time.Now(), Tag: "processing",
 		})
 		m.updateViewport()
 
@@ -1251,49 +1176,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward mouse wheel events to viewport for touchpad scroll
 	case tea.MouseWheelMsg:
-		m.clearSelection()
 		var vpCmd tea.Cmd
 		m.viewport, vpCmd = m.viewport.Update(msg)
 		return m, vpCmd
-
-	// In-app text selection: click to start, drag to select, release to copy
-	case tea.MouseClickMsg:
-		if msg.Button == tea.MouseLeft && msg.Y < m.viewport.Height() {
-			m.selecting = true
-			m.selStartX = msg.X
-			m.selStartY = m.viewport.YOffset() + msg.Y
-			m.selEndX = msg.X
-			m.selEndY = m.selStartY
-		}
-		return m, nil
-
-	case tea.MouseMotionMsg:
-		if m.selecting && msg.Y < m.viewport.Height() {
-			m.selEndX = msg.X
-			m.selEndY = m.viewport.YOffset() + msg.Y
-		}
-		return m, nil
-
-	case tea.MouseReleaseMsg:
-		if m.selecting {
-			m.selecting = false
-			text := m.extractSelectedText()
-			if text != "" {
-				if err := clipboard.WriteAll(text); err == nil {
-					runes := []rune(text)
-					preview := string(runes)
-					if len(runes) > 60 {
-						preview = string(runes[:60]) + "..."
-					}
-					m.msgs = append(m.msgs, ui.Message{
-						Role: ui.RoleSystem, Content: fmt.Sprintf("📋 선택 복사됨 (%d자): %s", len(runes), preview), Timestamp: time.Now(),
-					})
-				}
-			}
-			m.clearSelection()
-			m.updateViewport()
-		}
-		return m, nil
 	}
 
 	return m, nil
@@ -1586,8 +1471,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			})
 		} else {
 			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[MCP] 서버 상태:
-" + m.mcpManager.Status(), Timestamp: time.Now(),
+				Role: ui.RoleSystem, Content: "[MCP] 서버 상태:\n" + m.mcpManager.Status(), Timestamp: time.Now(),
 			})
 		}
 		m.updateViewport()
@@ -1601,13 +1485,9 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			for _, msg := range m.msgs {
 				switch msg.Role {
 				case ui.RoleUser:
-					sb.WriteString("[사용자] " + msg.Content + "
-
-")
+					sb.WriteString("[사용자] " + msg.Content + "\n\n")
 				case ui.RoleAssistant:
-					sb.WriteString("[AI] " + msg.Content + "
-
-")
+					sb.WriteString("[AI] " + msg.Content + "\n\n")
 				}
 			}
 			target = sb.String()
@@ -1655,23 +1535,13 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			}
 		}
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("# TECHAI 세션 (%s)
-
-", time.Now().Format("2006-01-02 15:04")))
+		sb.WriteString(fmt.Sprintf("# TECHAI 세션 (%s)\n\n", time.Now().Format("2006-01-02 15:04")))
 		for _, msg := range m.msgs {
 			switch msg.Role {
 			case ui.RoleUser:
-				sb.WriteString(fmt.Sprintf("## 사용자
-
-%s
-
-", msg.Content))
+				sb.WriteString(fmt.Sprintf("## 사용자\n\n%s\n\n", msg.Content))
 			case ui.RoleAssistant:
-				sb.WriteString(fmt.Sprintf("## AI
-
-%s
-
-", msg.Content))
+				sb.WriteString(fmt.Sprintf("## AI\n\n%s\n\n", msg.Content))
 			}
 		}
 		if err := os.WriteFile(filename, []byte(sb.String()), 0644); err != nil {
@@ -1696,9 +1566,7 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 			}
 			diff := result.Stdout
 			if len(diff) > 5000 {
-				diff = diff[:5000] + "
-
-... (truncated)"
+				diff = diff[:5000] + "\n\n... (truncated)"
 			}
 			return slashResultMsg{content: diff}
 		}
@@ -1779,16 +1647,12 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 		if err := os.WriteFile(".techai.md", []byte(profile), 0644); err != nil {
 			m.msgs = append(m.msgs, ui.Message{Role: ui.RoleSystem, Content: fmt.Sprintf("Failed to write .techai.md: %v", err), Timestamp: time.Now()})
 		} else {
-			m.projectCtx = "
-
-## Project Context (.techai.md)
-" + profile
+			m.projectCtx = "\n\n## Project Context (.techai.md)\n" + profile
 			if len(m.history) > 0 {
 				md := llm.Mode(m.activeTab)
 				m.history[0].Content = llm.SystemPrompt(md) + m.projectCtx
 			}
-			lines := strings.Count(profile, "
-")
+			lines := strings.Count(profile, "\n")
 			label := "simple"
 			if mode == "deep" {
 				label = "deep (AI-analyzed)"
@@ -1885,8 +1749,7 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 			}
 			m.msgs = append(m.msgs, ui.Message{
 				Role:      ui.RoleSystem,
-				Content:   strings.Join(lines, "
-"),
+				Content:   strings.Join(lines, "\n"),
 				Timestamp: time.Now(),
 			})
 		}
@@ -1902,8 +1765,7 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 			if arg == "list" {
 				list := tools.FormatSnapshotList(20)
 				m.msgs = append(m.msgs, ui.Message{
-					Role: ui.RoleSystem, Content: "  스냅샷 목록:
-" + list, Timestamp: time.Now(),
+					Role: ui.RoleSystem, Content: "  스냅샷 목록:\n" + list, Timestamp: time.Now(),
 				})
 				m.updateViewport()
 				return true, nil
@@ -1919,10 +1781,9 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 
 	case "/help":
 		help := fmt.Sprintf(`  TECHAI CODE %s
-  Enter — Send    Ctrl+J — Newline
-  Ctrl+K — Palette    Esc — Menu    Ctrl+Y — Copy last reply    Ctrl+C — Quit
-  ↑/↓ — Scroll (input empty) / History    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
-  Drag — Select & copy text    /copy — Copy last AI reply    /copy all — Copy session
+  Enter — Send    Shift+Enter — Newline (Ctrl+J on Windows)
+  Ctrl+K — Palette    Esc — Menu    Ctrl+B — Toggle mouse    Ctrl+C — Quit
+  ↑/↓ — Input history    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
 
   /init — Quick scan    /init deep — AI-powered deep analysis
   /remember <text> — Save memory    /remember list — Show all
@@ -1960,22 +1821,15 @@ func (m Model) View() tea.View {
 	if m.inSetup {
 		content = m.viewSetup()
 	} else if !m.ready {
-		content = "
-  로딩중..."
+		content = "\n  로딩중..."
 	} else {
 		vpContent := m.viewport.View()
 		// Constrain viewport output to allocated height
-		contentLines := strings.Split(vpContent, "
-")
+		contentLines := strings.Split(vpContent, "\n")
 		if len(contentLines) > m.viewport.Height() {
 			contentLines = contentLines[:m.viewport.Height()]
+			vpContent = strings.Join(contentLines, "\n")
 		}
-		// Apply text selection highlighting
-		if m.selecting || (m.selStartX != m.selEndX || m.selStartY != m.selEndY) {
-			contentLines = m.highlightSelection(contentLines)
-		}
-		vpContent = strings.Join(contentLines, "
-")
 
 		// Input box with gray border
 		inputBox := lipgloss.NewStyle().
@@ -2020,8 +1874,9 @@ func (m Model) View() tea.View {
 
 	v := tea.NewView(content)
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
-	v.KeyboardEnhancements.ReportEventTypes = true
+	if m.mouseEnabled {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 	return v
 }
 
@@ -2032,25 +1887,16 @@ func (m Model) viewSetup() string {
 	step := lipgloss.NewStyle().Foreground(ui.ColorSuccess).Bold(true)
 
 	var b strings.Builder
-	b.WriteString("
-
-")
+	b.WriteString("\n\n")
 	b.WriteString(title.Render("  택가이코드 설정"))
-	b.WriteString("
-")
+	b.WriteString("\n")
 	b.WriteString(dim.Render("  OpenAI-compatible API 연결"))
-	b.WriteString("
+	b.WriteString("\n\n")
 
-")
-
-	b.WriteString(step.Render("  API Key") + "
-
-")
+	b.WriteString(step.Render("  API Key") + "\n\n")
 	b.WriteString("  " + m.setupInput.View())
 
-	b.WriteString("
-
-")
+	b.WriteString("\n\n")
 	b.WriteString(hint.Render("  Enter 다음 · Ctrl+C 종료"))
 	return b.String()
 }
@@ -2068,124 +1914,6 @@ func (m *Model) recalcLayout() {
 	m.viewport.SetWidth(m.width)
 	m.viewport.SetHeight(vpHeight)
 	m.textarea.SetWidth(m.width - 6)
-}
-
-// --- Text selection helpers ---
-
-func (m *Model) clearSelection() {
-	m.selecting = false
-	m.selStartX, m.selStartY = 0, 0
-	m.selEndX, m.selEndY = 0, 0
-}
-
-func (m *Model) extractSelectedText() string {
-	content := m.viewport.GetContent()
-	plain := ansi.Strip(content)
-	lines := strings.Split(plain, "
-")
-
-	startY, endY := m.selStartY, m.selEndY
-	startX, endX := m.selStartX, m.selEndX
-
-	// Normalize: ensure start is before end
-	if startY > endY || (startY == endY && startX > endX) {
-		startY, endY = endY, startY
-		startX, endX = endX, startX
-	}
-
-	if startY >= len(lines) {
-		return ""
-	}
-	if endY >= len(lines) {
-		endY = len(lines) - 1
-		endX = len([]rune(lines[endY]))
-	}
-
-	if startY == endY {
-		// Single line selection
-		runes := []rune(lines[startY])
-		sx := min(startX, len(runes))
-		ex := min(endX, len(runes))
-		if sx == ex {
-			return ""
-		}
-		return string(runes[sx:ex])
-	}
-
-	// Multi-line selection
-	var sb strings.Builder
-	// First line: from startX to end
-	runes := []rune(lines[startY])
-	sx := min(startX, len(runes))
-	sb.WriteString(string(runes[sx:]))
-	sb.WriteByte('
-')
-
-	// Middle lines: full content
-	for y := startY + 1; y < endY; y++ {
-		if y < len(lines) {
-			sb.WriteString(lines[y])
-			sb.WriteByte('
-')
-		}
-	}
-
-	// Last line: from start to endX
-	runes = []rune(lines[endY])
-	ex := min(endX, len(runes))
-	sb.WriteString(string(runes[:ex]))
-	return sb.String()
-}
-
-// highlightSelection applies reverse-video styling to the selected region
-// of the visible viewport lines. Coordinates are in content-space (YOffset-based).
-func (m *Model) highlightSelection(visibleLines []string) []string {
-	startY, endY := m.selStartY, m.selEndY
-	startX, endX := m.selStartX, m.selEndX
-	if startY > endY || (startY == endY && startX > endX) {
-		startY, endY = endY, startY
-		startX, endX = endX, startX
-	}
-
-	yOff := m.viewport.YOffset()
-	result := make([]string, len(visibleLines))
-	copy(result, visibleLines)
-
-	for i, line := range result {
-		contentY := yOff + i
-		if contentY < startY || contentY > endY {
-			continue
-		}
-		lineWidth := ansi.StringWidth(line)
-
-		var sx, ex int
-		if contentY == startY {
-			sx = startX
-		}
-		if contentY == endY {
-			ex = endX
-		} else {
-			ex = lineWidth
-		}
-		if sx >= lineWidth {
-			continue
-		}
-		if ex > lineWidth {
-			ex = lineWidth
-		}
-		if sx >= ex {
-			continue
-		}
-
-		before := ansi.Cut(line, 0, sx)
-		sel := ansi.Cut(line, sx, ex)
-		after := ansi.Cut(line, ex, lineWidth)
-
-		// Apply reverse video to selected portion
-		highlighted := lipgloss.NewStyle().Reverse(true).Render(ansi.Strip(sel))
-		result[i] = before + highlighted + after
-	}
-	return result
 }
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -2216,9 +1944,7 @@ func (m *Model) streamStatus() string {
 				icon, p.Agent, detail, p.Tokens, p.Elapsed.Seconds())
 			lines = append(lines, line)
 		}
-		return fmt.Sprintf("%s Multi 실행중 (%.1fs)
-%s", frame, elapsed.Seconds(), strings.Join(lines, "
-"))
+		return fmt.Sprintf("%s Multi 실행중 (%.1fs)\n%s", frame, elapsed.Seconds(), strings.Join(lines, "\n"))
 	}
 
 	if m.multiRunning {
@@ -2259,10 +1985,7 @@ func (m *Model) streamStatus() string {
 	if sinceLastChunk > 2*time.Second {
 		return fmt.Sprintf("%s Thinking... (%.0fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 	}
-	if m.wasThinking {
-		return fmt.Sprintf("%s 💭 Reasoning (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
-	}
-	return fmt.Sprintf("%s ✍️ Writing (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
+	return fmt.Sprintf("%s Streaming (%.1fs · %dtok · %.1ftok/s)", frame, elapsed.Seconds(), m.tokenCount, tps)
 }
 
 func (m *Model) updateViewport() {
@@ -2324,8 +2047,6 @@ func (m *Model) startStream() tea.Cmd {
 
 	// Inject auto-prefetched file contents into the last user message
 	// in the COPY only — original history stays clean to prevent bloat.
-	// Keep pendingPrefetch alive across tool iterations so the model always
-	// sees the file contents. It gets replaced on the next sendMessage call.
 	if m.pendingPrefetch != "" && len(history) > 0 {
 		for i := len(history) - 1; i >= 0; i-- {
 			if history[i].Role == openai.ChatMessageRoleUser {
@@ -2333,24 +2054,11 @@ func (m *Model) startStream() tea.Cmd {
 				break
 			}
 		}
+		// Clear after first use — retry/tool-continue won't re-inject
+		m.pendingPrefetch = ""
 	}
 
 	toolDefs := tools.ToolsForMode(m.activeTab)
-
-	// When auto-prefetch is active, remove apply_patch and file_edit from tools.
-	// The model already has full file contents, so file_write (full rewrite) is
-	// faster and more reliable than trying to generate correct patch hunks.
-	if m.pendingPrefetch != "" {
-		filtered := make([]openai.Tool, 0, len(toolDefs))
-		for _, td := range toolDefs {
-			if td.Function != nil && (td.Function.Name == "apply_patch" || td.Function.Name == "file_edit" || td.Function.Name == "hashline_edit") {
-				continue
-			}
-			filtered = append(filtered, td)
-		}
-		toolDefs = filtered
-		config.DebugLog("[PREFETCH] removed apply_patch/file_edit from tools — forcing file_write")
-	}
 
 	modeName := "super"
 	if m.activeTab == 1 {
@@ -2418,7 +2126,6 @@ func (m *Model) sendMessage(input string) tea.Cmd {
 	m.tokenCount = 0
 	m.toolIter = 0
 	m.streamRetries = 0
-	m.wasThinking = false
 	m.streamStart = time.Now()
 	m.lastChunkAt = time.Time{}
 	m.streamWarnShown = false
@@ -2470,12 +2177,11 @@ func (m *Model) waitForNextChunk() tea.Cmd {
 				return streamChunkMsg{done: true}
 			}
 			return streamChunkMsg{
-				content:    chunk.Content,
-				isThinking: chunk.IsThinking,
-				done:       chunk.Done,
-				err:        chunk.Err,
-				toolCalls:  chunk.ToolCalls,
-				usage:      chunk.Usage,
+				content:   chunk.Content,
+				done:      chunk.Done,
+				err:       chunk.Err,
+				toolCalls: chunk.ToolCalls,
+				usage:     chunk.Usage,
 			}
 		case <-time.After(45 * time.Second):
 			return streamChunkMsg{
@@ -2512,9 +2218,7 @@ func (m *Model) cancelStream() {
 	m.lastElapsed = time.Since(m.streamStart)
 	if m.streamBuf != "" {
 		m.msgs = append(m.msgs, ui.Message{
-			Role: ui.RoleAssistant, Content: m.streamBuf + "
-
-[중단됨]", Timestamp: time.Now(),
+			Role: ui.RoleAssistant, Content: m.streamBuf + "\n\n[중단됨]", Timestamp: time.Now(),
 		})
 		m.history = append(m.history, openai.ChatCompletionMessage{
 			Role: openai.ChatMessageRoleAssistant, Content: m.streamBuf,
@@ -2549,11 +2253,30 @@ func (m *Model) waitForNextMulti() tea.Cmd {
 
 // shouldUseMulti decides whether to activate multi-agent for this input.
 // Hybrid approach: keyword matching (instant) → LLM fallback (5s timeout).
-func (m *Model) shouldUseMulti(_ string) bool {
+func (m *Model) shouldUseMulti(input string) bool { //nolint:unparam
 	// ── SUSPENDED: sub-agent system globally disabled until re-open ──
 	// All multi-agent functionality is preserved in code but hard-gated here.
-	// To re-enable: restore the original logic from git history.
+	// To re-enable: remove this early return and restore the original parameter name.
 	return false
+	// If auto mode, use hybrid detection with LLM confirmation
+	if m.multiAuto {
+		ctxWindow := llm.GetCapability(m.currentModel()).ContextWindow
+		// 1st: keyword + heuristic (instant, 0ms)
+		keywordMatch := multi.AutoDetect(input, m.history, m.tokenCount, ctxWindow)
+		if keywordMatch {
+			// Keyword matched — confirm with LLM to avoid false positives
+			// Use Super model (Dev model may be unavailable)
+			if !multi.AutoDetectWithLLM(m.client, m.cfg.Models.Super, input) {
+				config.DebugLog("[MULTI-AUTO] keyword matched but LLM said NO, skipping")
+				return false
+			}
+			return true
+		}
+		// 2nd: No keyword match — try LLM classification (max 5s)
+		return multi.AutoDetectWithLLM(m.client, m.cfg.Models.Super, input)
+	}
+	// Non-auto: always use multi when enabled
+	return true
 }
 
 // startMultiStream launches the multi-agent orchestrator in a background goroutine.
@@ -2712,17 +2435,12 @@ func formatToolResultPreview(name, output string) string {
 		return formatListPreview(output)
 
 	case "shell_exec":
-		lines := strings.Split(strings.TrimSpace(output), "
-")
+		lines := strings.Split(strings.TrimSpace(output), "\n")
 		if len(lines) <= 4 {
-			return "<< " + name + ":
-" + indentPreview(output, 3)
+			return "<< " + name + ":\n" + indentPreview(output, 3)
 		}
-		preview := strings.Join(lines[:3], "
-") + fmt.Sprintf("
-... (%d lines total)", len(lines))
-		return "<< " + name + ":
-" + indentPreview(preview, 3)
+		preview := strings.Join(lines[:3], "\n") + fmt.Sprintf("\n... (%d lines total)", len(lines))
+		return "<< " + name + ":\n" + indentPreview(preview, 3)
 
 	default:
 		return fmt.Sprintf("<< %s: %s", name, truncateArgs(output, 120))
@@ -2730,8 +2448,7 @@ func formatToolResultPreview(name, output string) string {
 }
 
 func formatFileReadPreview(output string) string {
-	lines := strings.Split(output, "
-")
+	lines := strings.Split(output, "\n")
 	total := len(lines)
 
 	// Show first 5 lines + total count
@@ -2739,19 +2456,15 @@ func formatFileReadPreview(output string) string {
 	if total < showLines {
 		showLines = total
 	}
-	preview := strings.Join(lines[:showLines], "
-")
+	preview := strings.Join(lines[:showLines], "\n")
 	if total > showLines {
-		preview += fmt.Sprintf("
-... (%d lines)", total)
+		preview += fmt.Sprintf("\n... (%d lines)", total)
 	}
-	return "<< file_read:
-" + indentPreview(preview, 3)
+	return "<< file_read:\n" + indentPreview(preview, 3)
 }
 
 func formatGrepPreview(output string) string {
-	lines := strings.Split(strings.TrimSpace(output), "
-")
+	lines := strings.Split(strings.TrimSpace(output), "\n")
 	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
 		return "<< grep_search: No matches found."
 	}
@@ -2761,19 +2474,15 @@ func formatGrepPreview(output string) string {
 	if len(lines) < showLines {
 		showLines = len(lines)
 	}
-	preview := strings.Join(lines[:showLines], "
-")
+	preview := strings.Join(lines[:showLines], "\n")
 	if len(lines) > showLines {
-		preview += fmt.Sprintf("
-... (%d matches total)", len(lines))
+		preview += fmt.Sprintf("\n... (%d matches total)", len(lines))
 	}
-	return "<< grep_search:
-" + indentPreview(preview, 3)
+	return "<< grep_search:\n" + indentPreview(preview, 3)
 }
 
 func formatGlobPreview(output string) string {
-	files := strings.Split(strings.TrimSpace(output), "
-")
+	files := strings.Split(strings.TrimSpace(output), "\n")
 	if len(files) == 0 || (len(files) == 1 && files[0] == "") {
 		return "<< glob_search: No files matched."
 	}
@@ -2792,8 +2501,7 @@ func formatEditPreview(output string) string {
 }
 
 func formatPatchPreview(output string) string {
-	lines := strings.Split(strings.TrimSpace(output), "
-")
+	lines := strings.Split(strings.TrimSpace(output), "\n")
 	// Show summary line + first few diff lines (bounded)
 	var summary []string
 	var diffLines []string
@@ -2814,16 +2522,13 @@ func formatPatchPreview(output string) string {
 		if len(diffLines) < showLines {
 			showLines = len(diffLines)
 		}
-		result += "
-" + indentPreview(strings.Join(diffLines[:showLines], "
-"), 3)
+		result += "\n" + indentPreview(strings.Join(diffLines[:showLines], "\n"), 3)
 	}
 	return result
 }
 
 func formatListPreview(output string) string {
-	items := strings.Split(strings.TrimSpace(output), "
-")
+	items := strings.Split(strings.TrimSpace(output), "\n")
 	if len(items) <= 8 {
 		return "<< list_files: " + strings.Join(items, " ")
 	}
@@ -2832,44 +2537,18 @@ func formatListPreview(output string) string {
 
 func indentPreview(s string, spaces int) string {
 	prefix := strings.Repeat(" ", spaces)
-	lines := strings.Split(s, "
-")
+	lines := strings.Split(s, "\n")
 	for i, line := range lines {
 		lines[i] = prefix + line
 	}
-	return strings.Join(lines, "
-")
+	return strings.Join(lines, "\n")
 }
 
 func truncateArgs(s string, max int) string {
-	s = strings.ReplaceAll(s, "
-", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
 	runes := []rune(s)
 	if len(runes) > max {
 		return string(runes[:max]) + "..."
-	}
-	return s
-}
-
-// stripTrailingNonPath truncates anything after a recognized file extension.
-// Korean particles, punctuation, or any non-path characters are stripped.
-// "src/views/HomePage.tsx의" → "src/views/HomePage.tsx"
-// "src/data/mock.ts를"      → "src/data/mock.ts"
-// "README.md에서"           → "README.md"
-func stripTrailingNonPath(s string) string {
-	exts := []string{
-		".tsx", ".ts", ".jsx", ".js", ".mjs", ".cjs",
-		".go", ".py", ".java", ".rs", ".rb", ".php",
-		".css", ".scss", ".html", ".vue", ".svelte",
-		".json", ".yaml", ".yml", ".toml", ".xml",
-		".md", ".txt", ".sql", ".sh", ".env",
-		".prisma", ".graphql", ".proto",
-	}
-	for _, ext := range exts {
-		idx := strings.Index(s, ext)
-		if idx >= 0 {
-			return s[:idx+len(ext)]
-		}
 	}
 	return s
 }
@@ -2886,9 +2565,6 @@ func autoPrefetchFiles(input string) string {
 	for _, word := range words {
 		// Clean punctuation from word edges
 		w := strings.Trim(word, ".,;:!?\"'`()[]{}")
-		// Truncate after file extension — strips Korean particles or any trailing text.
-		// "src/views/HomePage.tsx의" → "src/views/HomePage.tsx"
-		w = stripTrailingNonPath(w)
 		// Must contain / and look like a file path
 		if !strings.Contains(w, "/") {
 			continue
@@ -2919,12 +2595,7 @@ func autoPrefetchFiles(input string) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("
-
----
-[자동 첨부된 파일 내용 — 도구 호출 없이 바로 수정하세요]
-
-")
+	sb.WriteString("\n\n---\n[자동 첨부된 파일 내용 — 도구 호출 없이 바로 수정하세요]\n\n")
 
 	totalBytes := 0
 	const maxTotalBytes = 50000 // 50KB cap to prevent context overflow
@@ -2932,61 +2603,26 @@ func autoPrefetchFiles(input string) string {
 	for _, p := range paths {
 		data, err := os.ReadFile(p)
 		if err != nil {
-			// Fallback: search by filename in common directories
-			basename := filepath.Base(p)
-			found := false
-			for _, dir := range []string{"src", ".", "app", "lib", "components", "pages", "views"} {
-				matches, _ := filepath.Glob(filepath.Join(dir, "**", basename))
-				if len(matches) == 0 {
-					// Try one-level deeper
-					matches, _ = filepath.Glob(filepath.Join(dir, "*", basename))
-				}
-				if len(matches) == 0 {
-					matches, _ = filepath.Glob(filepath.Join(dir, "*", "*", basename))
-				}
-				if len(matches) > 0 {
-					data, err = os.ReadFile(matches[0])
-					if err == nil {
-						p = matches[0]
-						found = true
-						config.DebugLog("[PREFETCH] fallback found %s at %s", basename, p)
-						break
-					}
-				}
-			}
-			if !found {
-				continue
-			}
+			continue
 		}
 		content := string(data)
-		lines := strings.Split(content, "
-")
+		lines := strings.Split(content, "\n")
 		// Skip files > 300 lines
 		if len(lines) > 300 {
-			sb.WriteString(fmt.Sprintf("### %s (%d lines — 너무 길어 생략, file_read로 읽으세요)
-
-", p, len(lines)))
+			sb.WriteString(fmt.Sprintf("### %s (%d lines — 너무 길어 생략, file_read로 읽으세요)\n\n", p, len(lines)))
 			continue
 		}
 		// Cumulative byte cap
 		if totalBytes+len(content) > maxTotalBytes {
-			sb.WriteString(fmt.Sprintf("### %s (용량 초과 — file_read로 읽으세요)
-
-", p))
+			sb.WriteString(fmt.Sprintf("### %s (용량 초과 — file_read로 읽으세요)\n\n", p))
 			continue
 		}
 		totalBytes += len(content)
-		sb.WriteString(fmt.Sprintf("### %s (%d lines)
-```
-%s
-```
-
-", p, len(lines), content))
+		sb.WriteString(fmt.Sprintf("### %s (%d lines)\n```\n%s\n```\n\n", p, len(lines), content))
 	}
 
 	// Add instruction to use file_write for the edit
-	sb.WriteString("[중요: 위 파일을 수정할 때 file_write로 전체 파일을 한 번에 교체하세요. apply_patch보다 안전합니다.]
-")
+	sb.WriteString("[중요: 위 파일을 수정할 때 file_write로 전체 파일을 한 번에 교체하세요. apply_patch보다 안전합니다.]\n")
 
 	return sb.String()
 }
@@ -2995,8 +2631,7 @@ func autoPrefetchFiles(input string) string {
 // Looks for a line like: "- **Knowledge packs**: react, database, css"
 // or "knowledge_packs: react, database, css"
 func parseKnowledgePacks(projectCtx string) []string {
-	for _, line := range strings.Split(projectCtx, "
-") {
+	for _, line := range strings.Split(projectCtx, "\n") {
 		lower := strings.ToLower(strings.TrimSpace(line))
 
 		// Match "knowledge_packs: ..." or "- **Knowledge packs**: ..."
