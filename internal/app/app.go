@@ -1878,7 +1878,7 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
   Enter — Send    Ctrl+J — Newline
   Ctrl+K — Palette    Esc — Menu    Ctrl+Y — Copy last reply    Ctrl+C — Quit
   ↑/↓ — Scroll (input empty) / History    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
-  Shift+Drag — Select text (bypasses mouse capture)
+  Drag — Select & copy text    /copy — Copy last AI reply    /copy all — Copy session
 
   /init — Quick scan    /init deep — AI-powered deep analysis
   /remember <text> — Save memory    /remember list — Show all
