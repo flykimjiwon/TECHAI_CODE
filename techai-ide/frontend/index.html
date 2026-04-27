@@ -109,19 +109,7 @@
     // Connect SSE for server-push events
     try {
       var es = new EventSource('/api/events');
-      es.onmessage = function(e) {
-        try {
-          var msg = JSON.parse(e.data);
-          var cbs = _sseCallbacks[msg.name] || [];
-          cbs.forEach(function(entry) {
-            entry.cb(msg.data);
-            entry.count++;
-            if (entry.max > 0 && entry.count >= entry.max) {
-              _sseCallbacks[msg.name] = _sseCallbacks[msg.name].filter(function(x){return x.id!==entry.id});
-            }
-          });
-        } catch(err) {}
-      };
+      // Named SSE events only — no onmessage handler
       es.addEventListener('chat:chunk', function(e) { (_sseCallbacks['chat:chunk']||[]).forEach(function(x){x.cb(e.data)}) });
       es.addEventListener('chat:stream_start', function(e) { (_sseCallbacks['chat:stream_start']||[]).forEach(function(x){x.cb()}) });
       es.addEventListener('chat:stream_done', function(e) { (_sseCallbacks['chat:stream_done']||[]).forEach(function(x){x.cb()}) });

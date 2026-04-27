@@ -17,10 +17,18 @@ var (
 func sseEmit(event, data string) {
 	sseClientsMu.Lock()
 	defer sseClientsMu.Unlock()
-	msg := "event: " + event + "\ndata: " + data + "\n\n"
+	// SSE spec: multi-line data needs each line prefixed with "data: "
+	lines := strings.Split(data, "\n")
+	var msg strings.Builder
+	msg.WriteString("event: " + event + "\n")
+	for _, line := range lines {
+		msg.WriteString("data: " + line + "\n")
+	}
+	msg.WriteString("\n")
+	encoded := msg.String()
 	for ch := range sseClients {
 		select {
-		case ch <- msg:
+		case ch <- encoded:
 		default:
 		}
 	}
