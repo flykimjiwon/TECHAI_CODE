@@ -376,7 +376,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	}
 
 	// Show newline shortcut hint based on OS
-	newlineHint := "  Newline: Shift+Enter  |  /help for all shortcuts"
+	newlineHint := "  Newline: Ctrl+J  |  /help for all shortcuts"
 	if runtime.GOOS == "windows" {
 		newlineHint = "  Newline: Ctrl+J (Windows)  |  /help for all shortcuts"
 	}
@@ -583,6 +583,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "shift+enter", "ctrl+j", "ctrl+enter":
 				m.textarea.InsertString("\n")
+				lines := strings.Count(m.textarea.Value(), "\n") + 1
+				newH := min(lines, 10)
+				if newH != m.textarea.Height() {
+					m.textarea.SetHeight(newH)
+					m.recalcLayout()
+				}
 				return m, nil
 			case "tab":
 				return m, nil // ignore tab during streaming
@@ -696,8 +702,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Shift+Enter or Ctrl+J = newline (Ctrl+J fallback for Windows CMD/PowerShell)
 			m.textarea.InsertString("\n")
 			lines := strings.Count(m.textarea.Value(), "\n") + 1
-			if lines > m.textarea.Height() && lines <= 10 {
-				m.textarea.SetHeight(lines)
+			newH := min(lines, 10)
+			if newH != m.textarea.Height() {
+				m.textarea.SetHeight(newH)
 				m.recalcLayout()
 			}
 			return m, nil
@@ -795,21 +802,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.textarea.InsertString(text)
-		// Auto-grow textarea for multi-line pastes (max 5 lines for short, hint for long)
-		lines := strings.Count(m.textarea.Value(), "\n") + 1
+		charCount := len([]rune(text))
 		lineCount := strings.Count(text, "\n") + 1
-		if lineCount <= 5 {
-			// Short paste: expand textarea to show content
-			if lines > m.textarea.Height() && lines <= 5 {
-				m.textarea.SetHeight(lines)
-				m.recalcLayout()
-			}
-		} else {
-			// Long paste: keep textarea compact, show hint above it
-			m.textarea.SetHeight(1)
-			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
-			m.recalcLayout()
+		lines := strings.Count(m.textarea.Value(), "\n") + 1
+
+		// Auto-grow textarea (up to 10 lines)
+		newH := min(lines, 10)
+		if newH != m.textarea.Height() {
+			m.textarea.SetHeight(newH)
 		}
+
+		// Always show paste info
+		if lineCount > 1 {
+			m.pasteHint = fmt.Sprintf("[Pasted %d lines, %d chars — Enter to send, Ctrl+U to clear]", lineCount, charCount)
+		} else {
+			m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", charCount)
+		}
+		m.recalcLayout()
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -1234,7 +1243,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selStartY = m.viewport.YOffset() + msg.Y
 			m.selEndX = msg.X
 			m.selEndY = m.selStartY
-			m.applySelectionHighlight()
 		}
 		return m, nil
 
@@ -1242,7 +1250,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.selecting && msg.Y < m.viewport.Height() {
 			m.selEndX = msg.X
 			m.selEndY = m.viewport.YOffset() + msg.Y
-			m.applySelectionHighlight()
 		}
 		return m, nil
 
@@ -1868,7 +1875,7 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 
 	case "/help":
 		help := fmt.Sprintf(`  TECHAI CODE %s
-  Enter — Send    Shift+Enter — Newline (Ctrl+J on Windows)
+  Enter — Send    Ctrl+J — Newline
   Ctrl+K — Palette    Esc — Menu    Ctrl+Y — Copy last reply    Ctrl+C — Quit
   ↑/↓ — Scroll (input empty) / History    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
   Shift+Drag — Select text (bypasses mouse capture)
@@ -1916,8 +1923,12 @@ func (m Model) View() tea.View {
 		contentLines := strings.Split(vpContent, "\n")
 		if len(contentLines) > m.viewport.Height() {
 			contentLines = contentLines[:m.viewport.Height()]
-			vpContent = strings.Join(contentLines, "\n")
 		}
+		// Apply text selection highlighting
+		if m.selecting || (m.selStartX != m.selEndX || m.selStartY != m.selEndY) {
+			contentLines = m.highlightSelection(contentLines)
+		}
+		vpContent = strings.Join(contentLines, "\n")
 
 		// Input box with gray border
 		inputBox := lipgloss.NewStyle().
@@ -2008,7 +2019,6 @@ func (m *Model) clearSelection() {
 	m.selecting = false
 	m.selStartX, m.selStartY = 0, 0
 	m.selEndX, m.selEndY = 0, 0
-	m.viewport.ClearHighlights()
 }
 
 func (m *Model) extractSelectedText() string {
@@ -2067,54 +2077,55 @@ func (m *Model) extractSelectedText() string {
 	return sb.String()
 }
 
-func (m *Model) applySelectionHighlight() {
-	content := m.viewport.GetContent()
-	if content == "" {
-		return
-	}
-
+// highlightSelection applies reverse-video styling to the selected region
+// of the visible viewport lines. Coordinates are in content-space (YOffset-based).
+func (m *Model) highlightSelection(visibleLines []string) []string {
 	startY, endY := m.selStartY, m.selEndY
 	startX, endX := m.selStartX, m.selEndX
-
-	// Normalize
 	if startY > endY || (startY == endY && startX > endX) {
 		startY, endY = endY, startY
 		startX, endX = endX, startX
 	}
 
-	// Convert line+col to byte offset in the stripped content
-	plain := ansi.Strip(content)
-	lines := strings.Split(plain, "\n")
+	yOff := m.viewport.YOffset()
+	result := make([]string, len(visibleLines))
+	copy(result, visibleLines)
 
-	if startY >= len(lines) || endY >= len(lines) {
-		return
+	for i, line := range result {
+		contentY := yOff + i
+		if contentY < startY || contentY > endY {
+			continue
+		}
+		lineWidth := ansi.StringWidth(line)
+
+		var sx, ex int
+		if contentY == startY {
+			sx = startX
+		}
+		if contentY == endY {
+			ex = endX
+		} else {
+			ex = lineWidth
+		}
+		if sx >= lineWidth {
+			continue
+		}
+		if ex > lineWidth {
+			ex = lineWidth
+		}
+		if sx >= ex {
+			continue
+		}
+
+		before := ansi.Cut(line, 0, sx)
+		sel := ansi.Cut(line, sx, ex)
+		after := ansi.Cut(line, ex, lineWidth)
+
+		// Apply reverse video to selected portion
+		highlighted := lipgloss.NewStyle().Reverse(true).Render(ansi.Strip(sel))
+		result[i] = before + highlighted + after
 	}
-
-	// Calculate byte offset for start position
-	byteStart := 0
-	for y := 0; y < startY; y++ {
-		byteStart += len(lines[y]) + 1 // +1 for \n
-	}
-	runes := []rune(lines[startY])
-	sx := min(startX, len(runes))
-	byteStart += len(string(runes[:sx]))
-
-	// Calculate byte offset for end position
-	byteEnd := 0
-	for y := 0; y < endY; y++ {
-		byteEnd += len(lines[y]) + 1
-	}
-	runes = []rune(lines[endY])
-	ex := min(endX, len(runes))
-	byteEnd += len(string(runes[:ex]))
-
-	if byteStart >= byteEnd {
-		m.viewport.ClearHighlights()
-		return
-	}
-
-	m.viewport.HighlightStyle = lipgloss.NewStyle().Reverse(true)
-	m.viewport.SetHighlights([][]int{{byteStart, byteEnd}})
+	return result
 }
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
