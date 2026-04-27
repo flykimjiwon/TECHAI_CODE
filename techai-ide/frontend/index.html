@@ -16,6 +16,125 @@
   <div id="debug-info" style="font-size:11px;color:#555"></div>
 </div></div>
 <script>
+  // Wails API shim — window.go.main.App → REST API
+  if (!window.go) {
+    window.go = { main: { App: {} } };
+    var api = function(method, args) {
+      return fetch('/api/' + method, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: args !== undefined ? JSON.stringify(args) : undefined
+      }).then(function(r) { return r.text().then(function(t) { try{return JSON.parse(t)}catch(e){return t} }) });
+    };
+    var get = function(method, params) {
+      var qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return fetch('/api/' + method + qs).then(function(r) { return r.text().then(function(t) { try{return JSON.parse(t)}catch(e){return t} }) });
+    };
+    var A = window.go.main.App;
+    A.ListFiles = function(a,b) { return get('listFiles',{path:a||'.'}); };
+    A.ReadFile = function(a) { return get('readFile',{path:a}); };
+    A.WriteFile = function(a,b) { return api('writeFile',{path:a,content:b}); };
+    A.DeleteFile = function(a) { return api('deleteFile',{path:a}); };
+    A.RenameFile = function(a,b) { return api('renameFile',{oldPath:a,newPath:b}); };
+    A.SearchInFiles = function(a,b) { return get('search',{pattern:a,path:b||'.'}); };
+    A.WalkProject = function() { return get('walkProject'); };
+    A.GetCwd = function() { return get('getCwd'); };
+    A.SetCwd = function(a) { return api('setCwd',{path:a}); };
+    A.SendMessage = function(a) { return api('sendMessage',a); };
+    A.ClearChat = function() { return api('clearChat'); };
+    A.GetModel = function() { return get('getModel'); };
+    A.GetSettings = function() { return get('getSettings'); };
+    A.SaveSettings = function(a,b,c) { return api('saveSettings',{baseURL:a,apiKey:b,model:c}); };
+    A.SetLanguage = function(a) { return api('setLanguage',{lang:a}); };
+    A.GetGitInfo = function() { return get('gitInfo'); };
+    A.GetGitGraph = function(n) { return get('gitGraph'); };
+    A.GetGitBranches = function() { return get('gitBranches'); };
+    A.GitCheckout = function(a) { return api('gitCheckout',{branch:a}); };
+    A.GitCreateBranch = function(a) { return api('gitCreateBranch',{name:a}); };
+    A.GitPull = function() { return api('gitPull'); };
+    A.GitPush = function() { return api('gitPush'); };
+    A.GitStage = function(a) { return api('gitStage',{path:a}); };
+    A.GitCommit = function(a) { return api('gitCommit',{message:a}); };
+    A.GitDiff = function() { return get('gitDiff'); };
+    A.GitDiffFile = function(a) { return get('gitDiffFile',{path:a}); };
+    A.StartTerminal = function() { return api('startTerminal'); };
+    A.WriteTerminal = function(a) { return api('writeTerminal',a); };
+    A.StopTerminal = function() { return api('stopTerminal'); };
+    A.ResizeTerminal = function() { return Promise.resolve(); };
+    A.GetAvailableShells = function() { return get('getShells'); };
+    A.GetCurrentShell = function() { return get('getCurrentShell'); };
+    A.SetShell = function(a) { return api('setShell',{shell:a}); };
+    A.GetKnowledgePacks = function() { return get('knowledgePacks'); };
+    A.ToggleKnowledgePack = function(a,b) { return api('toggleKnowledgePack',{id:a,enabled:b}); };
+    A.GetRecentProjects = function() { return get('recentProjects'); };
+    A.OpenFolder = function() { return Promise.resolve(''); };
+    A.OpenInBrowser = function(a) { window.open(a,'_blank'); return Promise.resolve(); };
+    A.StartLiveServer = function(a) { return api('startLiveServer',{dir:a}); };
+    A.ExportChat = function() { return api('exportChat'); };
+    A.SaveSession = function(a) { return api('saveSession',{title:a}); };
+    A.ListSessions = function() { return get('listSessions'); };
+    A.LoadSession = function(a) { return api('loadSession',{id:a}); };
+    A.FileExists = function(a) { return get('fileExists',{path:a}); };
+    A.GetSearchLimit = function() { return Promise.resolve(100); };
+    A.SaveDroppedFile = function(a,b) { return api('writeFile',{path:a,content:b}); };
+    A.GetChatHistory = function() { return get('chatHistory'); };
+    A.GitLog = function(n) { return get('gitLog'); };
+    A.GitUnstage = function(a) { return api('gitUnstage',{path:a}); };
+    A.GetFileIcon = function() { return Promise.resolve('file'); };
+    A.DeleteSession = function(a) { return api('deleteSession',{id:a}); };
+  }
+  // Wails runtime shim — EventsOn/EventsEmit via SSE when not in Wails
+  if (!window.runtime) {
+    var _sseCallbacks = {};
+    var _sseCancelId = 0;
+    window.runtime = {
+      EventsOnMultiple: function(name, cb, max) {
+        if (!_sseCallbacks[name]) _sseCallbacks[name] = [];
+        var entry = { cb: cb, max: max, count: 0, id: ++_sseCancelId };
+        _sseCallbacks[name].push(entry);
+        return function() { _sseCallbacks[name] = _sseCallbacks[name].filter(function(e){return e.id!==entry.id}) };
+      },
+      EventsOff: function() {},
+      EventsOffAll: function() {},
+      EventsEmit: function(name) {
+        var data = arguments.length > 1 ? arguments[1] : undefined;
+        fetch('/api/emit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name,data:data}) }).catch(function(){});
+      },
+      LogPrint: function(){}, LogTrace: function(){}, LogDebug: function(){},
+      LogInfo: function(){}, LogWarning: function(){}, LogError: function(){}, LogFatal: function(){},
+      WindowSetTitle: function(){}, WindowShow: function(){}, WindowHide: function(){},
+      WindowCenter: function(){}, WindowToggleMaximise: function(){},
+      WindowSetSize: function(){}, WindowGetSize: function(){ return {w:1440,h:900} },
+    };
+    // Connect SSE for server-push events
+    try {
+      var es = new EventSource('/api/events');
+      es.onmessage = function(e) {
+        try {
+          var msg = JSON.parse(e.data);
+          var cbs = _sseCallbacks[msg.name] || [];
+          cbs.forEach(function(entry) {
+            entry.cb(msg.data);
+            entry.count++;
+            if (entry.max > 0 && entry.count >= entry.max) {
+              _sseCallbacks[msg.name] = _sseCallbacks[msg.name].filter(function(x){return x.id!==entry.id});
+            }
+          });
+        } catch(err) {}
+      };
+      es.addEventListener('chat:chunk', function(e) { (_sseCallbacks['chat:chunk']||[]).forEach(function(x){x.cb(e.data)}) });
+      es.addEventListener('chat:stream_start', function(e) { (_sseCallbacks['chat:stream_start']||[]).forEach(function(x){x.cb()}) });
+      es.addEventListener('chat:stream_done', function(e) { (_sseCallbacks['chat:stream_done']||[]).forEach(function(x){x.cb()}) });
+      es.addEventListener('chat:tool_start', function(e) { try{(_sseCallbacks['chat:tool_start']||[]).forEach(function(x){x.cb(JSON.parse(e.data))})}catch(err){} });
+      es.addEventListener('chat:tool_done', function(e) { try{(_sseCallbacks['chat:tool_done']||[]).forEach(function(x){x.cb(JSON.parse(e.data))})}catch(err){} });
+      es.addEventListener('chat:error', function(e) { (_sseCallbacks['chat:error']||[]).forEach(function(x){x.cb(e.data)}) });
+      es.addEventListener('chat:cleared', function(e) { (_sseCallbacks['chat:cleared']||[]).forEach(function(x){x.cb()}) });
+      es.addEventListener('file:changed', function(e) { (_sseCallbacks['file:changed']||[]).forEach(function(x){x.cb(e.data)}) });
+      es.addEventListener('tree:refresh', function(e) { (_sseCallbacks['tree:refresh']||[]).forEach(function(x){x.cb()}) });
+      es.addEventListener('term:output', function(e) { (_sseCallbacks['term:output']||[]).forEach(function(x){x.cb(e.data)}) });
+      es.addEventListener('preview:open', function(e) { (_sseCallbacks['preview:open']||[]).forEach(function(x){x.cb(e.data)}) });
+    } catch(err) {}
+  }
   // Show debug info immediately
   try {
     var info = document.getElementById('debug-info');
