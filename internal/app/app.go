@@ -165,9 +165,6 @@ type Model struct {
 	pendingPrefetch  string // auto-prefetched file contents, injected once then cleared
 	streamRetries   int
 
-	// Mouse mode: toggleable for text selection vs scroll
-	mouseEnabled bool
-
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
 
@@ -299,7 +296,6 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 		setupInput:     setupTa,
 		store:          sessionStore,
 		customCommands: customCmds,
-		mouseEnabled:  true,
 	}
 
 	// Initialize lifecycle hooks
@@ -620,18 +616,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.recalcLayout()
 			return m, nil
 
-		case "ctrl+b":
-			// Toggle mouse mode (scroll vs text selection)
-			m.mouseEnabled = !m.mouseEnabled
-			label := "ON (scroll)"
-			if !m.mouseEnabled {
-				label = "OFF (text select enabled)"
-			}
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: fmt.Sprintf("  Mouse: %s", label), Timestamp: time.Now(),
-			})
-			m.updateViewport()
-			return m, nil
 
 		case "ctrl+l":
 			// Keep system prompt, clear conversation
@@ -708,10 +692,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "up":
-			// Up arrow: browse input history (only when textarea is single-line)
+			// Up arrow: history when single-line with history, else scroll viewport
 			if m.textarea.Height() == 1 && len(m.inputHistory) > 0 {
 				if m.historyIdx == -1 {
-					// Entering history mode — save current draft
 					m.historyDraft = m.textarea.Value()
 					m.historyIdx = 0
 				} else if m.historyIdx < len(m.inputHistory)-1 {
@@ -721,18 +704,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textarea.InsertString(m.inputHistory[m.historyIdx])
 				return m, nil
 			}
+			if m.textarea.Value() == "" {
+				m.viewport.ScrollUp(3)
+				return m, nil
+			}
 
 		case "down":
-			// Down arrow: browse input history forward
+			// Down arrow: history forward when browsing, else scroll viewport
 			if m.historyIdx >= 0 {
 				m.historyIdx--
 				m.textarea.Reset()
 				if m.historyIdx < 0 {
-					// Back to draft
 					m.textarea.InsertString(m.historyDraft)
 				} else {
 					m.textarea.InsertString(m.inputHistory[m.historyIdx])
 				}
+				return m, nil
+			}
+			if m.textarea.Value() == "" {
+				m.viewport.ScrollDown(3)
 				return m, nil
 			}
 
@@ -747,6 +737,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "alt+down":
 			m.viewport.ScrollDown(3)
 			return m, nil
+
 		}
 
 		// Default: forward to textarea
@@ -1802,8 +1793,8 @@ Format as clean markdown. Be specific, not generic. Reference actual file names 
 	case "/help":
 		help := fmt.Sprintf(`  TECHAI CODE %s
   Enter — Send    Shift+Enter — Newline (Ctrl+J on Windows)
-  Ctrl+K — Palette    Esc — Menu    Ctrl+B — Toggle mouse    Ctrl+C — Quit
-  ↑/↓ — Input history    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
+  Ctrl+K — Palette    Esc — Menu    Ctrl+C — Quit
+  ↑/↓ — Scroll (input empty) / History    Alt+↑/↓ — Scroll    PgUp/PgDn — Page scroll
 
   /init — Quick scan    /init deep — AI-powered deep analysis
   /remember <text> — Save memory    /remember list — Show all
@@ -1894,9 +1885,6 @@ func (m Model) View() tea.View {
 
 	v := tea.NewView(content)
 	v.AltScreen = true
-	if m.mouseEnabled {
-		v.MouseMode = tea.MouseModeCellMotion
-	}
 	return v
 }
 
