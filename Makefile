@@ -1,4 +1,4 @@
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo "dev")
 BINARY = techai
 
 # v0.4.0: Debug always ON for all builds
