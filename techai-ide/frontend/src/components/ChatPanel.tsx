@@ -152,6 +152,8 @@ export default function ChatPanel() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    // Skip if Korean IME is composing (prevents duplicate send on Enter)
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       send()
