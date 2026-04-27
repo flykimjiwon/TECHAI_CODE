@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/wailsapp/wails/v2"
@@ -89,6 +90,8 @@ func main() {
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
+			// Fixed Version: exe 옆 "WebView2" 폴더에 런타임 있으면 자동 사용
+			WebviewBrowserPath: getWebView2Path(),
 		},
 	})
 
@@ -97,6 +100,23 @@ func main() {
 		println("Error:", err.Error())
 	}
 	log("App exited.")
+}
+
+// getWebView2Path checks if a fixed-version WebView2 runtime exists next to the exe.
+func getWebView2Path() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Dir(exe)
+	// Check common folder names
+	for _, name := range []string{"WebView2", "webview2", "Microsoft.WebView2.FixedVersionRuntime"} {
+		candidate := filepath.Join(dir, name)
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+	return "" // empty = use system WebView2
 }
 
 func buildMenu(app *App) *menu.Menu {
