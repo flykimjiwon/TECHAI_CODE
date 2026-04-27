@@ -1,0 +1,6 @@
+node_modules/
+dist/
+out/
+go-server/
+frontend-dist/
+*.log

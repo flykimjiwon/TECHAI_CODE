@@ -48,17 +48,20 @@ func runBrowserMode(app *App, assets fs.FS) error {
 	fmt.Printf("TECHAI IDE running at %s\n", url)
 	fmt.Println("Press Ctrl+C to stop.")
 
-	// Open browser
-	go openBrowser(url)
+	// Only open browser if not running as Electron backend
+	if os.Getenv("TECHAI_PORT") == "" {
+		go openBrowser(url)
+	}
 
 	// Initialize app
-	go func() {
-		app.ctx = nil // No Wails context in browser mode
-		cfg := LoadTGCConfig()
-		app.chatMu.Lock()
-		app.chat = newChatEngine(cfg, app)
-		app.chatMu.Unlock()
-	}()
+	cfg := LoadTGCConfig()
+	app.chatMu.Lock()
+	app.chat = newChatEngine(cfg, app)
+	app.chatMu.Unlock()
+
+	// File watcher
+	app.watcherDone = make(chan struct{})
+	go app.watchFiles()
 
 	return http.ListenAndServe(addr, mux)
 }
