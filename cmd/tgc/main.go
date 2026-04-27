@@ -104,6 +104,9 @@ func main() {
 	// Parse initial mode
 	initialMode := parseMode(*modeFlag)
 
+	// Enable mouse input on Windows (legacy console compatibility)
+	enableWindowsMouse()
+
 	// Create and run the app (AltScreen and Mouse are set in View)
 	m := app.NewModel(cfg, initialMode, needsSetup)
 	p := tea.NewProgram(m)
