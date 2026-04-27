@@ -34,6 +34,16 @@ func main() {
 		}
 	}
 
+	// Check embedded assets
+	if entries, err := assets.ReadDir("frontend/dist"); err != nil {
+		log("ERROR reading embedded assets: " + err.Error())
+	} else {
+		log(fmt.Sprintf("Embedded assets: %d entries in frontend/dist", len(entries)))
+		for _, e := range entries {
+			log("  " + e.Name())
+		}
+	}
+
 	log("Creating app...")
 	app := NewApp()
 	log("Building menu...")

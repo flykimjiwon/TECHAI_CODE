@@ -37,20 +37,26 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	cfg := LoadTGCConfig()
-	a.chat = newChatEngine(cfg, a)
 
-	// Set window title
-	wailsRuntime.WindowSetTitle(ctx, "TECHAI IDE — "+a.cwd)
+	// All initialization in goroutine to not block Wails startup
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Don't crash the app
+			}
+		}()
 
-	// Terminal starts on-demand when frontend mounts Terminal component
+		cfg := LoadTGCConfig()
+		a.chatMu.Lock()
+		a.chat = newChatEngine(cfg, a)
+		a.chatMu.Unlock()
 
-	// Save to recent projects
-	a.saveRecentProject(a.cwd)
+		wailsRuntime.WindowSetTitle(ctx, "TECHAI IDE — "+a.cwd)
+		a.saveRecentProject(a.cwd)
 
-	// File watcher with proper shutdown
-	a.watcherDone = make(chan struct{})
-	go a.watchFiles()
+		a.watcherDone = make(chan struct{})
+		go a.watchFiles()
+	}()
 }
 
 func (a *App) watchFiles() {

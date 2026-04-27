@@ -6,17 +6,35 @@
     <title>TECHAI IDE</title>
     <style>
       body { margin: 0; background: #0a0a0c; color: #e4e4e7; font-family: 'Segoe UI', -apple-system, sans-serif; }
-      #loading { display: flex; align-items: center; justify-content: center; height: 100vh; font-size: 14px; color: #71717a; }
+      #loading { display: flex; align-items: center; justify-content: center; height: 100vh; font-size: 24px; color: #ffffff; flex-direction: column; gap: 12px; }
     </style>
 </head>
 <body>
-<div id="root"><div id="loading">TECHAI IDE loading...</div></div>
+<div id="root"><div id="loading">
+  <div>TECHAI IDE</div>
+  <div style="font-size:14px;color:#888">Loading...</div>
+  <div id="debug-info" style="font-size:11px;color:#555"></div>
+</div></div>
+<script>
+  // Show debug info immediately
+  try {
+    var info = document.getElementById('debug-info');
+    info.textContent = 'UA: ' + navigator.userAgent.slice(0, 80);
+  } catch(e) {}
+  // Catch all JS errors
+  window.onerror = function(msg, src, line) {
+    var el = document.getElementById('loading');
+    if (el) el.innerHTML = '<div style="color:red">Error: ' + msg + '</div><div style="font-size:11px">' + src + ':' + line + '</div>';
+  };
+</script>
 <script src="./src/main.tsx" type="module"></script>
 <script>
-  // Fallback: if React fails to mount after 5s, show error
   setTimeout(function() {
     var el = document.getElementById('loading');
-    if (el) el.innerHTML = 'Failed to load. Check WebView2 version.';
+    if (el) {
+      el.innerHTML += '<div style="color:orange;font-size:14px;margin-top:20px">App failed to load after 5s</div>';
+      el.innerHTML += '<div style="font-size:11px;color:#666">Check techai-ide-debug.log</div>';
+    }
   }, 5000);
 </script>
 </body>
