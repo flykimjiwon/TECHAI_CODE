@@ -99,11 +99,24 @@ func getWebView2Path() string {
 		return ""
 	}
 	dir := filepath.Dir(exe)
+
 	// Check common folder names
-	for _, name := range []string{"WebView2", "webview2", "Microsoft.WebView2.FixedVersionRuntime"} {
+	candidates := []string{"WebView2", "webview2", "Microsoft.WebView2.FixedVersionRuntime"}
+	for _, name := range candidates {
 		candidate := filepath.Join(dir, name)
-		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+		// Must contain msedgewebview2.exe to be valid
+		if _, err := os.Stat(filepath.Join(candidate, "msedgewebview2.exe")); err == nil {
 			return candidate
+		}
+		// Check one level deeper (e.g. WebView2/x64/ or WebView2/Microsoft.xxx/)
+		entries, _ := os.ReadDir(candidate)
+		for _, e := range entries {
+			if e.IsDir() {
+				sub := filepath.Join(candidate, e.Name())
+				if _, err := os.Stat(filepath.Join(sub, "msedgewebview2.exe")); err == nil {
+					return sub
+				}
+			}
 		}
 	}
 	return "" // empty = use system WebView2
