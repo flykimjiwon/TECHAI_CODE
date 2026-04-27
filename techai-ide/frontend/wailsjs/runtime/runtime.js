@@ -1,298 +1,122 @@
-/*
- _       __      _ __
-| |     / /___ _(_) /____
-| | /| / / __ `/ / / ___/
-| |/ |/ / /_/ / / (__  )
-|__/|__/\__,_/_/_/____/
-The electron alternative for Go
-(c) Lea Anthony 2019-present
-*/
+// TECHAI IDE — Wails runtime wrapper with SSE fallback for Electron/browser mode
 
-export function LogPrint(message) {
-    window.runtime.LogPrint(message);
+var _sseCallbacks = {};
+var _sseCancelId = 0;
+var _sseConnected = false;
+
+function ensureSSE() {
+  if (_sseConnected) return;
+  _sseConnected = true;
+  function connect() {
+    try {
+      var es = new EventSource('/api/events');
+      var sseEvents = ['chat:chunk','chat:stream_start','chat:stream_done','chat:tool_start','chat:tool_done','chat:error','chat:cleared','file:changed','tree:refresh','term:output','preview:open'];
+      var jsonEvents = { 'chat:tool_start': true, 'chat:tool_done': true };
+      var noArgEvents = { 'chat:stream_start': true, 'chat:stream_done': true, 'chat:cleared': true, 'tree:refresh': true };
+      sseEvents.forEach(function(name) {
+        es.addEventListener(name, function(e) {
+          try {
+            (_sseCallbacks[name]||[]).forEach(function(x) {
+              if (noArgEvents[name]) x.cb();
+              else if (jsonEvents[name]) x.cb(JSON.parse(e.data));
+              else x.cb(e.data);
+            });
+          } catch(err) {}
+        });
+      });
+      es.onerror = function() { es.close(); setTimeout(connect, 2000); };
+    } catch(err) { setTimeout(connect, 2000); }
+  }
+  connect();
 }
 
-export function LogTrace(message) {
-    window.runtime.LogTrace(message);
-}
-
-export function LogDebug(message) {
-    window.runtime.LogDebug(message);
-}
-
-export function LogInfo(message) {
-    window.runtime.LogInfo(message);
-}
-
-export function LogWarning(message) {
-    window.runtime.LogWarning(message);
-}
-
-export function LogError(message) {
-    window.runtime.LogError(message);
-}
-
-export function LogFatal(message) {
-    window.runtime.LogFatal(message);
+function rt() {
+  try { return window.runtime && window.runtime.EventsOnMultiple ? window.runtime : null; } catch(e) { return null; }
 }
 
 export function EventsOnMultiple(eventName, callback, maxCallbacks) {
-    return window.runtime.EventsOnMultiple(eventName, callback, maxCallbacks);
+  var r = rt();
+  if (r) return r.EventsOnMultiple(eventName, callback, maxCallbacks);
+  // SSE fallback
+  ensureSSE();
+  if (!_sseCallbacks[eventName]) _sseCallbacks[eventName] = [];
+  var entry = { cb: callback, max: maxCallbacks, count: 0, id: ++_sseCancelId };
+  _sseCallbacks[eventName].push(entry);
+  return function() { _sseCallbacks[eventName] = (_sseCallbacks[eventName]||[]).filter(function(e){return e.id!==entry.id}) };
 }
 
 export function EventsOn(eventName, callback) {
-    return EventsOnMultiple(eventName, callback, -1);
+  return EventsOnMultiple(eventName, callback, -1);
 }
 
-export function EventsOff(eventName, ...additionalEventNames) {
-    return window.runtime.EventsOff(eventName, ...additionalEventNames);
+export function EventsOff(eventName) {
+  var r = rt();
+  if (r) return r.EventsOff(eventName);
+  delete _sseCallbacks[eventName];
 }
 
 export function EventsOffAll() {
-  return window.runtime.EventsOffAll();
+  var r = rt();
+  if (r) return r.EventsOffAll();
+  _sseCallbacks = {};
 }
 
 export function EventsOnce(eventName, callback) {
-    return EventsOnMultiple(eventName, callback, 1);
+  return EventsOnMultiple(eventName, callback, 1);
 }
 
 export function EventsEmit(eventName) {
-    let args = [eventName].slice.call(arguments);
-    return window.runtime.EventsEmit.apply(null, args);
+  var r = rt();
+  if (r) return r.EventsEmit.apply(null, arguments);
+  var data = arguments.length > 1 ? arguments[1] : undefined;
+  fetch('/api/emit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:eventName,data:data}) }).catch(function(){});
 }
 
-export function WindowReload() {
-    window.runtime.WindowReload();
-}
-
-export function WindowReloadApp() {
-    window.runtime.WindowReloadApp();
-}
-
-export function WindowSetAlwaysOnTop(b) {
-    window.runtime.WindowSetAlwaysOnTop(b);
-}
-
-export function WindowSetSystemDefaultTheme() {
-    window.runtime.WindowSetSystemDefaultTheme();
-}
-
-export function WindowSetLightTheme() {
-    window.runtime.WindowSetLightTheme();
-}
-
-export function WindowSetDarkTheme() {
-    window.runtime.WindowSetDarkTheme();
-}
-
-export function WindowCenter() {
-    window.runtime.WindowCenter();
-}
-
-export function WindowSetTitle(title) {
-    window.runtime.WindowSetTitle(title);
-}
-
-export function WindowFullscreen() {
-    window.runtime.WindowFullscreen();
-}
-
-export function WindowUnfullscreen() {
-    window.runtime.WindowUnfullscreen();
-}
-
-export function WindowIsFullscreen() {
-    return window.runtime.WindowIsFullscreen();
-}
-
-export function WindowGetSize() {
-    return window.runtime.WindowGetSize();
-}
-
-export function WindowSetSize(width, height) {
-    window.runtime.WindowSetSize(width, height);
-}
-
-export function WindowSetMaxSize(width, height) {
-    window.runtime.WindowSetMaxSize(width, height);
-}
-
-export function WindowSetMinSize(width, height) {
-    window.runtime.WindowSetMinSize(width, height);
-}
-
-export function WindowSetPosition(x, y) {
-    window.runtime.WindowSetPosition(x, y);
-}
-
-export function WindowGetPosition() {
-    return window.runtime.WindowGetPosition();
-}
-
-export function WindowHide() {
-    window.runtime.WindowHide();
-}
-
-export function WindowShow() {
-    window.runtime.WindowShow();
-}
-
-export function WindowMaximise() {
-    window.runtime.WindowMaximise();
-}
-
-export function WindowToggleMaximise() {
-    window.runtime.WindowToggleMaximise();
-}
-
-export function WindowUnmaximise() {
-    window.runtime.WindowUnmaximise();
-}
-
-export function WindowIsMaximised() {
-    return window.runtime.WindowIsMaximised();
-}
-
-export function WindowMinimise() {
-    window.runtime.WindowMinimise();
-}
-
-export function WindowUnminimise() {
-    window.runtime.WindowUnminimise();
-}
-
-export function WindowSetBackgroundColour(R, G, B, A) {
-    window.runtime.WindowSetBackgroundColour(R, G, B, A);
-}
-
-export function ScreenGetAll() {
-    return window.runtime.ScreenGetAll();
-}
-
-export function WindowIsMinimised() {
-    return window.runtime.WindowIsMinimised();
-}
-
-export function WindowIsNormal() {
-    return window.runtime.WindowIsNormal();
-}
-
-export function BrowserOpenURL(url) {
-    window.runtime.BrowserOpenURL(url);
-}
-
-export function Environment() {
-    return window.runtime.Environment();
-}
-
-export function Quit() {
-    window.runtime.Quit();
-}
-
-export function Hide() {
-    window.runtime.Hide();
-}
-
-export function Show() {
-    window.runtime.Show();
-}
-
-export function ClipboardGetText() {
-    return window.runtime.ClipboardGetText();
-}
-
-export function ClipboardSetText(text) {
-    return window.runtime.ClipboardSetText(text);
-}
-
-/**
- * Callback for OnFileDrop returns a slice of file path strings when a drop is finished.
- *
- * @export
- * @callback OnFileDropCallback
- * @param {number} x - x coordinate of the drop
- * @param {number} y - y coordinate of the drop
- * @param {string[]} paths - A list of file paths.
- */
-
-/**
- * OnFileDrop listens to drag and drop events and calls the callback with the coordinates of the drop and an array of path strings.
- *
- * @export
- * @param {OnFileDropCallback} callback - Callback for OnFileDrop returns a slice of file path strings when a drop is finished.
- * @param {boolean} [useDropTarget=true] - Only call the callback when the drop finished on an element that has the drop target style. (--wails-drop-target)
- */
-export function OnFileDrop(callback, useDropTarget) {
-    return window.runtime.OnFileDrop(callback, useDropTarget);
-}
-
-/**
- * OnFileDropOff removes the drag and drop listeners and handlers.
- */
-export function OnFileDropOff() {
-    return window.runtime.OnFileDropOff();
-}
-
-export function CanResolveFilePaths() {
-    return window.runtime.CanResolveFilePaths();
-}
-
-export function ResolveFilePaths(files) {
-    return window.runtime.ResolveFilePaths(files);
-}
-
-export function InitializeNotifications() {
-    return window.runtime.InitializeNotifications();
-}
-
-export function CleanupNotifications() {
-    return window.runtime.CleanupNotifications();
-}
-
-export function IsNotificationAvailable() {
-    return window.runtime.IsNotificationAvailable();
-}
-
-export function RequestNotificationAuthorization() {
-    return window.runtime.RequestNotificationAuthorization();
-}
-
-export function CheckNotificationAuthorization() {
-    return window.runtime.CheckNotificationAuthorization();
-}
-
-export function SendNotification(options) {
-    return window.runtime.SendNotification(options);
-}
-
-export function SendNotificationWithActions(options) {
-    return window.runtime.SendNotificationWithActions(options);
-}
-
-export function RegisterNotificationCategory(category) {
-    return window.runtime.RegisterNotificationCategory(category);
-}
-
-export function RemoveNotificationCategory(categoryId) {
-    return window.runtime.RemoveNotificationCategory(categoryId);
-}
-
-export function RemoveAllPendingNotifications() {
-    return window.runtime.RemoveAllPendingNotifications();
-}
-
-export function RemovePendingNotification(identifier) {
-    return window.runtime.RemovePendingNotification(identifier);
-}
-
-export function RemoveAllDeliveredNotifications() {
-    return window.runtime.RemoveAllDeliveredNotifications();
-}
-
-export function RemoveDeliveredNotification(identifier) {
-    return window.runtime.RemoveDeliveredNotification(identifier);
-}
-
-export function RemoveNotification(identifier) {
-    return window.runtime.RemoveNotification(identifier);
-}
+// Stubs for Wails-only functions (no-op in browser mode)
+export function LogPrint(m) { var r = rt(); if (r) r.LogPrint(m); }
+export function LogTrace(m) { var r = rt(); if (r) r.LogTrace(m); }
+export function LogDebug(m) { var r = rt(); if (r) r.LogDebug(m); }
+export function LogInfo(m) { var r = rt(); if (r) r.LogInfo(m); }
+export function LogWarning(m) { var r = rt(); if (r) r.LogWarning(m); }
+export function LogError(m) { var r = rt(); if (r) r.LogError(m); }
+export function LogFatal(m) { var r = rt(); if (r) r.LogFatal(m); }
+export function WindowReload() { var r = rt(); if (r) r.WindowReload(); }
+export function WindowReloadApp() { var r = rt(); if (r) r.WindowReloadApp(); }
+export function WindowSetAlwaysOnTop(b) { var r = rt(); if (r) r.WindowSetAlwaysOnTop(b); }
+export function WindowSetSystemDefaultTheme() { var r = rt(); if (r) r.WindowSetSystemDefaultTheme(); }
+export function WindowSetLightTheme() { var r = rt(); if (r) r.WindowSetLightTheme(); }
+export function WindowSetDarkTheme() { var r = rt(); if (r) r.WindowSetDarkTheme(); }
+export function WindowCenter() { var r = rt(); if (r) r.WindowCenter(); }
+export function WindowSetTitle(t) { var r = rt(); if (r) r.WindowSetTitle(t); }
+export function WindowFullscreen() { var r = rt(); if (r) r.WindowFullscreen(); }
+export function WindowUnfullscreen() { var r = rt(); if (r) r.WindowUnfullscreen(); }
+export function WindowIsFullscreen() { var r = rt(); if (r) return r.WindowIsFullscreen(); return false; }
+export function WindowGetSize() { var r = rt(); if (r) return r.WindowGetSize(); return {w:1440,h:900}; }
+export function WindowSetSize(w,h) { var r = rt(); if (r) r.WindowSetSize(w,h); }
+export function WindowSetMaxSize(w,h) { var r = rt(); if (r) r.WindowSetMaxSize(w,h); }
+export function WindowSetMinSize(w,h) { var r = rt(); if (r) r.WindowSetMinSize(w,h); }
+export function WindowSetPosition(x,y) { var r = rt(); if (r) r.WindowSetPosition(x,y); }
+export function WindowGetPosition() { var r = rt(); if (r) return r.WindowGetPosition(); return {x:0,y:0}; }
+export function WindowHide() { var r = rt(); if (r) r.WindowHide(); }
+export function WindowShow() { var r = rt(); if (r) r.WindowShow(); }
+export function WindowMaximise() { var r = rt(); if (r) r.WindowMaximise(); }
+export function WindowToggleMaximise() { var r = rt(); if (r) r.WindowToggleMaximise(); }
+export function WindowUnmaximise() { var r = rt(); if (r) r.WindowUnmaximise(); }
+export function WindowIsMaximised() { var r = rt(); if (r) return r.WindowIsMaximised(); return false; }
+export function WindowMinimise() { var r = rt(); if (r) r.WindowMinimise(); }
+export function WindowUnminimise() { var r = rt(); if (r) r.WindowUnminimise(); }
+export function WindowSetBackgroundColour(R,G,B,A) { var r = rt(); if (r) r.WindowSetBackgroundColour(R,G,B,A); }
+export function ScreenGetAll() { var r = rt(); if (r) return r.ScreenGetAll(); return []; }
+export function WindowIsMinimised() { var r = rt(); if (r) return r.WindowIsMinimised(); return false; }
+export function WindowIsNormal() { var r = rt(); if (r) return r.WindowIsNormal(); return true; }
+export function BrowserOpenURL(url) { var r = rt(); if (r) r.BrowserOpenURL(url); else window.open(url,'_blank'); }
+export function Environment() { var r = rt(); if (r) return r.Environment(); return {}; }
+export function Quit() { var r = rt(); if (r) r.Quit(); }
+export function Hide() { var r = rt(); if (r) r.Hide(); }
+export function Show() { var r = rt(); if (r) r.Show(); }
+export function ClipboardGetText() { var r = rt(); if (r) return r.ClipboardGetText(); return navigator.clipboard.readText(); }
+export function ClipboardSetText(t) { var r = rt(); if (r) return r.ClipboardSetText(t); return navigator.clipboard.writeText(t); }
+export function OnFileDrop(cb, u) { var r = rt(); if (r) return r.OnFileDrop(cb, u); }
+export function OnFileDropOff() { var r = rt(); if (r) return r.OnFileDropOff(); }
+export function CanResolveFilePaths() { var r = rt(); if (r) return r.CanResolveFilePaths(); return false; }
+export function ResolveFilePaths(f) { var r = rt(); if (r) return r.ResolveFilePaths(f); return Promise.resolve(f); }
