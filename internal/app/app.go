@@ -673,6 +673,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateViewport()
 			return m, nil
 
+		case "ctrl+v":
+			// Intercept Ctrl+V: read clipboard directly, bypassing
+			// terminal paste mechanism to avoid Windows Korean IME freeze.
+			// Try atotto/clipboard first (works everywhere), OSC52 as backup.
+			text, err := clipboard.ReadAll()
+			if err == nil && strings.TrimSpace(text) != "" {
+				config.DebugLog("[CTRL+V] direct clipboard read: %d chars", len(text))
+				m.textarea.InsertString(text)
+				lineCount := strings.Count(text, "\n") + 1
+				if lineCount >= 2 {
+					m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+				} else {
+					m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+				}
+				lines := strings.Count(m.textarea.Value(), "\n") + 1
+				if lines > 1 && lines <= 10 && lines > m.textarea.Height() {
+					m.textarea.SetHeight(lines)
+				}
+				m.recalcLayout()
+				return m, nil
+			}
+			// Fallback: let terminal handle paste normally
+			return m, nil
+
 		case "shift+enter", "ctrl+j", "ctrl+enter":
 			// Shift+Enter or Ctrl+J = newline (Ctrl+J fallback for Windows CMD/PowerShell)
 			m.textarea.InsertString("\n")
@@ -784,6 +808,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
 			m.recalcLayout()
 		}
+		return m, nil
+
+	case tea.ClipboardMsg:
+		// OSC52 clipboard read response — used by Ctrl+V paste workaround.
+		// Inserts clipboard content as a single string, bypassing IME.
+		text := msg.String()
+		if text == "" {
+			// OSC52 not supported by terminal — try direct clipboard read
+			text, _ = clipboard.ReadAll()
+		}
+		if strings.TrimSpace(text) == "" {
+			return m, nil
+		}
+		config.DebugLog("[CLIPBOARD] received %d chars via OSC52/fallback", len(text))
+		m.textarea.InsertString(text)
+		lineCount := strings.Count(text, "\n") + 1
+		if lineCount >= 2 {
+			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+		} else {
+			m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+		}
+		lines := strings.Count(m.textarea.Value(), "\n") + 1
+		if lines > 1 && lines <= 10 && lines > m.textarea.Height() {
+			m.textarea.SetHeight(lines)
+		}
+		m.recalcLayout()
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -1272,6 +1322,32 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.setupInput.Reset()
 		m.setupInput.Placeholder = "tg_..."
 		m.setupInput.Focus()
+		return true, nil
+
+	case "/paste":
+		// Direct clipboard read — bypasses terminal IME completely.
+		// Workaround for Windows Korean IME paste freezing.
+		text, err := clipboard.ReadAll()
+		if err != nil || strings.TrimSpace(text) == "" {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "  클립보드가 비어있습니다.", Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		m.textarea.InsertString(text)
+		lineCount := strings.Count(text, "\n") + 1
+		if lineCount >= 2 {
+			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+		} else {
+			m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+		}
+		// Auto-grow textarea
+		lines := strings.Count(m.textarea.Value(), "\n") + 1
+		if lines > 1 && lines <= 10 && lines > m.textarea.Height() {
+			m.textarea.SetHeight(lines)
+		}
+		m.recalcLayout()
 		return true, nil
 
 	case "/clear":
