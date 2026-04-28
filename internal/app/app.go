@@ -170,6 +170,10 @@ type Model struct {
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
 
+	// Paste freeze prevention: detect rapid character input and block it
+	lastKeyAt  time.Time
+	rapidCount int
+
 	// Memory: persistent project/global facts injected into system prompt.
 	memoryStore *tools.MemoryStore
 
@@ -674,6 +678,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateViewport()
 			return m, nil
 
+		case "f5":
+			// F5 = paste from clipboard (Windows-friendly shortcut)
+			text, err := clipboard.ReadAll()
+			if err == nil && strings.TrimSpace(text) != "" {
+				m.textarea.InsertString(text)
+				lineCount := strings.Count(text, "\n") + 1
+				if lineCount >= 2 {
+					m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+				} else {
+					m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+				}
+				lines := strings.Count(m.textarea.Value(), "\n") + 1
+				if lines > 1 && lines <= 10 && lines > m.textarea.Height() {
+					m.textarea.SetHeight(lines)
+				}
+				m.recalcLayout()
+			}
+			return m, nil
+
 		case "shift+enter", "ctrl+j", "ctrl+enter":
 			// Shift+Enter or Ctrl+J = newline (Ctrl+J fallback for Windows CMD/PowerShell)
 			m.textarea.InsertString("\n")
@@ -749,7 +772,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Default: forward to textarea
+		// Paste freeze prevention: detect rapid character input
+		// (Windows Terminal sends Ctrl+V paste as individual chars)
+		now := time.Now()
+		if now.Sub(m.lastKeyAt) < 5*time.Millisecond {
+			m.rapidCount++
+		} else {
+			m.rapidCount = 0
+		}
+		m.lastKeyAt = now
+
+		// If 20+ chars arrived within 5ms each → it's a paste, not typing.
+		// Stop forwarding to textarea (prevents freeze) and auto-read clipboard.
+		if m.rapidCount == 20 {
+			// First detection: undo the 19 chars already inserted by clearing
+			// textarea and reading the full clipboard content instead.
+			m.textarea.Reset()
+			text, err := clipboard.ReadAll()
+			if err == nil && strings.TrimSpace(text) != "" {
+				m.textarea.InsertString(text)
+				lineCount := strings.Count(text, "\n") + 1
+				if lineCount >= 2 {
+					m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+				} else {
+					m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+				}
+				m.recalcLayout()
+			}
+			return m, nil
+		}
+		if m.rapidCount > 20 {
+			// Still receiving paste chars — drop silently
+			return m, nil
+		}
+
+		// Normal typing: forward to textarea
 		var taCmd tea.Cmd
 		m.textarea, taCmd = m.textarea.Update(msg)
 		// Auto-grow/shrink textarea after content changes
