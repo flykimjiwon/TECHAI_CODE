@@ -798,25 +798,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		// Bracketed paste: insert pasted text into textarea.
 		text := msg.Content
+		config.DebugLog("[PASTE] PasteMsg received | len=%d | lines=%d", len(text), strings.Count(text, "\n")+1)
 		if text == "" {
 			return m, nil
 		}
 		m.textarea.InsertString(text)
-		// Auto-grow textarea for multi-line pastes (max 5 lines for short, hint for long)
+		// Auto-grow textarea for multi-line pastes
 		lines := strings.Count(m.textarea.Value(), "\n") + 1
 		lineCount := strings.Count(text, "\n") + 1
-		if lineCount <= 5 {
-			// Short paste: expand textarea to show content
-			if lines > m.textarea.Height() && lines <= 5 {
-				m.textarea.SetHeight(lines)
-				m.recalcLayout()
+		if lineCount <= 10 {
+			// Short-medium paste: expand textarea to show content
+			if lines > m.textarea.Height() {
+				m.textarea.SetHeight(min(lines, 10))
 			}
 		} else {
-			// Long paste: keep textarea compact, show hint above it
+			// Long paste: keep textarea compact
 			m.textarea.SetHeight(1)
-			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
-			m.recalcLayout()
 		}
+		// Always show hint for any paste
+		if lineCount >= 2 {
+			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+		} else {
+			m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+		}
+		m.recalcLayout()
 		return m, nil
 
 	case tea.WindowSizeMsg:
