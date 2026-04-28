@@ -170,6 +170,10 @@ type Model struct {
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
 
+	// Rapid-input paste detection for terminals without bracketed paste (e.g. conhost.exe)
+	lastKeyAt    time.Time // timestamp of last non-Enter keypress
+	rapidKeyCount int      // consecutive keys within rapid threshold
+
 	// Memory: persistent project/global facts injected into system prompt.
 	memoryStore *tools.MemoryStore
 
@@ -684,6 +688,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "enter":
+			// Rapid-input paste detection: if many keys arrived within 50ms,
+			// this Enter is likely part of a paste (terminal without bracketed paste).
+			// Treat as newline instead of send.
+			if m.rapidKeyCount >= 3 && time.Since(m.lastKeyAt) < 50*time.Millisecond {
+				m.textarea.InsertString("\n")
+				lines := strings.Count(m.textarea.Value(), "\n") + 1
+				if lines > m.textarea.Height() && lines <= 10 {
+					m.textarea.SetHeight(lines)
+					m.recalcLayout()
+				}
+				m.rapidKeyCount = 0
+				return m, nil
+			}
+			m.rapidKeyCount = 0
+
 			// Enter = send message
 			input := strings.TrimSpace(m.textarea.Value())
 			if input != "" {
@@ -747,6 +766,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.ScrollDown(3)
 			return m, nil
 		}
+
+		// Track rapid key input for paste detection (conhost.exe fallback)
+		now := time.Now()
+		if now.Sub(m.lastKeyAt) < 50*time.Millisecond {
+			m.rapidKeyCount++
+		} else {
+			m.rapidKeyCount = 1
+		}
+		m.lastKeyAt = now
 
 		// Default: forward to textarea
 		var taCmd tea.Cmd
