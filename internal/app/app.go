@@ -170,13 +170,6 @@ type Model struct {
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
 
-	// imeGuard: invisible prefix to prevent Windows Korean IME paste freeze.
-	// When textarea is empty and paste starts with ASCII, IME enters broken state.
-	// A zero-width space forces IME to treat it as continuation, not fresh input.
-	imeGuard bool
-
-
-
 	// Memory: persistent project/global facts injected into system prompt.
 	memoryStore *tools.MemoryStore
 
@@ -433,22 +426,6 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(textarea.Blink, spinnerTick())
 }
 
-// imeGuardChar is an invisible zero-width space prepended to empty textarea
-// to prevent Windows Korean IME from freezing on ASCII-starting paste.
-const imeGuardChar = "\u200B"
-
-// resetTextarea resets the textarea and inserts the IME guard character.
-func (m *Model) resetTextarea() {
-	m.resetTextarea()
-	m.textarea.InsertString(imeGuardChar)
-	m.imeGuard = true
-}
-
-// cleanInput strips the IME guard character from user input.
-func cleanInput(s string) string {
-	return strings.TrimSpace(strings.ReplaceAll(s, imeGuardChar, ""))
-}
-
 // spinnerTick sends a tick every 200ms to keep the spinner animated.
 func spinnerTick() tea.Cmd {
 	return tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg {
@@ -586,10 +563,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "enter":
 				// Queue message while streaming
-				input := cleanInput(m.textarea.Value())
+				input := strings.TrimSpace(m.textarea.Value())
 				if input != "" {
 					m.pendingQueue = append(m.pendingQueue, input)
-					m.resetTextarea()
+					m.textarea.Reset()
 					m.textarea.SetHeight(1)
 					m.recalcLayout()
 					// Show queued indicator
@@ -634,7 +611,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "ctrl+u":
 			// Clear input field
-			m.resetTextarea()
+			m.textarea.Reset()
 			m.textarea.SetHeight(1)
 			m.historyIdx = -1
 			m.historyDraft = ""
@@ -696,33 +673,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateViewport()
 			return m, nil
 
-		case "ctrl+v":
-			// Direct clipboard paste — bypasses terminal IME issues on Windows.
-			// Reads clipboard content directly via OS API, avoiding per-character
-			// key events that cause freezing with Korean IME.
-			text, err := clipboard.ReadAll()
-			if err != nil || text == "" {
-				return m, nil
-			}
-			config.DebugLog("[PASTE-CTRL+V] len=%d lines=%d", len(text), strings.Count(text, "\n")+1)
-			m.textarea.InsertString(text)
-			lineCount := strings.Count(text, "\n") + 1
-			lines := strings.Count(m.textarea.Value(), "\n") + 1
-			if lines <= 10 {
-				if lines > m.textarea.Height() {
-					m.textarea.SetHeight(lines)
-				}
-			} else {
-				m.textarea.SetHeight(1)
-			}
-			if lineCount >= 2 {
-				m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
-			} else {
-				m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
-			}
-			m.recalcLayout()
-			return m, nil
-
 		case "shift+enter", "ctrl+j", "ctrl+enter":
 			// Shift+Enter or Ctrl+J = newline (Ctrl+J fallback for Windows CMD/PowerShell)
 			m.textarea.InsertString("\n")
@@ -735,7 +685,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			// Enter = send message
-			input := cleanInput(m.textarea.Value())
+			input := strings.TrimSpace(m.textarea.Value())
 			if input != "" {
 				// Save to input history
 				m.inputHistory = append([]string{input}, m.inputHistory...)
@@ -746,7 +696,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.historyDraft = ""
 				m.pasteHint = ""
 
-				m.resetTextarea()
+				m.textarea.Reset()
 				m.textarea.SetHeight(1)
 				m.recalcLayout()
 				if handled, cmd := m.handleSlashCommand(input); handled {
@@ -766,7 +716,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else if m.historyIdx < len(m.inputHistory)-1 {
 					m.historyIdx++
 				}
-				m.resetTextarea()
+				m.textarea.Reset()
 				m.textarea.InsertString(m.inputHistory[m.historyIdx])
 				return m, nil
 			}
@@ -775,7 +725,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Down arrow: browse input history forward
 			if m.historyIdx >= 0 {
 				m.historyIdx--
-				m.resetTextarea()
+				m.textarea.Reset()
 				if m.historyIdx < 0 {
 					// Back to draft
 					m.textarea.InsertString(m.historyDraft)
@@ -815,30 +765,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		// Bracketed paste: insert pasted text into textarea.
 		text := msg.Content
-		config.DebugLog("[PASTE] PasteMsg received | len=%d | lines=%d", len(text), strings.Count(text, "\n")+1)
 		if text == "" {
 			return m, nil
 		}
 		m.textarea.InsertString(text)
-		// Auto-grow textarea for multi-line pastes
+		// Auto-grow textarea for multi-line pastes (max 5 lines for short, hint for long)
 		lines := strings.Count(m.textarea.Value(), "\n") + 1
 		lineCount := strings.Count(text, "\n") + 1
-		if lineCount <= 10 {
-			// Short-medium paste: expand textarea to show content
-			if lines > m.textarea.Height() {
-				m.textarea.SetHeight(min(lines, 10))
+		if lineCount <= 5 {
+			// Short paste: expand textarea to show content
+			if lines > m.textarea.Height() && lines <= 5 {
+				m.textarea.SetHeight(lines)
+				m.recalcLayout()
 			}
 		} else {
-			// Long paste: keep textarea compact
+			// Long paste: keep textarea compact, show hint above it
 			m.textarea.SetHeight(1)
-		}
-		// Always show hint for any paste
-		if lineCount >= 2 {
 			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
-		} else {
-			m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+			m.recalcLayout()
 		}
-		m.recalcLayout()
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -1327,34 +1272,6 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.setupInput.Reset()
 		m.setupInput.Placeholder = "tg_..."
 		m.setupInput.Focus()
-		return true, nil
-
-	case "/paste":
-		// Direct clipboard paste — bypasses terminal IME completely.
-		// Solves Windows Korean IME freezing on paste.
-		text, err := clipboard.ReadAll()
-		if err != nil || strings.TrimSpace(text) == "" {
-			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "클립보드가 비어있습니다.", Timestamp: time.Now(),
-			})
-			m.updateViewport()
-			return true, nil
-		}
-		config.DebugLog("[PASTE-CMD] len=%d lines=%d", len(text), strings.Count(text, "\n")+1)
-		m.textarea.InsertString(text)
-		lineCount := strings.Count(text, "\n") + 1
-		allLines := strings.Count(m.textarea.Value(), "\n") + 1
-		if allLines <= 10 {
-			m.textarea.SetHeight(min(allLines, 10))
-		} else {
-			m.textarea.SetHeight(1)
-		}
-		if lineCount >= 2 {
-			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
-		} else {
-			m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
-		}
-		m.recalcLayout()
 		return true, nil
 
 	case "/clear":
