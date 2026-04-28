@@ -1275,6 +1275,29 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.setupInput.Focus()
 		return true, nil
 
+	case "/paste", "/v":
+		text, err := clipboard.ReadAll()
+		if err != nil || strings.TrimSpace(text) == "" {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "  클립보드가 비어있습니다.", Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		m.textarea.InsertString(text)
+		lineCount := strings.Count(text, "\n") + 1
+		if lineCount >= 2 {
+			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+		} else {
+			m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+		}
+		lines := strings.Count(m.textarea.Value(), "\n") + 1
+		if lines > 1 && lines <= 10 && lines > m.textarea.Height() {
+			m.textarea.SetHeight(lines)
+		}
+		m.recalcLayout()
+		return true, nil
+
 	case "/clear":
 		m.history = m.history[:1]
 		m.msgs = m.msgs[:0]
