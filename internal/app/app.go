@@ -170,10 +170,6 @@ type Model struct {
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
 
-	// Rapid-input paste detection for terminals without bracketed paste (e.g. conhost.exe)
-	lastKeyAt     time.Time // timestamp of last non-Enter keypress
-	rapidKeyCount int       // consecutive keys within rapid threshold
-	layoutPending bool      // deferred layout recalc during rapid input
 
 	// Memory: persistent project/global facts injected into system prompt.
 	memoryStore *tools.MemoryStore
@@ -690,32 +686,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			// Apply any deferred layout first
-			if m.layoutPending {
-				m.layoutPending = false
-				lines := strings.Count(m.textarea.Value(), "\n") + 1
-				h := min(max(lines, 1), 10)
-				if h != m.textarea.Height() {
-					m.textarea.SetHeight(h)
-					m.recalcLayout()
-				}
-			}
-
-			// Rapid-input paste detection: 10+ chars typed within 100ms → paste
-			config.DebugLog("[ENTER] rapidKeyCount=%d timeSinceLastKey=%v", m.rapidKeyCount, time.Since(m.lastKeyAt))
-			if m.rapidKeyCount >= 10 && time.Since(m.lastKeyAt) < 100*time.Millisecond {
-				config.DebugLog("[ENTER] detected as paste — inserting newline instead of send")
-				m.textarea.InsertString("\n")
-				lineCount := strings.Count(m.textarea.Value(), "\n") + 1
-				if lineCount > 1 {
-					m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
-				}
-				// Don't recalcLayout here — will be applied on next non-rapid key or Enter
-				m.layoutPending = true
-				m.rapidKeyCount = 0
-				return m, nil
-			}
-			m.rapidKeyCount = 0
-
 			// Enter = send message
 			input := strings.TrimSpace(m.textarea.Value())
 			if input != "" {
@@ -780,36 +750,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Track rapid key input for paste detection (conhost.exe fallback)
-		now := time.Now()
-		if now.Sub(m.lastKeyAt) < 100*time.Millisecond {
-			m.rapidKeyCount++
-		} else {
-			// Input paused — if layout was deferred, apply it now
-			if m.layoutPending {
-				m.layoutPending = false
-				lines := strings.Count(m.textarea.Value(), "\n") + 1
-				h := min(max(lines, 1), 10)
-				if h != m.textarea.Height() {
-					m.textarea.SetHeight(h)
-					m.recalcLayout()
-				}
-			}
-			m.rapidKeyCount = 1
-		}
-		m.lastKeyAt = now
-
 		// Default: forward to textarea
 		var taCmd tea.Cmd
 		m.textarea, taCmd = m.textarea.Update(msg)
-
-		// During rapid input (paste), skip expensive layout recalc — defer it
-		if m.rapidKeyCount >= 5 {
-			m.layoutPending = true
-			return m, taCmd
-		}
-
-		// Normal typing: auto-grow/shrink textarea after content changes
+		// Auto-grow/shrink textarea after content changes
 		lines := strings.Count(m.textarea.Value(), "\n") + 1
 		if lines > m.textarea.Height() && lines <= 10 {
 			m.textarea.SetHeight(lines)
