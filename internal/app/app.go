@@ -170,6 +170,11 @@ type Model struct {
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
 
+	// imeGuard: invisible prefix to prevent Windows Korean IME paste freeze.
+	// When textarea is empty and paste starts with ASCII, IME enters broken state.
+	// A zero-width space forces IME to treat it as continuation, not fresh input.
+	imeGuard bool
+
 
 
 	// Memory: persistent project/global facts injected into system prompt.
@@ -428,6 +433,22 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(textarea.Blink, spinnerTick())
 }
 
+// imeGuardChar is an invisible zero-width space prepended to empty textarea
+// to prevent Windows Korean IME from freezing on ASCII-starting paste.
+const imeGuardChar = "\u200B"
+
+// resetTextarea resets the textarea and inserts the IME guard character.
+func (m *Model) resetTextarea() {
+	m.resetTextarea()
+	m.textarea.InsertString(imeGuardChar)
+	m.imeGuard = true
+}
+
+// cleanInput strips the IME guard character from user input.
+func cleanInput(s string) string {
+	return strings.TrimSpace(strings.ReplaceAll(s, imeGuardChar, ""))
+}
+
 // spinnerTick sends a tick every 200ms to keep the spinner animated.
 func spinnerTick() tea.Cmd {
 	return tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg {
@@ -565,10 +586,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "enter":
 				// Queue message while streaming
-				input := strings.TrimSpace(m.textarea.Value())
+				input := cleanInput(m.textarea.Value())
 				if input != "" {
 					m.pendingQueue = append(m.pendingQueue, input)
-					m.textarea.Reset()
+					m.resetTextarea()
 					m.textarea.SetHeight(1)
 					m.recalcLayout()
 					// Show queued indicator
@@ -613,7 +634,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "ctrl+u":
 			// Clear input field
-			m.textarea.Reset()
+			m.resetTextarea()
 			m.textarea.SetHeight(1)
 			m.historyIdx = -1
 			m.historyDraft = ""
@@ -714,7 +735,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			// Enter = send message
-			input := strings.TrimSpace(m.textarea.Value())
+			input := cleanInput(m.textarea.Value())
 			if input != "" {
 				// Save to input history
 				m.inputHistory = append([]string{input}, m.inputHistory...)
@@ -725,7 +746,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.historyDraft = ""
 				m.pasteHint = ""
 
-				m.textarea.Reset()
+				m.resetTextarea()
 				m.textarea.SetHeight(1)
 				m.recalcLayout()
 				if handled, cmd := m.handleSlashCommand(input); handled {
@@ -745,7 +766,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else if m.historyIdx < len(m.inputHistory)-1 {
 					m.historyIdx++
 				}
-				m.textarea.Reset()
+				m.resetTextarea()
 				m.textarea.InsertString(m.inputHistory[m.historyIdx])
 				return m, nil
 			}
@@ -754,7 +775,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Down arrow: browse input history forward
 			if m.historyIdx >= 0 {
 				m.historyIdx--
-				m.textarea.Reset()
+				m.resetTextarea()
 				if m.historyIdx < 0 {
 					// Back to draft
 					m.textarea.InsertString(m.historyDraft)
