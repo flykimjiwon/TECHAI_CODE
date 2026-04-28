@@ -688,10 +688,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "enter":
-			// Rapid-input paste detection: if many keys arrived within 50ms,
+			// Rapid-input paste detection: if keys arrived within 150ms,
 			// this Enter is likely part of a paste (terminal without bracketed paste).
-			// Treat as newline instead of send.
-			if m.rapidKeyCount >= 3 && time.Since(m.lastKeyAt) < 50*time.Millisecond {
+			// Relaxed for Windows conhost + Korean IME (composition adds delay).
+			config.DebugLog("[ENTER] rapidKeyCount=%d timeSinceLastKey=%v", m.rapidKeyCount, time.Since(m.lastKeyAt))
+			if m.rapidKeyCount >= 2 && time.Since(m.lastKeyAt) < 150*time.Millisecond {
+				config.DebugLog("[ENTER] detected as paste — inserting newline instead of send")
 				m.textarea.InsertString("\n")
 				lineCount := strings.Count(m.textarea.Value(), "\n") + 1
 				if lineCount <= 10 {
@@ -774,7 +776,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Track rapid key input for paste detection (conhost.exe fallback)
 		now := time.Now()
-		if now.Sub(m.lastKeyAt) < 50*time.Millisecond {
+		if now.Sub(m.lastKeyAt) < 150*time.Millisecond {
 			m.rapidKeyCount++
 		} else {
 			m.rapidKeyCount = 1
