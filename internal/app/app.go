@@ -693,11 +693,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Treat as newline instead of send.
 			if m.rapidKeyCount >= 3 && time.Since(m.lastKeyAt) < 50*time.Millisecond {
 				m.textarea.InsertString("\n")
-				lines := strings.Count(m.textarea.Value(), "\n") + 1
-				if lines > m.textarea.Height() && lines <= 10 {
-					m.textarea.SetHeight(lines)
-					m.recalcLayout()
+				lineCount := strings.Count(m.textarea.Value(), "\n") + 1
+				if lineCount <= 10 {
+					if lineCount > m.textarea.Height() {
+						m.textarea.SetHeight(lineCount)
+					}
+				} else {
+					m.textarea.SetHeight(1)
 				}
+				m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+				m.recalcLayout()
 				m.rapidKeyCount = 0
 				return m, nil
 			}
