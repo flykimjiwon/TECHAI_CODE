@@ -4,9 +4,10 @@ import "strings"
 
 var (
 	// MaxAutoIterations is the hard upper bound on auto-mode tool-loop
-	// iterations. Deep Agent mode uses 100 (matching hanimo); /auto uses 20.
-	MaxAutoIterations     = 20
-	MaxDeepIterations     = 100
+	// iterations. Deep Agent mode uses 200; /auto uses 50.
+	// qwen3-coder-30b context: 50 is safe within context window.
+	MaxAutoIterations     = 50
+	MaxDeepIterations     = 200
 )
 
 const (

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/textarea"
@@ -92,7 +93,7 @@ type Model struct {
 	lastChunkAt  time.Time
 	lastElapsed  time.Duration
 	tokenCount   int
-	toolIter     int // tool loop iteration counter (max 20)
+	toolIter     int // tool loop iteration counter
 	pendingQueue []string // messages queued while streaming
 	knowledgeInj *knowledge.Injector
 
@@ -892,48 +893,82 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				calls := msg.toolCalls
 				hookMgr := m.hookManager
 				return m, func() tea.Msg {
-					var results []toolResult
+					// Classify tools: read-only can run in parallel, write tools run sequentially
+					readOnlyTools := map[string]bool{
+						"file_read": true, "grep_search": true, "glob_search": true,
+						"list_files": true, "git_status": true, "git_diff": true, "git_log": true,
+					}
+
+					// Check if ALL calls are read-only → parallel execution
+					allReadOnly := true
 					for _, tc := range calls {
-						// Pre-tool hook: abort if hook returns exit code 2
-						if hookMgr != nil {
-							if hookMgr.RunPreToolUse(tc.Name, tc.Arguments) == hooks.HookFailAbort {
-								config.DebugLog("[HOOKS] pre_tool_use aborted %s", tc.Name)
-								results = append(results, toolResult{
-									callID: tc.ID,
-									name:   tc.Name,
-									output: "Aborted by pre_tool_use hook",
-								})
-								continue
+						if !readOnlyTools[tc.Name] {
+							allReadOnly = false
+							break
+						}
+					}
+
+					results := make([]toolResult, len(calls))
+
+					if allReadOnly && len(calls) > 1 {
+						// Parallel execution for read-only tools
+						config.DebugLog("[APP-TOOL] parallel execution: %d read-only tools", len(calls))
+						var wg sync.WaitGroup
+						for i, tc := range calls {
+							wg.Add(1)
+							go func(idx int, tc llm.ToolCallInfo) {
+								defer wg.Done()
+								if hookMgr != nil {
+									if hookMgr.RunPreToolUse(tc.Name, tc.Arguments) == hooks.HookFailAbort {
+										results[idx] = toolResult{callID: tc.ID, name: tc.Name, output: "Aborted by pre_tool_use hook"}
+										return
+									}
+								}
+								ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+								done := make(chan string, 1)
+								go func() { done <- tools.Execute(tc.Name, tc.Arguments) }()
+								var output string
+								select {
+								case output = <-done:
+								case <-ctx.Done():
+									output = fmt.Sprintf("Error: tool %s timed out after 30s", tc.Name)
+								}
+								cancel()
+								if hookMgr != nil {
+									hookMgr.RunPostToolUse(tc.Name, tc.Arguments, output)
+								}
+								results[idx] = toolResult{callID: tc.ID, name: tc.Name, output: output}
+							}(i, tc)
+						}
+						wg.Wait()
+					} else {
+						// Sequential execution (default, or has write tools)
+						for i, tc := range calls {
+							if hookMgr != nil {
+								if hookMgr.RunPreToolUse(tc.Name, tc.Arguments) == hooks.HookFailAbort {
+									config.DebugLog("[HOOKS] pre_tool_use aborted %s", tc.Name)
+									results[i] = toolResult{callID: tc.ID, name: tc.Name, output: "Aborted by pre_tool_use hook"}
+									continue
+								}
 							}
+							ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+							done := make(chan string, 1)
+							go func(name, args string) {
+								done <- tools.Execute(name, args)
+							}(tc.Name, tc.Arguments)
+							var output string
+							select {
+							case output = <-done:
+							case <-ctx.Done():
+								output = fmt.Sprintf("Error: tool %s timed out after 30s", tc.Name)
+								config.DebugLog("[TOOL-TIMEOUT] %s timed out", tc.Name)
+							}
+							cancel()
+							if hookMgr != nil {
+								hookMgr.RunPostToolUse(tc.Name, tc.Arguments, output)
+							}
+							results[i] = toolResult{callID: tc.ID, name: tc.Name, output: output}
 						}
-
-						// Per-tool timeout: 30 seconds max
-						ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-						done := make(chan string, 1)
-						go func(name, args string) {
-							done <- tools.Execute(name, args)
-						}(tc.Name, tc.Arguments)
-
-						var output string
-						select {
-						case output = <-done:
-							// Tool completed normally
-						case <-ctx.Done():
-							output = fmt.Sprintf("Error: tool %s timed out after 30s", tc.Name)
-							config.DebugLog("[TOOL-TIMEOUT] %s timed out", tc.Name)
-						}
-						cancel()
-
-						// Post-tool hook
-						if hookMgr != nil {
-							hookMgr.RunPostToolUse(tc.Name, tc.Arguments, output)
-						}
-
-						results = append(results, toolResult{
-							callID: tc.ID,
-							name:   tc.Name,
-							output: output,
-						})
 					}
 					return toolResultMsg{results: results}
 				}
@@ -1057,7 +1092,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.waitForNextChunk()
 
 	case toolResultMsg:
-		config.DebugLog("[APP-TOOL] received %d tool results | toolIter=%d/20", len(msg.results), m.toolIter+1)
+		toolMax := agents.MaxAutoIterations
+		config.DebugLog("[APP-TOOL] received %d tool results | toolIter=%d/%d", len(msg.results), m.toolIter+1, toolMax)
 		for _, r := range msg.results {
 			config.DebugLog("[APP-TOOL] %s | resultLen=%d", r.name, len(r.output))
 			toolMsg := openai.ChatCompletionMessage{
@@ -1085,16 +1121,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Show processing indicator so user knows AI is working
 		m.msgs = append(m.msgs, ui.Message{
-			Role: ui.RoleSystem, Content: fmt.Sprintf("  Processing... (tool %d/20)", m.toolIter), Timestamp: time.Now(), Tag: "processing",
+			Role: ui.RoleSystem, Content: fmt.Sprintf("  Processing... (tool %d/%d)", m.toolIter, toolMax), Timestamp: time.Now(), Tag: "processing",
 		})
 		m.updateViewport()
 
-		if m.toolIter >= 20 {
-			config.DebugLog("[APP-TOOL] loop limit reached (20 iterations)")
+		if m.toolIter >= toolMax {
+			config.DebugLog("[APP-TOOL] loop limit reached (%d iterations)", toolMax)
 			m.streaming = false
 			m.lastElapsed = time.Since(m.streamStart)
 			m.msgs = append(m.msgs, ui.Message{
-				Role: ui.RoleSystem, Content: "[tool loop limit — 20 iterations]", Timestamp: time.Now(),
+				Role: ui.RoleSystem, Content: fmt.Sprintf("[tool loop limit — %d iterations]", toolMax), Timestamp: time.Now(),
 			})
 			m.updateViewport()
 			return m, nil
@@ -2066,7 +2102,7 @@ func (m *Model) startStream() tea.Cmd {
 	} else if m.activeTab == 2 {
 		modeName = "plan"
 	}
-	config.DebugLog("[APP-STREAM] start | mode=%s | historyMsgs=%d | tools=%d | toolIter=%d/20", modeName, len(history), len(toolDefs), m.toolIter)
+	config.DebugLog("[APP-STREAM] start | mode=%s | historyMsgs=%d | tools=%d | toolIter=%d/%d", modeName, len(history), len(toolDefs), m.toolIter, agents.MaxAutoIterations)
 
 	m.streamCh = m.client.StreamChat(ctx, model, history, toolDefs)
 	return m.waitForNextChunk()
