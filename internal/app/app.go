@@ -42,6 +42,8 @@ type streamChunkMsg struct {
 	usage     *openai.Usage
 }
 
+type pasteFlushMsg struct{} // triggers deferred paste buffer flush
+
 type toolResultMsg struct {
 	results []toolResult
 }
@@ -169,6 +171,11 @@ type Model struct {
 
 	// Paste hint: shown above input box, cleared on next Enter
 	pasteHint string
+
+	// Paste buffer: accumulates rapid key input to avoid per-character textarea freeze
+	pasteBuffer   strings.Builder
+	lastKeyAt     time.Time
+	rapidKeyCount int
 
 
 	// Memory: persistent project/global facts injected into system prompt.
@@ -712,7 +719,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "enter":
-			// Apply any deferred layout first
+			// Flush paste buffer if pending
+			if m.pasteBuffer.Len() > 0 {
+				text := m.pasteBuffer.String()
+				m.pasteBuffer.Reset()
+				m.textarea.InsertString(text)
+				lineCount := strings.Count(text, "\n") + 1
+				allLines := strings.Count(m.textarea.Value(), "\n") + 1
+				if allLines <= 10 {
+					m.textarea.SetHeight(min(allLines, 10))
+				} else {
+					m.textarea.SetHeight(1)
+				}
+				if lineCount >= 2 {
+					m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+				}
+				m.recalcLayout()
+				m.rapidKeyCount = 0
+				return m, nil // Don't send — let user review pasted content first
+			}
 			// Enter = send message
 			input := strings.TrimSpace(m.textarea.Value())
 			if input != "" {
@@ -777,7 +802,54 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Default: forward to textarea
+		// Track input speed for paste detection
+		now := time.Now()
+		if now.Sub(m.lastKeyAt) < 100*time.Millisecond {
+			m.rapidKeyCount++
+		} else {
+			// Input slowed down — flush any pending paste buffer
+			if m.pasteBuffer.Len() > 0 {
+				text := m.pasteBuffer.String()
+				m.pasteBuffer.Reset()
+				m.textarea.InsertString(text)
+				lineCount := strings.Count(text, "\n") + 1
+				allLines := strings.Count(m.textarea.Value(), "\n") + 1
+				if allLines <= 10 {
+					m.textarea.SetHeight(min(allLines, 10))
+				} else {
+					m.textarea.SetHeight(1)
+				}
+				if lineCount >= 2 {
+					m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+				} else if len(text) > 5 {
+					m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+				}
+				m.recalcLayout()
+			}
+			m.rapidKeyCount = 1
+		}
+		m.lastKeyAt = now
+
+		// During rapid input (paste speed), buffer characters instead of
+		// forwarding to textarea individually — prevents IME freeze on Windows
+		if m.rapidKeyCount >= 8 {
+			key := msg.String()
+			if key == "enter" {
+				m.pasteBuffer.WriteString("\n")
+			} else if key == "space" {
+				m.pasteBuffer.WriteString(" ")
+			} else if key == "tab" {
+				m.pasteBuffer.WriteString("\t")
+			} else if len(key) <= 4 && !strings.HasPrefix(key, "ctrl") && !strings.HasPrefix(key, "alt") && key != "esc" && key != "backspace" && key != "delete" && key != "up" && key != "down" && key != "left" && key != "right" {
+				m.pasteBuffer.WriteString(key)
+			}
+			// Return a delayed flush in case input stops
+			return m, tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg {
+				return pasteFlushMsg{}
+			})
+		}
+
+		// Normal typing: forward to textarea
 		var taCmd tea.Cmd
 		m.textarea, taCmd = m.textarea.Update(msg)
 		// Auto-grow/shrink textarea after content changes
@@ -790,6 +862,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.recalcLayout()
 		}
 		return m, taCmd
+
+	case pasteFlushMsg:
+		// Flush accumulated paste buffer into textarea
+		if m.pasteBuffer.Len() > 0 {
+			text := m.pasteBuffer.String()
+			m.pasteBuffer.Reset()
+			config.DebugLog("[PASTE-FLUSH] flushing %d chars", len(text))
+			m.textarea.InsertString(text)
+			lineCount := strings.Count(text, "\n") + 1
+			allLines := strings.Count(m.textarea.Value(), "\n") + 1
+			if allLines <= 10 {
+				m.textarea.SetHeight(min(allLines, 10))
+			} else {
+				m.textarea.SetHeight(1)
+			}
+			if lineCount >= 2 {
+				m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+			} else if len(text) > 5 {
+				m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+			}
+			m.recalcLayout()
+			m.updateViewport()
+		}
+		return m, nil
 
 	case tea.PasteMsg:
 		// Bracketed paste: insert pasted text into textarea.
@@ -1306,6 +1402,34 @@ func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 		m.setupInput.Reset()
 		m.setupInput.Placeholder = "tg_..."
 		m.setupInput.Focus()
+		return true, nil
+
+	case "/paste":
+		// Direct clipboard paste — bypasses terminal IME completely.
+		// Solves Windows Korean IME freezing on paste.
+		text, err := clipboard.ReadAll()
+		if err != nil || strings.TrimSpace(text) == "" {
+			m.msgs = append(m.msgs, ui.Message{
+				Role: ui.RoleSystem, Content: "클립보드가 비어있습니다.", Timestamp: time.Now(),
+			})
+			m.updateViewport()
+			return true, nil
+		}
+		config.DebugLog("[PASTE-CMD] len=%d lines=%d", len(text), strings.Count(text, "\n")+1)
+		m.textarea.InsertString(text)
+		lineCount := strings.Count(text, "\n") + 1
+		allLines := strings.Count(m.textarea.Value(), "\n") + 1
+		if allLines <= 10 {
+			m.textarea.SetHeight(min(allLines, 10))
+		} else {
+			m.textarea.SetHeight(1)
+		}
+		if lineCount >= 2 {
+			m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+		} else {
+			m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+		}
+		m.recalcLayout()
 		return true, nil
 
 	case "/clear":
