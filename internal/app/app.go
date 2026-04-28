@@ -181,6 +181,7 @@ func NewModel(cfg config.Config, initialMode int, needsSetup bool) Model {
 	ta := textarea.New()
 	ta.Placeholder = ""
 	ta.CharLimit = 4096
+	ta.MaxWidth = 10000 // Disable soft-wrap to prevent Korean/English mixed-text freeze
 	ta.SetWidth(80)
 	ta.SetHeight(1)
 	ta.ShowLineNumbers = false
