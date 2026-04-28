@@ -674,6 +674,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateViewport()
 			return m, nil
 
+		case "ctrl+v":
+			// Direct clipboard paste — bypasses terminal IME issues on Windows.
+			// Reads clipboard content directly via OS API, avoiding per-character
+			// key events that cause freezing with Korean IME.
+			text, err := clipboard.ReadAll()
+			if err != nil || text == "" {
+				return m, nil
+			}
+			config.DebugLog("[PASTE-CTRL+V] len=%d lines=%d", len(text), strings.Count(text, "\n")+1)
+			m.textarea.InsertString(text)
+			lineCount := strings.Count(text, "\n") + 1
+			lines := strings.Count(m.textarea.Value(), "\n") + 1
+			if lines <= 10 {
+				if lines > m.textarea.Height() {
+					m.textarea.SetHeight(lines)
+				}
+			} else {
+				m.textarea.SetHeight(1)
+			}
+			if lineCount >= 2 {
+				m.pasteHint = fmt.Sprintf("[Pasted %d lines — Enter to send, Ctrl+U to clear]", lineCount)
+			} else {
+				m.pasteHint = fmt.Sprintf("[Pasted %d chars — Enter to send, Ctrl+U to clear]", len(text))
+			}
+			m.recalcLayout()
+			return m, nil
+
 		case "shift+enter", "ctrl+j", "ctrl+enter":
 			// Shift+Enter or Ctrl+J = newline (Ctrl+J fallback for Windows CMD/PowerShell)
 			m.textarea.InsertString("\n")
