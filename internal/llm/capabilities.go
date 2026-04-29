@@ -47,6 +47,10 @@ var knownModels = map[string]ModelCapability{
 	"claude-haiku-4":    {ContextWindow: 200000, CodingTier: CodingModerate, DefaultRole: RoleAgent, SupportsTools: true},
 	"deepseek-chat":     {ContextWindow: 128000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
 	"deepseek-reasoner": {ContextWindow: 128000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
+	"deepseek-v4-pro":   {ContextWindow: 1000000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
+	"deepseek-v4-flash": {ContextWindow: 1000000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
+	"deepseek/deepseek-v4-pro":   {ContextWindow: 1000000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
+	"deepseek/deepseek-v4-flash": {ContextWindow: 1000000, CodingTier: CodingStrong, DefaultRole: RoleAgent, SupportsTools: true},
 	"llama3.1:8b":       {ContextWindow: 128000, CodingTier: CodingWeak, DefaultRole: RoleChat, SupportsTools: false},
 	"llama3.1:70b":      {ContextWindow: 128000, CodingTier: CodingModerate, DefaultRole: RoleAgent, SupportsTools: true},
 }
