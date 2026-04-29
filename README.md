@@ -2,6 +2,10 @@
 
 OpenAI-compatible API 기반 CLI AI 코딩 어시스턴트. Go + Bubble Tea v2 단일 바이너리.
 
+## Demo
+
+https://github.com/user-attachments/assets/techai-demo.mp4
+
 ## 특징
 
 - **3개 모드**: Super(만능) / Deep Agent(자율 코딩 100회) / Plan(계획) — Tab 전환
